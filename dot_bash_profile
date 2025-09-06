@@ -1,0 +1,4 @@
+# Sourcing .bashrc for non-login interactive shells
+if [ -f "$HOME/.bashrc" ]; then
+  . "$HOME/.bashrc"
+fi
