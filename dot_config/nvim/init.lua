@@ -5,7 +5,7 @@ require("config.lazy")
 vim.g.mapleader = " "
 
 -- Pasting with 'p' replaces the copy buffer, now '<leader>p' does not
-xnoremap("<leader>p", "\"_dP")
+vim.keymap.set('x', '<leader>p', '"_dP')
 
 -- Remap Ctrl-d and Ctrl-u to scroll and then center the screen.
 -- This creates a more fluid scrolling experience.
