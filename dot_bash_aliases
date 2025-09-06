@@ -1,0 +1,83 @@
+# Git stuff
+alias gst='git status'
+alias gp='git pull'
+alias gc='git commit -m'
+alias gaa='git add --all && gst'
+alias gl='git log --graph'
+alias gpo='git push origin'
+alias gpom='git push origin master'
+
+# File system
+# alias ls='ls -lash'
+alias grep='grep --color=auto'
+alias cd2="cd ../.."
+alias cd3="cd ../../.."
+alias del="rmtrash"
+alias rm="rm -i" # to get into a better habit of using del
+
+# Bash commands
+alias e="exit"
+alias c="clear"
+
+###########
+# Functions
+###########
+
+# Going up
+# https://stackoverflow.com/questions/12198222/go-few-directories-up-in-linux
+up() { local p= i=${1:-1}; while (( i-- )); do p+=../; done; cd "$p$2" && pwd; }
+
+
+# make and change dir
+mkcdir ()
+{
+    mkdir -p -- "$1" &&
+      cd -P -- "$1"
+}
+
+# Quickly open google chrome (mac only)
+alias g='/usr/bin/open -a "/Applications/Google Chrome.app"'
+gs() {
+    if read  -t 0 a; then
+        query="$a"
+    else
+        query="$*"
+    fi
+    if [ "$OSTYPE" == "linux-gnu" ]
+    then
+        google-chrome "http://www.google.nl/search?q=$query"
+    else
+        open -a "Google Chrome" "http://www.google.nl/search?q=$query"
+    fi
+}
+
+
+# Append gitignore
+append_gitignore() {
+  curl -sLw "\n" 	https://www.gitignore.io/api/r,macos,python,pycharm,windows,visualstudio,visualstudiocode,jupyternotebooks >> .gitignore
+  awk '!a[$0]++' .gitignore > gitignore
+  mv gitignore .gitignore
+}
+
+# Create a release
+create_release() {
+    # Ensure a version argument is provided
+    if [ -z "$1" ]; then
+        echo "Usage: create_release <version>"
+        echo "Example: create_release v1.2.3"
+        return 1
+    fi
+
+    VERSION=$1
+
+    # Check if the working directory is clean
+    git diff --quiet --cached && git diff --quiet
+    if [ $? -ne 0 ]; then
+        echo "Error: Your working directory is not clean. Commit or stash your changes before tagging."
+        return 1
+    fi
+
+    # Create and push the tag
+    git tag -a "$VERSION" -m "Release $VERSION"
+    git push origin "$VERSION"
+}
