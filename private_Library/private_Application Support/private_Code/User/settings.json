@@ -1,0 +1,49 @@
+{
+    "explorer.confirmDelete": false,
+    "jupyter.askForKernelRestart": false,
+    "explorer.confirmDragAndDrop": false,
+    "javascript.updateImportsOnFileMove.enabled": "always",
+    "github.copilot.nextEditSuggestions.enabled": true,
+    "workbench.editor.empty.hint": "hidden",
+    "makefile.configureOnOpen": false,
+    "redhat.telemetry.enabled": true,
+    "security.workspace.trust.untrustedFiles": "open",
+    "editor.lineNumbers": "relative",
+    "vim.normalModeKeyBindingsNonRecursive": [
+        // Remap Ctrl-d to move down half a page and then center the screen
+        {
+            "before": [
+                "<C-d>"
+            ],
+            "after": [
+                "<C-d>",
+                "z",
+                "z"
+            ]
+        },
+        // Remap Ctrl-u to move up half a page and then center the screen
+        {
+            "before": [
+                "<C-u>"
+            ],
+            "after": [
+                "<C-u>",
+                "z",
+                "z"
+            ]
+        },
+        // Remap Y to yank from the cursor to the end of the line
+        {
+            "before": [
+                "Y"
+            ],
+            "after": [
+                "y",
+                "$"
+            ]
+        }
+    ],
+    "vim.useSystemClipboard": true,
+    // Enable smart indentation (equivalent to vim.opt.smartindent = true)
+    "editor.autoIndent": "full"
+}
