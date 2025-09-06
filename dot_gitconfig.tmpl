@@ -1,0 +1,19 @@
+[core]
+	excludesfile = ~/.gitignore_global
+
+[user]
+	name = Tim Vink
+	email = vinktim@gmail.com
+
+# Conditional config
+[includeIf "gitdir:~/workspace/work/"]
+    path = ~/.gitconfig-work
+
+[push]
+	autoSetupRemote = true
+
+[pull]
+	rebase = false
+
+[format]
+	pretty = format:%C(auto)%h %d%Creset %s%n%Cgreen%ad%Creset %aN <%aE>%n
