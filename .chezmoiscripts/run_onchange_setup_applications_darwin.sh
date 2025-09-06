@@ -27,17 +27,18 @@ CASKS=(
     rectangle
     spotify
     notion
+    starship
     font-roboto
     font-fira-code
     font-meslo-for-powerlevel10k
+    font-powerline-symbols
+    font-hack-nerd-font
+    font-3270-nerd-font
 )
 
 echo "Installing cask apps..."
 brew install --cask "${CASKS[@]}"
 
-echo "Installing fonts..."
-brew install --cask font-roboto
-brew install --cask font-fira-code
 
 echo "Configuring OSX..."
 
