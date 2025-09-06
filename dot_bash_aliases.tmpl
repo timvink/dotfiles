@@ -19,6 +19,15 @@ alias rm="rm -i" # to get into a better habit of using del
 alias e="exit"
 alias c="clear"
 
+{{ if ne .chezmoi.os "windows" }}
+# Use eza, a better colorized ls
+alias ls='eza -lah --long --grid --time-style=long-iso'
+alias lss='eza -ah1 --time-style=long-iso'
+
+# Use bat, a better colorized cat
+alias bat='cat'
+{{ end }}
+
 ###########
 # Functions
 ###########
