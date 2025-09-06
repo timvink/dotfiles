@@ -3,5 +3,5 @@ if [ -f ~/.bash_aliases ]; then
     source ~/.bash_aliases
 fi
 
-## Pretty prompts
+## Pretty prompts, https://starship.rs/
 eval "$(starship init bash)"
