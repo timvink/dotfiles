@@ -1,5 +1,5 @@
 # Source my aliases
 source "$HOME/.bash_aliases"
 
-# Pretty prompts
+# Pretty prompts, https://starship.rs/
 eval "$(starship init zsh)"
