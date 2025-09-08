@@ -44,6 +44,7 @@ PACKAGES=(
   bat
   vim
   neovim
+  uv
   zsh
   zsh-completions
 )

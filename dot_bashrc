@@ -4,4 +4,4 @@ if [ -f ~/.bash_aliases ]; then
 fi
 
 ## Pretty prompts, https://starship.rs/
-eval "$(starship init bash)"
+eval "$(starship init bash)"eval "$(uv generate-shell-completion bash)"

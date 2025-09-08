@@ -2,4 +2,4 @@
 source "$HOME/.bash_aliases"
 
 # Pretty prompts, https://starship.rs/
-eval "$(starship init zsh)"
+eval "$(starship init zsh)"eval "$(uv generate-shell-completion zsh)"

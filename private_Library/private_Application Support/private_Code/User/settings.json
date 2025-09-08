@@ -41,9 +41,26 @@
                 "y",
                 "$"
             ]
-        }
+        },{
+        "before": [
+            "<leader>",
+            "t"
+        ],
+        "commands": [
+            "workbench.action.terminal.toggleTerminal"
+        ]
+    }
+
     ],
+    "vim.handleKeys": {
+        "<C-p>": false,
+        "<C-i>": false,
+        "<C-f>": false,
+        "<C-w>": false
+    },
     "vim.useSystemClipboard": true,
+    "vim.leader": "<Space>",
     // Enable smart indentation (equivalent to vim.opt.smartindent = true)
-    "editor.autoIndent": "full"
+    "editor.autoIndent": "full",
+    "jupyter.notebookFileRoot": "${workspaceFolder}"
 }
