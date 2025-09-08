@@ -1,0 +1,4 @@
+# ~/.config/starship.toml
+
+[python]
+disabled = true
