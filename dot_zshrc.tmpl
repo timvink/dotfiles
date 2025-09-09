@@ -2,15 +2,15 @@
 source "$HOME/.bash_aliases"
 
 # Pretty prompts, https://starship.rs/
-eval "$(starship init zsh)"eval "$(uv generate-shell-completion zsh)"
+eval "$(starship init zsh)"
 
 {{ if eq .chezmoi.os "darwin" }}
-source $HOMEBREW_PREFIX/share/zsh-autocomplete/zsh-autocomplete.plugin.zsh
 source $HOMEBREW_PREFIX/opt/zsh-fast-syntax-highlighting/share/zsh-fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
+source $HOMEBREW_PREFIX/share/zsh-autocomplete/zsh-autocomplete.plugin.zsh
 {{ end }}
 
 {{ if eq .chezmoi.os "linux" }}
-{{   if eq .chezmoi.osRelease.id "ubuntu" }}
+{{  if eq .chezmoi.osRelease.id "ubuntu" }}
 skip_global_compinit=1
-{{ end }}
+{{  end }}
 {{ end }}
