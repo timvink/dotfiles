@@ -47,6 +47,8 @@ PACKAGES=(
   uv
   zsh
   zsh-completions
+  zsh-fast-syntax-highlighting
+  zsh-autocomplete
 )
 brew install ${PACKAGES[@]}
 
