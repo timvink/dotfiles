@@ -1,7 +1,12 @@
+###########
+# Aliases
+###########
+
 # Git stuff
 alias gst='git status'
 alias gp='git pull'
 alias gc='git commit -m'
+alias gco='git checkout'
 alias gaa='git add --all && gst'
 alias gl='git log --graph'
 alias gpo='git push origin'
@@ -20,6 +25,7 @@ alias e="exit"
 alias c="clear"
 
 {{ if ne .chezmoi.os "windows" }}
+
 # Use eza, a better colorized ls
 alias ls='eza -lah --long --grid --time-style=long-iso'
 alias lss='eza -ah1 --time-style=long-iso'
@@ -29,7 +35,15 @@ alias cat='bat'
 
 # Use neovim instead of vim
 alias vim='nvim'
+
 {{ end }}
+
+###########
+# Settings
+###########
+
+export VISUAL="vim"
+export EDITOR="vim"
 
 ###########
 # Functions
