@@ -59,6 +59,17 @@
         "commands": [
             "workbench.action.quickOpen"
         ]
+        },
+        {
+            "before": [
+                "<leader>",
+                "q",
+                "q"
+            ],
+            "commands": [
+                "workbench.action.files.save",
+                "workbench.action.closeActiveEditor"
+            ]
         }
     ],
     "vim.handleKeys": {
