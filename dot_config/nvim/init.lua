@@ -16,6 +16,9 @@ vim.keymap.set('n', '<C-u>', '<C-u>zz', { desc = 'Scroll up half page and center
 -- This makes Y consistent with C and D.
 vim.keymap.set('n', 'Y', 'y$', { desc = 'Yank to end of line' })
 
+-- '<leader>qq' to write and quit
+vim.keymap.set('n', '<leader>qq', ':wq<CR>', { desc = 'Write and quit' })
+
 -- Use smart indentation
 vim.opt.smartindent = true
 
