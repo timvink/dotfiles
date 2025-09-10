@@ -45,6 +45,7 @@ PACKAGES=(
   vim
   neovim
   uv
+  starship
   zsh
   zsh-completions
   zsh-fast-syntax-highlighting

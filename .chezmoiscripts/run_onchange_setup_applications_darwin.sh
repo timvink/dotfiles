@@ -16,24 +16,21 @@ fi
 echo "Updating Homebrew..."
 brew update
 
-
-
 # Cask programs
 CASKS=(
     visual-studio-code
     dropbox
     flux
-    iterm2
     rectangle
     spotify
     notion
-    starship
     font-roboto
     font-fira-code
     font-meslo-for-powerlevel10k
     font-powerline-symbols
     font-hack-nerd-font
     font-3270-nerd-font
+    font-caskaydia-mono-nerd-font
 )
 
 echo "Installing cask apps..."
