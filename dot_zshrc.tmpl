@@ -4,6 +4,15 @@ source "$HOME/.bash_aliases"
 # Pretty prompts, https://starship.rs/
 eval "$(starship init zsh)"
 
+export HISTFILE=~/.zsh_history
+export HISTSIZE=5000
+export SAVEHIST=5000
+
+setopt autocd              # Just type folder name to cd
+setopt correct             # Spell-check commands
+setopt histignorealldups   # No duplicate history entries
+setopt sharehistory        # Share history across sessions
+
 {{ if eq .chezmoi.os "darwin" }}
 source $HOMEBREW_PREFIX/opt/zsh-fast-syntax-highlighting/share/zsh-fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
 source $HOMEBREW_PREFIX/share/zsh-autocomplete/zsh-autocomplete.plugin.zsh

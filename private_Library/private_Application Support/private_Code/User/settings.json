@@ -49,8 +49,17 @@
         "commands": [
             "workbench.action.terminal.toggleTerminal"
         ]
-    }
-
+        },
+            {
+        "before": [
+            "<leader>",
+            "f",
+            "f"
+        ],
+        "commands": [
+            "workbench.action.quickOpen"
+        ]
+        }
     ],
     "vim.handleKeys": {
         "<C-p>": false,
