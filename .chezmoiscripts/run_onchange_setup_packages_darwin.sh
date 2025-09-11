@@ -50,6 +50,7 @@ PACKAGES=(
   zsh-completions
   zsh-fast-syntax-highlighting
   zsh-autocomplete
+  diff-so-fancy
 )
 brew install ${PACKAGES[@]}
 
