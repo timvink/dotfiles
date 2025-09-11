@@ -46,6 +46,18 @@
                 "workbench.action.findInFiles"
             ]
         },
+
+        // Remap <leader>sr to replace in files
+        {
+            "before": [
+                "<leader>",
+                "s",
+                "r"
+            ],
+            "commands": [
+                "workbench.action.replaceInFiles"
+            ]
+        },
        
         // Remap <leader>e to Toggle the file tree on/off.
         {
@@ -67,6 +79,50 @@
                 "workbench.action.toggleSidebarVisibility"
             ],
             "when": "explorerViewletFocus"
+        },
+
+        // Remap Shift+l to go to the next editor tab
+        {
+            "before": [
+                "S-l"
+            ],
+            "commands": [
+                "workbench.action.nextEditor"
+            ]
+        },
+
+        // Remap Shift+h to go to the previous editor tab
+        {
+            "before": [
+                "S-h"
+            ],
+            "commands": [
+                "workbench.action.previousEditor"
+            ]
+        },
+        
+        // Remap <leader>bd (buffer delete) to close the current tab
+        {
+            "before": [
+                "<leader>",
+                "b",
+                "d"
+            ],
+            "commands": [
+                "workbench.action.closeActiveEditor"
+            ]
+        },
+
+        // Remap <leader>bo (buffer delete other buffers) to close all tabs except the current one
+        {
+            "before": [
+                "<leader>",
+                "b",
+                "o"
+            ],
+            "commands": [
+                "workbench.action.closeOtherEditors"
+            ]
         },
 
 
