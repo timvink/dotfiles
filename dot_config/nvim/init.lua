@@ -19,6 +19,8 @@ vim.keymap.set('n', 'Y', 'y$', { desc = 'Yank to end of line' })
 -- '<leader>qq' to write and quit
 vim.keymap.set('n', '<leader>qq', ':wq<CR>', { desc = 'Write and quit' })
 
+-- '<leader>tf' to open a new terminal is a default in LazyVim
+
 -- Use smart indentation
 vim.opt.smartindent = true
 

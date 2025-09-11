@@ -1,0 +1,30 @@
+// Place your key bindings in this file to override the defaults
+[
+    {
+        "key": "shift+enter",
+        "command": "jupyter.execSelectionInteractive",
+        "when": "editorTextFocus && !findInputFocussed && !isCompositeNotebook && !notebookEditorFocused && !replaceInputFocussed && editorLangId == 'python'"
+    },
+    {
+        "key": "shift+enter",
+        "command": "-jupyter.execSelectionInteractive",
+        "when": "editorTextFocus && isWorkspaceTrusted && jupyter.ownsSelection && !findInputFocussed && !isCompositeNotebook && !notebookEditorFocused && !replaceInputFocussed && editorLangId == 'python'"
+    },
+    // Rule 1: From the editor, show and focus the terminal
+    {
+        "key": "ctrl+/",
+        "command": "workbench.action.terminal.focus",
+        "when": "!terminalFocus"
+    },
+    // Rule 2: From the terminal, close the terminal and focus the editor
+    {
+        "key": "ctrl+/",
+        "command": "workbench.action.terminal.toggleTerminal",
+        "when": "terminalFocus"
+    },
+    {
+        "key": "ctrl+/",
+        "command": "-editor.action.accessibleViewAcceptInlineCompletion",
+        "when": "accessibleViewIsShown && accessibleViewCurrentProviderId == 'inlineCompletions'"
+    }
+]
