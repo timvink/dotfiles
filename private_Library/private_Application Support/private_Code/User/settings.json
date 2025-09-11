@@ -10,6 +10,66 @@
     "security.workspace.trust.untrustedFiles": "open",
     "editor.lineNumbers": "relative",
     "vim.normalModeKeyBindingsNonRecursive": [
+        // We want to achieve similar behavior to commonly used lazyvim settings, to achieve a consistent behavior
+        // See for example https://learn.omacom.io/2/the-omarchy-manual/56/neovim
+
+        // Remap <leader>space space to fuzzy file finder
+        // Note: this is the same as <leader>ff but shorter
+        {
+            "before": [
+                "<leader>",
+                " "
+            ],
+            "commands": [
+                "workbench.action.quickOpen"
+            ]
+        },
+        {
+        "before": [
+            "<leader>",
+            "f",
+            "f"
+        ],
+        "commands": [
+            "workbench.action.quickOpen"
+        ]
+        },
+
+        // Remap <leader>sg to search in files
+        {
+            "before": [
+                "<leader>",
+                "s",
+                "g"
+            ],
+            "commands": [
+                "workbench.action.findInFiles"
+            ]
+        },
+       
+        // Remap <leader>e to Toggle the file tree on/off.
+        {
+            "before": [
+                "<leader>",
+                "e"
+            ],
+            "commands": [
+                "workbench.explorer.fileView.focus"
+            ],
+            "when": "!explorerViewletFocus"
+        },
+        {
+            "before": [
+                "<leader>",
+                "e"
+            ],
+            "commands": [
+                "workbench.action.toggleSidebarVisibility"
+            ],
+            "when": "explorerViewletFocus"
+        },
+
+
         // Remap Ctrl-d to move down half a page and then center the screen
         {
             "before": [
@@ -48,16 +108,6 @@
         ],
         "commands": [
             "workbench.action.terminal.toggleTerminal"
-        ]
-        },
-            {
-        "before": [
-            "<leader>",
-            "f",
-            "f"
-        ],
-        "commands": [
-            "workbench.action.quickOpen"
         ]
         },
         {

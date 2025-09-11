@@ -44,6 +44,7 @@ PACKAGES=(
   bat
   vim
   neovim
+  ripgrep # required for lazyvim fuzzy file search
   uv
   starship
   zsh
