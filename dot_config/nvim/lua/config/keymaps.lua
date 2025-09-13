@@ -19,4 +19,10 @@ vim.keymap.set('n', 'Y', 'y$', { desc = 'Yank to end of line' })
 
 -- '<leader>qq' to write and quit
 vim.keymap.set('n', '<leader>qq', ':wq<CR>', { desc = 'Write and quit' })
--- Add any additional keymaps here
+
+-- '<leader>/' to toggle comment in normal and visual mode
+vim.keymap.set({"n", "v"}, "<leader>/", ":CommentToggle<cr>") 
+
+-- Move selections up and down in visual mode
+vim.keymap.set("v", "J", ":m '>+1<CR>gv=gv")
+vim.keymap.set("v", "K", ":m '<-2<CR>gv=gv")
