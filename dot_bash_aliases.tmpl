@@ -24,6 +24,9 @@ alias rm="rm -i" # to get into a better habit of using del
 alias e="exit"
 alias c="clear"
 
+# Other
+alias venv='source .venv/bin/activate'
+
 {{ if ne .chezmoi.os "windows" }}
 
 # Use eza, a better colorized ls
@@ -87,22 +90,52 @@ append_gitignore() {
 }
 
 # Create a release
+# Usage examples: 
+# create_release v1.2.3
+# create_release # detects python package version
 create_release() {
-    # Ensure a version argument is provided
-    if [ -z "$1" ]; then
-        echo "Usage: create_release <version>"
-        echo "Example: create_release v1.2.3"
-        return 1
+
+    # Clean up and install deps
+    rm -rf dist/ build/
+
+    # Check branch name and branch status
+    branch_name=\\$(git branch --show-current)
+    if [ "$branch_name" != "main" ] && [ "$branch_name" != "master" ]; then
+        echo "WARNING: You are on branch '$branch_name'."
+        echo "Consider switching to main or master unless you know what you're doing."
     fi
 
-    VERSION=$1
-
+    # Make sure we don't have remote changes
+    fetch_status=\\$(git fetch --dry-run)
+    if [ -n "\\$fetch_status" ]; then
+        echo "There are changes on the remote. Please pull changes before creating a release."
+        return 1
+    fi
+    
     # Check if the working directory is clean
     git diff --quiet --cached && git diff --quiet
     if [ $? -ne 0 ]; then
         echo "Error: Your working directory is not clean. Commit or stash your changes before tagging."
         return 1
     fi
+    
+    # Ensure a version argument is provided
+    if [ -z "$1" ]; then
+        # Build the package
+        uv build
+
+        # Extract version from the build
+        detected_version=\\$(ls dist/*.tar.gz | rev | cut -d '-' -f1 | rev | sed 's/\\.tar\\.gz\\$//')
+
+        # Ask user if detection version is ok
+        read -p "Detected version: $detected_version. Is this correct? (y/n): " confirm
+        if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+            exit 1
+        else
+            VERSION=$detected_version
+        fi
+    fi
+
 
     # Create and push the tag
     git tag -a "$VERSION" -m "Release $VERSION"

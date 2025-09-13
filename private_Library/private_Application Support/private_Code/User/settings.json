@@ -157,7 +157,9 @@
                 "y",
                 "$"
             ]
-        },{
+        },
+        // Remap <leader>t to toggle the terminal
+        {
         "before": [
             "<leader>",
             "t"
@@ -166,6 +168,7 @@
             "workbench.action.terminal.toggleTerminal"
         ]
         },
+        // Remap <leader>qq to save and close the current (file) buffer. Equivalent to :wq in vim
         {
             "before": [
                 "<leader>",
@@ -175,6 +178,35 @@
             "commands": [
                 "workbench.action.files.save",
                 "workbench.action.closeActiveEditor"
+            ]
+        },
+        // Remap <leader>/ to toggle comment on the current line or selection
+        {
+            "before": [
+                "<leader>",
+                "/"
+            ],
+            "commands": [
+                "editor.action.commentLine"
+            ]
+        }
+    ],
+    "vim.visualModeKeyBindingsNonRecursive": [
+        // Remap J and K in visual mode to move the selected lines down or up
+        {
+            "before": [
+                "J"
+            ],
+            "commands": [
+                "editor.action.moveLinesDownAction"
+            ]
+        },
+        {
+            "before": [
+                "K"
+            ],
+            "commands": [
+                "editor.action.moveLinesUpAction"
             ]
         }
     ],
