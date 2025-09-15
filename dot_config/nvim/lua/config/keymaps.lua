@@ -26,3 +26,20 @@ vim.keymap.set({"n", "v"}, "<leader>/", ":CommentToggle<cr>")
 -- Move selections up and down in visual mode
 vim.keymap.set("v", "J", ":m '>+1<CR>gv=gv")
 vim.keymap.set("v", "K", ":m '<-2<CR>gv=gv")
+
+-- move 5 lines up/down with arrow keys
+vim.keymap.set("n", "<Down>", "5j")
+vim.keymap.set("n", "<Up>", "5k")
+
+-- Keep cursor in the middle when searching next/previous
+vim.keymap.set("n", "n", "nzzzv")
+vim.keymap.set("n", "N", "Nzzzv")
+
+-- When we paste over a selection, don't replace the paste buffer
+vim.keymap.set("x", "<leader>p", [["_dP]])
+
+-- clipboard stuff. Disabled for now (use system clipboard for everything until it starts to annoy me)
+-- <leader>y or <leader>Y to yank to system clipboard
+-- vim.keymap.set("n", "<leader>Y", [["+Y]])
+-- <leader>d to delete without replacing the copy buffer
+-- vim.keymap.set({ "n", "v" }, "<leader>d", "\"_d")
