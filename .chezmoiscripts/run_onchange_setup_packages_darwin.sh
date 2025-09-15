@@ -44,7 +44,10 @@ PACKAGES=(
   bat
   vim
   neovim
+  fd # A simple, fast and user-friendly alternative to 'find'
+  btop # Better than htop
   ripgrep # required for lazyvim fuzzy file search
+  lazydocker
   uv
   starship
   zsh

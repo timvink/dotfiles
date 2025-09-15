@@ -189,7 +189,62 @@
             "commands": [
                 "editor.action.commentLine"
             ]
-        }
+        },
+        // Remap <leader>cf (code format) to format the current file using ruff
+        {
+            "before": [
+                "<leader>",
+                "c",
+                "f"
+            ],
+            "commands": [
+                "ruff.executeFormat"
+            ]
+        },
+        // Remap move 5 lines up/down with arrow keys
+        {
+            "before": [
+                "<Down>"
+            ],
+            "after": [
+                "5",
+                "j"
+            ]
+        },
+        {
+            "before": [
+                "<Up>"
+            ],
+            "after": [
+                "5",
+                "k"
+            ]
+        },
+        // Remap n and N to keep the cursor in the middle when searching next/previous
+        {
+            "before": [
+                "n"
+            ],
+            "after": [
+                "n",
+                "z",
+                "z",
+                "z",
+                "v"
+            ]
+        },
+        {
+            "before": [
+                "N"
+            ],
+            "after": [
+                "N",
+                "z",
+                "z",
+                "z",
+                "v"
+            ]
+        },
     ],
     "vim.visualModeKeyBindingsNonRecursive": [
         // Remap J and K in visual mode to move the selected lines down or up
@@ -208,7 +263,29 @@
             "commands": [
                 "editor.action.moveLinesUpAction"
             ]
-        }
+        },
+        // When we paste over a selection, keep the current clipboard content (don't override it with the replaced text)
+        {
+            "before": [
+                "p"
+            ],
+            "after": [
+                "\"",
+                "_",
+                "d",
+                "P"
+            ],
+        },
+        // Remap <leader>/ to toggle comment on the current line or selection (also in visual mode)
+        {
+            "before": [
+                "<leader>",
+                "/"
+            ],
+            "commands": [
+                "editor.action.commentLine"
+            ]
+        },
     ],
     "vim.handleKeys": {
         "<C-p>": false,
