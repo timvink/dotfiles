@@ -19,280 +19,68 @@
         // We want to achieve similar behavior to commonly used lazyvim settings, to achieve a consistent behavior
         // See for example https://learn.omacom.io/2/the-omarchy-manual/56/neovim
 
+        // SEARCHING
         // Remap <leader>space space to fuzzy file finder
         // Note: this is the same as <leader>ff but shorter
-        {
-            "before": [
-                "<leader>",
-                " "
-            ],
-            "commands": [
-                "workbench.action.quickOpen"
-            ]
-        },
-        {
-        "before": [
-            "<leader>",
-            "f",
-            "f"
-        ],
-        "commands": [
-            "workbench.action.quickOpen"
-        ]
-        },
+        { "before": ["<leader>", " "], "commands": ["workbench.action.quickOpen"] },
+        { "before": ["<leader>", "f", "f"], "commands": ["workbench.action.quickOpen"] },
         // Remap <leader>fg (find git) to search acrross files in the workspace using periscope
         // This will ignored files ignored by git (.gitignore-d)
-        {
-            "before": ["<leader>", "f", "g"],
-            "commands": [
-            {
-                "command": "periscope.searchFiles",
-                "when": "editorTextFocus"
-            }
-            ]
-        },
+        { "before": ["<leader>", "f", "g"], "commands": [{ "command": "periscope.searchFiles", "when": "editorTextFocus" }] },
         // Remap <leader>sg (search git) to search in files
         // This will ignored files ignored by git (.gitignore-d)
-        {
-            "before": [
-                "<leader>",
-                "s",
-                "g"
-            ],
-            "commands": [
-                "periscope.searchFiles"
-            ]
-        },
-
+        { "before": ["<leader>", "s", "g"], "commands": ["periscope.searchFiles"] },
         // Remap <leader>sr to search and replace text across files
-        {
-            "before": [
-                "<leader>",
-                "s",
-                "r"
-            ],
-            "commands": [
-                "workbench.action.replaceInFiles"
-            ]
-        },
+        { "before": ["<leader>", "s", "r"], "commands": ["workbench.action.replaceInFiles"] },
+
+        // Remap n and N to keep the cursor in the middle when searching next/previous
+        { "before": ["n"], "after": ["n", "z", "z", "z", "v"] },
+        { "before": ["N"], "after": ["N", "z", "z", "z", "v"] },
        
+        // FILE TREE AND BUFFERS (tabs) NAVIGATION
         // Remap <leader>e to Toggle the file tree on/off.
-        {
-            "before": [
-                "<leader>",
-                "e"
-            ],
-            "commands": [
-                "workbench.explorer.fileView.focus"
-            ],
-            // "when": "!explorerViewletFocus"
-        },
+        { "before": ["<leader>", "e"], "commands": ["workbench.explorer.fileView.focus"], "when": "!explorerViewletFocus" },
         // Remap Shift+l to go to the next editor tab
         { "before": ["S-l"], "commands": ["workbench.action.nextEditor"] },
         // Remap Shift+h to go to the previous editor tab
-        {
-            "before": [
-                "S-h"
-            ],
-            "commands": [
-                "workbench.action.previousEditor"
-            ]
-        },
-        // Remap <leader>i to open copilot chat
-        {
-            "before": [
-                "<leader>",
-                "i"
-            ],
-            "commands": [
-                "workbench.panel.chat.view.copilot.focus"
-            ]
-        },
+        { "before": ["S-h"], "commands": ["workbench.action.previousEditor"] },
         // Remap <leader>bd (buffer delete) to close the current tab
-        {
-            "before": [
-                "<leader>",
-                "b",
-                "d"
-            ],
-            "commands": [
-                "workbench.action.closeActiveEditor"
-            ]
-        },
-
+        { "before": ["<leader>", "b", "d"], "commands": ["workbench.action.closeActiveEditor"] },
         // Remap <leader>bo (buffer delete other buffers) to close all tabs except the current one
-        {
-            "before": [
-                "<leader>",
-                "b",
-                "o"
-            ],
-            "commands": [
-                "workbench.action.closeOtherEditors"
-            ]
-        },
+        { "before": ["<leader>", "b", "o"], "commands": ["workbench.action.closeOtherEditors"] },
 
-
-        // Remap Ctrl-d to move down half a page and then center the screen
-        {
-            "before": [
-                "<C-d>"
-            ],
-            "after": [
-                "<C-d>",
-                "z",
-                "z"
-            ]
-        },
-        // Remap Ctrl-u to move up half a page and then center the screen
-        {
-            "before": [
-                "<C-u>"
-            ],
-            "after": [
-                "<C-u>",
-                "z",
-                "z"
-            ]
-        },
-        // Remap Y to yank from the cursor to the end of the line
-        {
-            "before": [
-                "Y"
-            ],
-            "after": [
-                "y",
-                "$"
-            ]
-        },
+        // CODING HELPERS
+        // Remap <leader>i to open copilot chat
+        { "before": ["<leader>", "i"], "commands": ["workbench.panel.chat.view.copilot.focus"] },
         // Remap <leader>t to toggle the terminal
-        {
-        "before": [
-            "<leader>",
-            "t"
-        ],
-        "commands": [
-            "workbench.action.terminal.toggleTerminal"
-        ]
-        },
-        // Remap <leader>qq to save and close the current (file) buffer. Equivalent to :wq in vim
-        {
-            "before": [
-                "<leader>",
-                "q",
-                "q"
-            ],
-            "commands": [
-                "workbench.action.files.save",
-                "workbench.action.closeActiveEditor"
-            ]
-        },
-        // Remap <leader>/ to toggle comment on the current line or selection
-        {
-            "before": [
-                "<leader>",
-                "/"
-            ],
-            "commands": [
-                "editor.action.commentLine"
-            ]
-        },
-        // Remap <leader>cf (code format) to format the current file using ruff
-        {
-            "before": [
-                "<leader>",
-                "c",
-                "f"
-            ],
-            "commands": [
-                "ruff.executeFormat"
-            ]
-        },
+        { "before": ["<leader>", "t"], "commands": ["workbench.action.terminal.toggleTerminal"] },
+        
+        // EDITOR
+        // Remap Ctrl-d and Ctrl-U to move down/up half a page and then center the screen
+        { "before": ["<C-d>"], "after": ["<C-d>", "z", "z"] },
+        { "before": ["<C-u>"], "after": ["<C-u>", "z", "z"] },
         // Remap move 5 lines up/down with arrow keys
-        {
-            "before": [
-                "<Down>"
-            ],
-            "after": [
-                "5",
-                "j"
-            ]
-        },
-        {
-            "before": [
-                "<Up>"
-            ],
-            "after": [
-                "5",
-                "k"
-            ]
-        },
-        // Remap n and N to keep the cursor in the middle when searching next/previous
-        {
-            "before": [
-                "n"
-            ],
-            "after": [
-                "n",
-                "z",
-                "z",
-                "z",
-                "v"
-            ]
-        },
-        {
-            "before": [
-                "N"
-            ],
-            "after": [
-                "N",
-                "z",
-                "z",
-                "z",
-                "v"
-            ]
-        },
+        { "before": ["<Down>"], "after": ["5", "j"] },
+        { "before": ["<Up>"], "after": ["5", "k"] },
+
+        // Remap Y to yank from the cursor to the end of the line
+        { "before": ["Y"], "after": ["y", "$"] },
+        // Remap <leader>qq to save and close the current (file) buffer. Equivalent to :wq in vim
+        { "before": ["<leader>", "q", "q"], "commands": ["workbench.action.files.save", "workbench.action.closeActiveEditor"] },
+        // Remap <leader>/ to toggle comment on the current line or selection
+        { "before": ["<leader>", "/"], "commands": ["editor.action.commentLine"] },
+        // Remap <leader>cf (code format) to format the current file using ruff
+        { "before": ["<leader>", "c", "f"], "commands": ["ruff.executeFormat"] },
+    
     ],
     "vim.visualModeKeyBindingsNonRecursive": [
         // Remap J and K (capitals) in visual mode to move the selected lines down or up
-        {
-            "before": [
-                "J"
-            ],
-            "commands": [
-                "editor.action.moveLinesDownAction"
-            ]
-        },
-        {
-            "before": [
-                "K"
-            ],
-            "commands": [
-                "editor.action.moveLinesUpAction"
-            ]
-        },
+        { "before": ["J"], "commands": ["editor.action.moveLinesDownAction"] },
+        { "before": ["K"], "commands": ["editor.action.moveLinesUpAction"] },
         // When we paste over a selection, keep the current clipboard content (don't override it with the replaced text)
-        {
-            "before": [
-                "p"
-            ],
-            "after": [
-                "\"",
-                "_",
-                "d",
-                "P"
-            ],
-        },
+        { "before": ["p"], "after": ["\"", "_", "d", "P"] },
         // Remap <leader>/ to toggle comment on the current line or selection (also in visual mode)
-        {
-            "before": [
-                "<leader>",
-                "/"
-            ],
-            "commands": [
-                "editor.action.commentLine"
-            ]
-        },
+        { "before": ["<leader>", "/"], "commands": ["editor.action.commentLine"] },
     ],
     "vim.handleKeys": {
         "<C-p>": false,
@@ -303,6 +91,5 @@
     "vim.useSystemClipboard": true,
     "vim.leader": "<Space>",
     // Enable smart indentation (equivalent to vim.opt.smartindent = true)
-    "editor.autoIndent": "full",
-    "jupyter.notebookFileRoot": "${workspaceFolder}"
+    "editor.autoIndent": "full"
 }
