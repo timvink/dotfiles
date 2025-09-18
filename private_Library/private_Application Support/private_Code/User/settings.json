@@ -1,14 +1,20 @@
 {
-    "explorer.confirmDelete": false,
+    // Python stuff
     "jupyter.askForKernelRestart": false,
+    "jupyter.notebookFileRoot": "${workspaceFolder}",
+    // Cleaner view
+    "breadcrumbs.enabled": false,
+    "workbench.statusBar.visible": false,
+    "editor.minimap.enabled": false,
+    "editor.lineNumbers": "relative",
+    "workbench.activityBar.location": "hidden",
+    // UI things
+    "explorer.confirmDelete": false,
     "explorer.confirmDragAndDrop": false,
     "javascript.updateImportsOnFileMove.enabled": "always",
     "github.copilot.nextEditSuggestions.enabled": true,
     "workbench.editor.empty.hint": "hidden",
-    "makefile.configureOnOpen": false,
-    "redhat.telemetry.enabled": true,
     "security.workspace.trust.untrustedFiles": "open",
-    "editor.lineNumbers": "relative",
     "vim.normalModeKeyBindingsNonRecursive": [
         // We want to achieve similar behavior to commonly used lazyvim settings, to achieve a consistent behavior
         // See for example https://learn.omacom.io/2/the-omarchy-manual/56/neovim
@@ -34,8 +40,19 @@
             "workbench.action.quickOpen"
         ]
         },
-
-        // Remap <leader>sg to search in files
+        // Remap <leader>fg (find git) to search acrross files in the workspace using periscope
+        // This will ignored files ignored by git (.gitignore-d)
+        {
+            "before": ["<leader>", "f", "g"],
+            "commands": [
+            {
+                "command": "periscope.searchFiles",
+                "when": "editorTextFocus"
+            }
+            ]
+        },
+        // Remap <leader>sg (search git) to search in files
+        // This will ignored files ignored by git (.gitignore-d)
         {
             "before": [
                 "<leader>",
@@ -43,11 +60,11 @@
                 "g"
             ],
             "commands": [
-                "workbench.action.findInFiles"
+                "periscope.searchFiles"
             ]
         },
 
-        // Remap <leader>sr to replace in files
+        // Remap <leader>sr to search and replace text across files
         {
             "before": [
                 "<leader>",
@@ -68,29 +85,10 @@
             "commands": [
                 "workbench.explorer.fileView.focus"
             ],
-            "when": "!explorerViewletFocus"
+            // "when": "!explorerViewletFocus"
         },
-        {
-            "before": [
-                "<leader>",
-                "e"
-            ],
-            "commands": [
-                "workbench.action.toggleSidebarVisibility"
-            ],
-            "when": "explorerViewletFocus"
-        },
-
         // Remap Shift+l to go to the next editor tab
-        {
-            "before": [
-                "S-l"
-            ],
-            "commands": [
-                "workbench.action.nextEditor"
-            ]
-        },
-
+        { "before": ["S-l"], "commands": ["workbench.action.nextEditor"] },
         // Remap Shift+h to go to the previous editor tab
         {
             "before": [
@@ -100,7 +98,16 @@
                 "workbench.action.previousEditor"
             ]
         },
-        
+        // Remap <leader>i to open copilot chat
+        {
+            "before": [
+                "<leader>",
+                "i"
+            ],
+            "commands": [
+                "workbench.panel.chat.view.copilot.focus"
+            ]
+        },
         // Remap <leader>bd (buffer delete) to close the current tab
         {
             "before": [
@@ -247,7 +254,7 @@
         },
     ],
     "vim.visualModeKeyBindingsNonRecursive": [
-        // Remap J and K in visual mode to move the selected lines down or up
+        // Remap J and K (capitals) in visual mode to move the selected lines down or up
         {
             "before": [
                 "J"

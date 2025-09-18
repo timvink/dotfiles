@@ -60,3 +60,16 @@ brew install ${PACKAGES[@]}
 
 echo "Cleaning up..."
 brew cleanup
+
+# Install VSCode extensions
+
+echo "Installing VSCode extensions..."
+VSCODE_EXTENSIONS=(
+  ms-python.python
+  periscope
+  github.copilot
+  github.copilot-chat
+  ruff
+  vscodevim.vim
+  redhat.vscode-yaml
+)
