@@ -10,12 +10,37 @@
         "command": "-jupyter.execSelectionInteractive",
         "when": "editorTextFocus && isWorkspaceTrusted && jupyter.ownsSelection && !findInputFocussed && !isCompositeNotebook && !notebookEditorFocused && !replaceInputFocussed && editorLangId == 'python'"
     },
+    // ESC closes the sidebar 
+    // and moves focus back to the active editor group
+    {
+        "key": "escape",
+        "command": "workbench.action.focusActiveEditorGroup",
+        "when": "explorerViewletVisible || searchViewletVisible || extensionViewletVisible || debugViewletVisible || scmViewletVisible"
+    },
+    {
+        "key": "escape",
+        "command": "workbench.action.closeSidebar",
+        "when": "explorerViewletFocus || searchViewletFocus || extensionViewletFocus || debugViewletFocus ||scmViewletFocus"
+    },
+    // ESC to also Close the secondary sidebar (e.g., Copilot chat, Terminal, etc.)
+    {
+        "key": "escape",
+        "command": "workbench.action.closeAuxiliaryBar",
+        "when": "auxiliaryBarVisible"
+    },
+    {
+        "key": "escape",
+        "command": "workbench.action.focusActiveEditorGroup",
+        "when": "auxiliaryBarFocus"
+    },
+    // Map CTRL + / to toggle Terminal. 
     // Rule 1: From the editor, show and focus the terminal
     {
         "key": "ctrl+/",
         "command": "workbench.action.terminal.focus",
         "when": "!terminalFocus"
     },
+    // Map CTRL + / to toggle Terminal. 
     // Rule 2: From the terminal, close the terminal and focus the editor
     {
         "key": "ctrl+/",
