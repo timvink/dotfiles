@@ -15,22 +15,17 @@
     {
         "key": "escape",
         "command": "workbench.action.focusActiveEditorGroup",
-        "when": "explorerViewletVisible || searchViewletVisible || extensionViewletVisible || debugViewletVisible || scmViewletVisible"
+        "when": "(explorerViewletVisible || searchViewletVisible || extensionViewletVisible || debugViewletVisible || scmViewletVisible) && !inVimMode"
     },
     {
         "key": "escape",
         "command": "workbench.action.closeSidebar",
-        "when": "explorerViewletFocus || searchViewletFocus || extensionViewletFocus || debugViewletFocus ||scmViewletFocus"
+        "when": "(explorerViewletVisible || searchViewletVisible || extensionViewletVisible || debugViewletVisible || scmViewletVisible) && !inVimMode"
     },
     // ESC to also Close the secondary sidebar (e.g., Copilot chat, Terminal, etc.)
     {
         "key": "escape",
         "command": "workbench.action.closeAuxiliaryBar",
-        "when": "auxiliaryBarVisible"
-    },
-    {
-        "key": "escape",
-        "command": "workbench.action.focusActiveEditorGroup",
         "when": "auxiliaryBarFocus"
     },
     // Map CTRL + / to toggle Terminal. 
