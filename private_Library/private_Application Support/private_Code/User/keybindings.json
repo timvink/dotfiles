@@ -46,5 +46,54 @@
         "key": "ctrl+/",
         "command": "-editor.action.accessibleViewAcceptInlineCompletion",
         "when": "accessibleViewIsShown && accessibleViewCurrentProviderId == 'inlineCompletions'"
-    }
+    },
+    // FILE TREE
+    // New file, use trailing / in filename to create a new folder
+    {
+        "key": "a",
+        "command": "explorer.newFile",
+        "when": "filesExplorerFocus && !inputFocus"
+    },
+  {
+    "command": "deleteFile",
+    "key": "d",
+    "when": "filesExplorerFocus && !inputFocus"
+  },
+  {
+    "command": "renameFile",
+    "key": "r",
+    "when": "filesExplorerFocus && !inputFocus"
+  },
+  {
+    "command": "filesExplorer.copy",
+    "key": "c",
+    "when": "filesExplorerFocus && !inputFocus"
+  },
+  {
+    "command": "filesExplorer.paste", 
+    "key": "p",
+    "when": "filesExplorerFocus && !inputFocus"
+  },
+{
+    "command": "workbench.action.closeSidebar", 
+    "key": "q",
+    "when": "filesExplorerFocus && !inputFocus"
+  },
+  {
+    "before": ["g", "g"],
+    "commands": ["list.focusFirst"],
+    "when": "filesExplorerFocus"
+    },
+    // enter to open file
+    {
+        "key": "enter",
+        "command": "explorer.openAndPassFocus",
+        "when": "filesExplorerFocus && !inputFocus"
+    },
+    // o to quickly preview a file, without moving focus 
+    {
+    "key": "o",
+    "command": "filesExplorer.openFilePreserveFocus",
+    "when": "filesExplorerFocus"
+  }
 ]
