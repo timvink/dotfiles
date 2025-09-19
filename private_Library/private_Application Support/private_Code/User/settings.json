@@ -4,10 +4,10 @@
     "jupyter.notebookFileRoot": "${workspaceFolder}",
     // Cleaner view
     "breadcrumbs.enabled": false,
-    "workbench.statusBar.visible": false,
     "editor.minimap.enabled": false,
     "editor.lineNumbers": "relative",
     "workbench.activityBar.location": "hidden",
+    "workbench.statusBar.visible": true,
     // UI things
     "explorer.confirmDelete": false,
     "explorer.confirmDragAndDrop": false,
@@ -91,10 +91,12 @@
         // Remap <leader>gh (goto hover) to show a preview of the definition of the symbol under the cursor 
         { "before": ["g", "h"], "commands": ["editor.action.showDefinitionPreviewHover"] }
     ],
-    "vim.visualModeKeyBindingsNonRecursive": [
+    "vim.visualModeKeyBindings": [
         // stay in visual mode while indenting
         { "before": [">"], "commands": ["editor.action.indentLines"] },
         { "before": ["<"], "commands": ["editor.action.outdentLines"] },
+    ],
+    "vim.visualModeKeyBindingsNonRecursive": [
         // Remap J and K (capitals) in visual mode to move the selected lines down or up
         { "before": ["J"], "commands": ["editor.action.moveLinesDownAction"] },
         { "before": ["K"], "commands": ["editor.action.moveLinesUpAction"] },
@@ -112,5 +114,6 @@
     "vim.useSystemClipboard": true,
     "vim.leader": "<Space>",
     // Enable smart indentation (equivalent to vim.opt.smartindent = true)
-    "editor.autoIndent": "full"
+    "editor.autoIndent": "full",
+    "redhat.telemetry.enabled": false
 }
