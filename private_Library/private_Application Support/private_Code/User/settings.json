@@ -93,8 +93,8 @@
     ],
     "vim.visualModeKeyBindingsNonRecursive": [
         // stay in visual mode while indenting
-        { "before": [">"], "commands": ["editor.action.indentlines"] },
-        { "before": ["<"], "commands": ["editor.action.outdentlines"] },
+        { "before": [">"], "commands": ["editor.action.indentLines"] },
+        { "before": ["<"], "commands": ["editor.action.outdentLines"] },
         // Remap J and K (capitals) in visual mode to move the selected lines down or up
         { "before": ["J"], "commands": ["editor.action.moveLinesDownAction"] },
         { "before": ["K"], "commands": ["editor.action.moveLinesUpAction"] },
