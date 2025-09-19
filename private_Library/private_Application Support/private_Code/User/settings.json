@@ -19,6 +19,22 @@
         // We want to achieve similar behavior to commonly used lazyvim settings, to achieve a consistent behavior
         // See for example https://learn.omacom.io/2/the-omarchy-manual/56/neovim
 
+        // splits
+        { "before": ["leader", "w", "v"], "commands": [":vsplit"] },
+        { "before": ["leader", "w", "s"], "commands": [":split"] },
+
+        // pane navigation
+        { "before": ["leader", "w", "h"], "commands": ["workbench.action.focusLeftGroup"] },
+        { "before": ["leader", "w", "j"], "commands": ["workbench.action.focusBelowGroup"] },
+        { "before": ["leader", "w", "k"], "commands": ["workbench.action.focusAboveGroup"] },
+        { "before": ["leader", "w", "l"], "commands": ["workbench.action.focusRightGroup"] },
+        // Remap <leader>ww to switch to the next pane
+        { "before": ["<leader>", "w", "w"], "commands": ["workbench.action.focusNextGroup"] },
+        // Remap <leader>qd to close the current pane
+        { "before": ["<leader>", "w", "q"], "commands": [":close"] },
+        // Remap <leader>qo to close all other panes except the current one
+        { "before": ["<leader>", "w", "o"], "commands": [":only"] },
+
         // SEARCHING
         // Remap <leader>space space to fuzzy file finder
         // Note: this is the same as <leader>ff but shorter
@@ -71,9 +87,14 @@
         { "before": ["<leader>", "/"], "commands": ["editor.action.commentLine"] },
         // Remap <leader>cf (code format) to format the current file using ruff
         { "before": ["<leader>", "c", "f"], "commands": ["ruff.executeFormat"] },
-    
+        { "before": ["<leader>", "c", "a"], "commands": ["editor.action.quickFix"] },
+        // Remap <leader>gh (goto hover) to show a preview of the definition of the symbol under the cursor 
+        { "before": ["g", "h"], "commands": ["editor.action.showDefinitionPreviewHover"] }
     ],
     "vim.visualModeKeyBindingsNonRecursive": [
+        // stay in visual mode while indenting
+        { "before": [">"], "commands": ["editor.action.indentlines"] },
+        { "before": ["<"], "commands": ["editor.action.outdentlines"] },
         // Remap J and K (capitals) in visual mode to move the selected lines down or up
         { "before": ["J"], "commands": ["editor.action.moveLinesDownAction"] },
         { "before": ["K"], "commands": ["editor.action.moveLinesUpAction"] },
