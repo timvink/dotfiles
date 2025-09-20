@@ -28,6 +28,19 @@
         "command": "workbench.action.closeAuxiliaryBar",
         "when": "auxiliaryBarFocus"
     },
+    // ESC also closes the terminal if it's focused
+      // And it moves focus back to the editor
+    {
+      "key": "escape",
+      "command": "workbench.action.terminal.toggleTerminal",
+      "when": "terminalFocus"
+    },
+    {
+        "key": "escape",
+        "command": "workbench.action.terminal.toggleTerminal",
+        "when": "terminalFocus"
+    },
+
     // Map CTRL + / to toggle Terminal. 
     // Rule 1: From the editor, show and focus the terminal
     {
@@ -47,6 +60,12 @@
         "command": "-editor.action.accessibleViewAcceptInlineCompletion",
         "when": "accessibleViewIsShown && accessibleViewCurrentProviderId == 'inlineCompletions'"
     },
+    // Open file tree when all tabs are closed
+    // {
+    //   "key": "e",
+    //   "command": "workbench.explorer.fileView.focus",
+    //   "when": "!editorTextFocus && !explorerViewletVisible && !sideBarFocus && !terminalFocus && !auxiliaryBarFocus && !inVimMode"
+    // },
     // FILE TREE
     // New file, use trailing / in filename to create a new folder
     {
