@@ -72,4 +72,5 @@ VSCODE_EXTENSIONS=(
   ruff
   vscodevim.vim
   redhat.vscode-yaml
+  catppuccin.catppuccin-vsc
 )

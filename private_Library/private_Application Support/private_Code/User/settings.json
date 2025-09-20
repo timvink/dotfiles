@@ -115,5 +115,6 @@
     "vim.leader": "<Space>",
     // Enable smart indentation (equivalent to vim.opt.smartindent = true)
     "editor.autoIndent": "full",
-    "redhat.telemetry.enabled": false
+    "redhat.telemetry.enabled": false,
+    "workbench.colorTheme": "Catppuccin Mocha"
 }
