@@ -15,7 +15,7 @@
     "github.copilot.nextEditSuggestions.enabled": true,
     "workbench.editor.empty.hint": "hidden",
     "security.workspace.trust.untrustedFiles": "open",
-    "vim.normalModeKeyBindingsNonRecursive": [
+    "vim.normalModeKeyBindingsNonRecursive": [ 
         // We want to achieve similar behavior to commonly used lazyvim settings, to achieve a consistent behavior
         // See for example https://learn.omacom.io/2/the-omarchy-manual/56/neovim
 
@@ -116,5 +116,7 @@
     // Enable smart indentation (equivalent to vim.opt.smartindent = true)
     "editor.autoIndent": "full",
     "redhat.telemetry.enabled": false,
+    // Global setting to enable auto-closing for all languages
+    "editor.autoClosingQuotes": "always",
     "workbench.colorTheme": "Catppuccin Mocha"
 }
