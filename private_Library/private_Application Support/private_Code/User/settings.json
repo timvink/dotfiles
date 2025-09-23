@@ -2,6 +2,9 @@
     // Python stuff
     "jupyter.askForKernelRestart": false,
     "jupyter.notebookFileRoot": "${workspaceFolder}",
+    "jupyter.runStartupCommands": [
+        "%load_ext autoreload", "%autoreload 2"
+    ],
     // Cleaner view
     "breadcrumbs.enabled": false,
     "editor.minimap.enabled": false,

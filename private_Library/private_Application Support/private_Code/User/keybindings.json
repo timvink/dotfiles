@@ -113,6 +113,6 @@
     {
     "key": "o",
     "command": "filesExplorer.openFilePreserveFocus",
-    "when": "filesExplorerFocus"
+    "when": "filesExplorerFocus && !inputFocus"
   }
 ]
