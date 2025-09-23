@@ -1,39 +1,4 @@
 {
-    "description": "Caps Lock: Tap for Escape, Hold for Hyper Key (MacBook Keyboard Only)",
-    "manipulators": [
-        {
-            "conditions": [
-                {
-                    "identifiers": [
-                        {
-                            "product_id": 560,
-                            "vendor_id": 1452
-                        }
-                    ],
-                    "type": "device_if"
-                }
-            ],
-            "from": {
-                "key_code": "caps_lock",
-                "modifiers": { "optional": ["any"] }
-            },
-            "to": [
-                {
-                    "key_code": "left_shift",
-                    "modifiers": ["left_command", "left_control", "left_option"]
-                }
-            ],
-            "to_if_alone": [{ "key_code": "escape" }],
-            "to_if_alone_timeout_milliseconds": 200,
-            "to_if_held_down": [
-                {
-                    "key_code": "left_shift",
-                    "modifiers": ["left_command", "left_control", "left_option"]
-                }
-            ],
-            "type": "basic"
-        }
-    ],
     "profiles": [
         {
             "complex_modifications": {
@@ -43,24 +8,71 @@
                         "description": "Caps Lock: Tap for Escape, Hold for Hyper Key (MacBook Keyboard Only)",
                         "manipulators": [
                             {
-                                "conditions": [
-                                    {
-                                        "identifiers": [{ "is_built_in_keyboard": true }],
-                                        "type": "device_if"
-                                    }
-                                ],
-                                "from": {
-                                    "key_code": "caps_lock",
-                                    "modifiers": { "optional": ["any"] }
-                                },
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": { "key_code": "caps_lock", "modifiers": { "optional": ["any"] } },
                                 "to_if_alone": [{ "key_code": "escape" }],
-                                "to_if_held_down": [
-                                    {
-                                        "key_code": "left_shift",
-                                        "modifiers": ["left_command", "left_control", "left_option"]
-                                    }
-                                ],
+                                "to_if_held_down": [{ "key_code": "left_shift", "modifiers": ["left_command", "left_control", "left_option"] }],
                                 "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Ctrl + Alt + Down to Cmd + H (Minimize)",
+                        "manipulators": [
+                            {
+                                "from": { "key_code": "down_arrow", "modifiers": { "mandatory": ["left_control", "left_option"] } },
+                                "to": [{ "key_code": "h", "modifiers": ["left_command"] }],
+                                "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + F to open Finder",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "f", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
+                                "to": [{ "shell_command": "open -a 'Finder.app'" }]
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + B to open Google Chrome",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "b", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
+                                "to": [{ "shell_command": "open -a 'Google Chrome.app'" }]
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + Enter to open Alacritty",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "return_or_enter", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
+                                "to": [{ "shell_command": "open -a 'Alacritty.app'" }]
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + V to open Visual Studio Code",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "v", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
+                                "to": [{ "shell_command": "open -a 'Visual Studio Code.app'" }]
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + T to open Todoist",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "t", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
+                                "to": [{ "shell_command": "open -a 'Todoist.app'" }]
                             }
                         ]
                     }

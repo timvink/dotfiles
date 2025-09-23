@@ -24,7 +24,6 @@ CASKS=(
     rectangle
     spotify
     notion
-    nikitabobko/tap/aerospace
     font-roboto
     font-fira-code
     font-meslo-for-powerlevel10k
