@@ -24,6 +24,7 @@ CASKS=(
     rectangle
     spotify
     notion
+    nikitabobko/tap/aerospace
     font-roboto
     font-fira-code
     font-meslo-for-powerlevel10k
@@ -47,3 +48,6 @@ defaults write com.apple.desktopservices DSDontWriteNetworkStores true
 
 # Show hidden files by default
 defaults write com.apple.Finder AppleShowAllFiles true
+
+# Disable window animations and Get Info animations
+defaults write -g NSAutomaticWindowAnimationsEnabled -bool false

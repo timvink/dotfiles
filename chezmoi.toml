@@ -1,3 +1,11 @@
 [edit]
     command = "code"
     args = ["--wait"]
+
+{{- if eq .chezmoi.os "darwin" }}
+ 
+[hooks.apply.post]
+command = "aerospace"
+args = ["reload-config"]
+
+{{ end }}
