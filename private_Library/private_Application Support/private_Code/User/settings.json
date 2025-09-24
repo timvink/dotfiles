@@ -59,10 +59,6 @@
         // FILE TREE AND BUFFERS (tabs) NAVIGATION
         // Remap <leader>e to Toggle the file tree on/off.
         { "before": ["<leader>", "e"], "commands": ["workbench.explorer.fileView.focus"], "when": "!explorerViewletFocus" },
-        // Remap Shift+l to go to the next editor tab
-        { "before": ["S-l"], "commands": ["workbench.action.nextEditor"] },
-        // Remap Shift+h to go to the previous editor tab
-        { "before": ["S-h"], "commands": ["workbench.action.previousEditor"] },
         // Remap <leader>bd (buffer delete) to close the current tab
         { "before": ["<leader>", "b", "d"], "commands": ["workbench.action.closeActiveEditor"] },
         // Remap <leader>bo (buffer delete other buffers) to close all tabs except the current one
@@ -103,6 +99,9 @@
         // Remap J and K (capitals) in visual mode to move the selected lines down or up
         { "before": ["J"], "commands": ["editor.action.moveLinesDownAction"] },
         { "before": ["K"], "commands": ["editor.action.moveLinesUpAction"] },
+        // Remap move 5 lines up/down with arrow keys
+        { "before": ["<Down>"], "after": ["5", "j"] },
+        { "before": ["<Up>"], "after": ["5", "k"] },
         // When we paste over a selection, keep the current clipboard content (don't override it with the replaced text)
         { "before": ["p"], "after": ["\"", "_", "d", "P"] },
         // Remap <leader>/ to toggle comment on the current line or selection (also in visual mode)
@@ -121,5 +120,9 @@
     "redhat.telemetry.enabled": false,
     // Global setting to enable auto-closing for all languages
     "editor.autoClosingQuotes": "always",
-    "workbench.colorTheme": "Catppuccin Mocha"
+    "workbench.colorTheme": "Catppuccin Mocha",
+    // Faster VIM plugin
+    "extensions.experimental.affinity": {
+        "vscodevim.vim": 1
+    }
 }
