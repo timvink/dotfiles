@@ -1,4 +1,10 @@
 {
+    "global": {
+        "ask_for_confirmation_before_quitting": true,
+        "check_for_updates_on_startup": true,
+        "show_in_menu_bar": true,
+        "show_profile_name_in_menu_bar": false
+    },
     "profiles": [
         {
             "complex_modifications": {
@@ -73,6 +79,36 @@
                                 "type": "basic",
                                 "from": { "key_code": "t", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
                                 "to": [{ "shell_command": "open -a 'Todoist.app'" }]
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + S to open Spotify",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "s", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
+                                "to": [{ "shell_command": "open -a 'Spotify.app'" }]
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + M to open Slack",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "m", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
+                                "to": [{ "shell_command": "open -a 'Slack.app'" }]
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Hyper + N to open Notion",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "n", "modifiers": { "mandatory": ["left_command", "left_control", "left_option", "left_shift"] } },
+                                "to": [{ "shell_command": "open -a 'Notion.app'" }]
                             }
                         ]
                     }
