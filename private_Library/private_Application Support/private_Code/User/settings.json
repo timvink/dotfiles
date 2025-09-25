@@ -48,7 +48,7 @@
         { "before": ["<leader>", "f", "g"], "commands": [{ "command": "periscope.searchFiles", "when": "editorTextFocus" }] },
         // Remap <leader>sg (search git) to search in files
         // This will ignored files ignored by git (.gitignore-d)
-        { "before": ["<leader>", "s", "g"], "commands": ["periscope.searchFiles"] },
+        { "before": ["<leader>", "s", "g"], "commands": ["periscope.search"] },
         // Remap <leader>sr to search and replace text across files
         { "before": ["<leader>", "s", "r"], "commands": ["workbench.action.replaceInFiles"] },
 
@@ -106,6 +106,16 @@
         { "before": ["p"], "after": ["\"", "_", "d", "P"] },
         // Remap <leader>/ to toggle comment on the current line or selection (also in visual mode)
         { "before": ["<leader>", "/"], "commands": ["editor.action.commentLine"] },
+        // Remap <leader>i to open copilot chat
+        { "before": ["<leader>", "i"], "commands": ["workbench.panel.chat.view.copilot.focus"] },
+        // Remap <leader>t to toggle the terminal
+        { "before": ["<leader>", "t"], "commands": ["workbench.action.terminal.toggleTerminal"] },
+        // Remap <leader>e to Toggle the file tree on/off.
+        { "before": ["<leader>", "e"], "commands": ["workbench.explorer.fileView.focus"], "when": "!explorerViewletFocus" },
+        // Remap <leader>sg to search in files with periscope, prefill with selected text
+        { "before": ["<leader>", "s", "g"], "commands": [{"command": "periscope.search", "args": {"query": "${selectedText}"}}] },
+        // Remap <leader>sr to search and replace text across files, prefill with the selected text
+        { "before": ["<leader>", "s", "r"], "commands": [{"command": "workbench.action.replaceInFiles", "args": {"query": "${selectedText}"}}] },
     ],
     "vim.handleKeys": {
         "<C-p>": false,
@@ -115,13 +125,13 @@
     },
     "vim.useSystemClipboard": true,
     "vim.leader": "<Space>",
-    // Enable smart indentation (equivalent to vim.opt.smartindent = true)
+    // enable smart indentation (equivalent to vim.opt.smartindent = true)
     "editor.autoIndent": "full",
     "redhat.telemetry.enabled": false,
-    // Global setting to enable auto-closing for all languages
+    // global setting to enable auto-closing for all languages
     "editor.autoClosingQuotes": "always",
     "workbench.colorTheme": "Catppuccin Mocha",
-    // Faster VIM plugin
+    // faster vim plugin
     "extensions.experimental.affinity": {
         "vscodevim.vim": 1
     }
