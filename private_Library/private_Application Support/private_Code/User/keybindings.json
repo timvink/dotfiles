@@ -40,6 +40,12 @@
         "command": "workbench.action.terminal.toggleTerminal",
         "when": "terminalFocus"
     },
+    // Show vim command bar with running vim commands with :
+    {
+      "key": "shift+;",
+      "command": "vim.showQuickpickCmdLine",
+      "when": "editorTextFocus && vim.mode != 'Insert'"
+    },
     // Navigate tabs using Shift+h and Shift+l
     // Works in both notebooks and regular text editors
     {
