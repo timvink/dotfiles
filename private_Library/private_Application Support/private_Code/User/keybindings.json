@@ -14,13 +14,14 @@
     // and moves focus back to the active editor group
     {
         "key": "escape",
-        "command": "workbench.action.focusActiveEditorGroup",
-        "when": "(explorerViewletVisible || searchViewletVisible || extensionViewletVisible || debugViewletVisible || scmViewletVisible) && !inVimMode"
-    },
-    {
-        "key": "escape",
-        "command": "workbench.action.closeSidebar",
-        "when": "(explorerViewletVisible || searchViewletVisible || extensionViewletVisible || debugViewletVisible || scmViewletVisible) && !inVimMode"
+        "command": "runCommands",
+        "args": {
+            "commands": [
+                "workbench.action.toggleSidebarVisibility",
+                "workbench.action.focusActiveEditorGroup"
+            ]
+        },
+        "when": "filesExplorerFocus && !inputFocus && !editorTextFocus && !inVimMode && !listFindWidgetVisible"
     },
     // ESC to also Close the secondary sidebar (e.g., Copilot chat, Terminal, etc.)
     {
@@ -134,5 +135,16 @@
     "key": "o",
     "command": "filesExplorer.openFilePreserveFocus",
     "when": "filesExplorerFocus && !inputFocus"
+  },
+  // slash (/) to search files in the explorer
+  {
+    "key": "/",
+    "command": "list.find",
+    "when": "filesExplorerFocus && !inputFocus"
+  },
+  {
+    "key": "escape",
+    "command": "list.findCancel",
+    "when": "listFindWidgetVisible && listFocus"
   }
 ]
