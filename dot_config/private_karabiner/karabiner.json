@@ -17,7 +17,7 @@
                                 "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
                                 "from": { "key_code": "caps_lock", "modifiers": { "optional": ["any"] } },
                                 "to_if_alone": [{ "key_code": "escape" }],
-                                "to_if_held_down": [{ "key_code": "shift", "modifiers": ["command", "control", "option"] }],
+                                "to_if_held_down": [{ "key_code": "left_shift", "modifiers": ["command", "control", "option"] }],
                                 "type": "basic"
                             }
                         ]
