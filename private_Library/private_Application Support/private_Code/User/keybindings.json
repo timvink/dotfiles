@@ -21,7 +21,7 @@
                 "workbench.action.focusActiveEditorGroup"
             ]
         },
-        "when": "filesExplorerFocus && !inputFocus && !editorTextFocus && !inVimMode && !listFindWidgetVisible"
+        "when": "sideBarFocus && !inputFocus && !editorTextFocus && !inVimMode && !listFindWidgetVisible"
     },
     // ESC to also Close the secondary sidebar (e.g., Copilot chat, Terminal, etc.)
     {
@@ -40,6 +40,12 @@
         "key": "escape",
         "command": "workbench.action.terminal.toggleTerminal",
         "when": "terminalFocus"
+    },
+    // ESC closes the search & replace sidebar
+    {
+      "key": "escape",
+      "command": "workbench.action.closeSidebar",
+      "when": "searchViewletFocus"
     },
     // Navigate tabs using Shift+h and Shift+l
     // Works in both notebooks and regular text editors
@@ -144,7 +150,12 @@
   },
   {
     "key": "escape",
-    "command": "list.findCancel",
+    "command": "runCommands",
+    "args": {
+      "commands": [
+        "list.findCancel"
+      ]
+    },
     "when": "listFindWidgetVisible && listFocus"
   }
 ]
