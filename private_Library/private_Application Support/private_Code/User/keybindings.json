@@ -142,6 +142,12 @@
     "command": "filesExplorer.openFilePreserveFocus",
     "when": "filesExplorerFocus && !inputFocus"
   },
+  // Shift + L to move focus back to the navigator
+  {
+    "key": "shift+l",
+    "command": "workbench.view.explorer",
+    "when": "filesExplorerFocus && !inputFocus"
+  },
   // slash (/) to search files in the explorer
   {
     "key": "/",
