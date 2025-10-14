@@ -8,7 +8,10 @@
     "profiles": [
         {
             "complex_modifications": {
-                "parameters": { "basic.to_if_held_down_threshold_milliseconds": 250 },
+                "parameters": { 
+                    "basic.to_if_held_down_threshold_milliseconds": 200,
+                    "basic.to_if_alone_timeout_milliseconds": 200
+                },
                 "rules": [
                     {
                         "description": "Caps Lock: Tap for Escape, Hold for Hyper Key (MacBook Keyboard Only)",
@@ -19,6 +22,120 @@
                                 "to_if_alone": [{ "key_code": "escape" }],
                                 "to_if_held_down": [{ "key_code": "left_shift", "modifiers": ["command", "control", "option"] }],
                                 "type": "basic"
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Home Row Mods: A (tap A, hold left_control)",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "a", "modifiers": { "optional": ["any"] } },
+                                "to_delayed_action": {
+                                    "to_if_canceled": [{ "key_code": "a" }]
+                                },
+                                "to_if_alone": [{ "key_code": "a", "halt": true }],
+                                "to_if_held_down": [{ "key_code": "left_control" }],
+                                "parameters": {
+                                    "basic.to_if_alone_timeout_milliseconds": 300,
+                                    "basic.to_if_held_down_threshold_milliseconds": 80,
+                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Home Row Mods: S (tap S, hold left_option)",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "s", "modifiers": { "optional": ["any"] } },
+                                "to_delayed_action": {
+                                    "to_if_canceled": [{ "key_code": "s" }]
+                                },
+                                "to_if_alone": [{ "key_code": "s", "halt": true }],
+                                "to_if_held_down": [{ "key_code": "left_option" }],
+                                "parameters": {
+                                    "basic.to_if_alone_timeout_milliseconds": 300,
+                                    "basic.to_if_held_down_threshold_milliseconds": 80,
+                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Home Row Mods: D (tap D, hold left_shift)",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "d", "modifiers": { "optional": ["any"] } },
+                                "to_delayed_action": {
+                                    "to_if_canceled": [{ "key_code": "d" }]
+                                },
+                                "to_if_alone": [{ "key_code": "d", "halt": true }],
+                                "to_if_held_down": [{ "key_code": "left_shift" }],
+                                "parameters": {
+                                    "basic.to_if_alone_timeout_milliseconds": 300,
+                                    "basic.to_if_held_down_threshold_milliseconds": 80,
+                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Home Row Mods: F (tap F, hold left_command)",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "f", "modifiers": { "optional": ["any"] } },
+                                "to_delayed_action": {
+                                    "to_if_canceled": [{ "key_code": "f" }]
+                                },
+                                "to_if_alone": [{ "key_code": "f", "halt": true }],
+                                "to_if_held_down": [{ "key_code": "left_command" }],
+                                "parameters": {
+                                    "basic.to_if_alone_timeout_milliseconds": 300,
+                                    "basic.to_if_held_down_threshold_milliseconds": 80,
+                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Home Row Mods: J (tap J, hold right_command)",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "j", "modifiers": { "optional": ["any"] } },
+                                "to_delayed_action": {
+                                    "to_if_canceled": [{ "key_code": "j" }]
+                                },
+                                "to_if_alone": [{ "key_code": "j", "halt": true }],
+                                "to_if_held_down": [{ "key_code": "right_command" }],
+                                "parameters": {
+                                    "basic.to_if_alone_timeout_milliseconds": 300,
+                                    "basic.to_if_held_down_threshold_milliseconds": 80,
+                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                }
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Home Row Mods: K (tap K, hold right_shift)",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "k", "modifiers": { "optional": ["any"] } },
+                                "to_delayed_action": {
+                                    "to_if_canceled": [{ "key_code": "k" }]
+                                },
+                                "to_if_alone": [{ "key_code": "k", "halt": true }],
+                                "to_if_held_down": [{ "key_code": "right_shift" }],
+                                "parameters": {
+                                    "basic.to_if_alone_timeout_milliseconds": 300,
+                                    "basic.to_if_held_down_threshold_milliseconds": 80,
+                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                }
                             }
                         ]
                     },
@@ -39,7 +156,7 @@
                                 "type": "basic",
                                 "from": { "key_code": "f", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
-                                    { "shell_command": "open -a 'Finder.app'" }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.apple.finder" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
@@ -59,7 +176,7 @@
                                 "type": "basic",
                                 "from": { "key_code": "b", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
-                                    { "shell_command": "open -a 'Google Chrome.app'" }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.google.Chrome" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
@@ -79,7 +196,7 @@
                                 "type": "basic",
                                 "from": { "key_code": "return_or_enter", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
-                                    { "shell_command": "open -a 'Alacritty.app'" }
+                                    { "software_function": { "open_application": { "bundle_identifier": "org.alacritty" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
@@ -99,7 +216,7 @@
                                 "type": "basic",
                                 "from": { "key_code": "v", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
-                                    { "shell_command": "open -a 'Visual Studio Code.app'" }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.microsoft.VSCode" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
@@ -119,7 +236,7 @@
                                 "type": "basic",
                                 "from": { "key_code": "t", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
-                                    { "shell_command": "open -a 'Todoist.app'" }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.todoist.mac.Todoist" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
@@ -139,7 +256,7 @@
                                 "type": "basic",
                                 "from": { "key_code": "s", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
-                                    { "shell_command": "open -a 'Spotify.app'" }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.spotify.client" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
@@ -159,7 +276,7 @@
                                 "type": "basic",
                                 "from": { "key_code": "m", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
-                                    { "shell_command": "open -a 'Slack.app'" }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.tinyspeck.slackmacgap" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
@@ -179,7 +296,7 @@
                                 "type": "basic",
                                 "from": { "key_code": "n", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
-                                    { "shell_command": "open -a 'Notion.app'" }
+                                    { "software_function": { "open_application": { "bundle_identifier": "notion.id" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
