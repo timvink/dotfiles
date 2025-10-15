@@ -30,7 +30,7 @@
                         "manipulators": [
                             {
                                 "type": "basic",
-                                "from": { "key_code": "a", "modifiers": { "optional": ["any"] } },
+                                "from": { "key_code": "a", "modifiers": { "optional": ["caps_lock"] } },
                                 "to_delayed_action": {
                                     "to_if_canceled": [{ "key_code": "a" }]
                                 },
@@ -49,7 +49,7 @@
                         "manipulators": [
                             {
                                 "type": "basic",
-                                "from": { "key_code": "s", "modifiers": { "optional": ["any"] } },
+                                "from": { "key_code": "s", "modifiers": { "optional": ["caps_lock"] } },
                                 "to_delayed_action": {
                                     "to_if_canceled": [{ "key_code": "s" }]
                                 },
@@ -68,7 +68,7 @@
                         "manipulators": [
                             {
                                 "type": "basic",
-                                "from": { "key_code": "d", "modifiers": { "optional": ["any"] } },
+                                "from": { "key_code": "d", "modifiers": { "optional": ["caps_lock"] } },
                                 "to_delayed_action": {
                                     "to_if_canceled": [{ "key_code": "d" }]
                                 },
@@ -87,7 +87,7 @@
                         "manipulators": [
                             {
                                 "type": "basic",
-                                "from": { "key_code": "f", "modifiers": { "optional": ["any"] } },
+                                "from": { "key_code": "f", "modifiers": { "optional": ["caps_lock"] } },
                                 "to_delayed_action": {
                                     "to_if_canceled": [{ "key_code": "f" }]
                                 },
@@ -106,7 +106,7 @@
                         "manipulators": [
                             {
                                 "type": "basic",
-                                "from": { "key_code": "j", "modifiers": { "optional": ["any"] } },
+                                "from": { "key_code": "j", "modifiers": { "optional": ["caps_lock"] } },
                                 "to_delayed_action": {
                                     "to_if_canceled": [{ "key_code": "j" }]
                                 },
@@ -125,7 +125,7 @@
                         "manipulators": [
                             {
                                 "type": "basic",
-                                "from": { "key_code": "k", "modifiers": { "optional": ["any"] } },
+                                "from": { "key_code": "k", "modifiers": { "optional": ["caps_lock"] } },
                                 "to_delayed_action": {
                                     "to_if_canceled": [{ "key_code": "k" }]
                                 },
