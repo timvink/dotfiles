@@ -125,22 +125,17 @@
     "key": "q",
     "when": "filesExplorerFocus && !inputFocus"
   },
+  // enter to open file
   {
-    "before": ["g", "g"],
-    "commands": ["list.focusFirst"],
-    "when": "filesExplorerFocus"
-    },
-    // enter to open file
-    {
-        "key": "enter",
-        "command": "explorer.openAndPassFocus",
-        "when": "filesExplorerFocus && !inputFocus"
-    },
-    // o to quickly preview a file, without moving focus 
-    {
-    "key": "o",
-    "command": "filesExplorer.openFilePreserveFocus",
-    "when": "filesExplorerFocus && !inputFocus"
+      "key": "enter",
+      "command": "explorer.openAndPassFocus",
+      "when": "filesExplorerFocus && !inputFocus"
+  },
+  // o to quickly preview a file, without moving focus 
+  {
+  "key": "o",
+  "command": "filesExplorer.openFilePreserveFocus",
+  "when": "filesExplorerFocus && !inputFocus"
   },
   // Shift + L to move focus back to the navigator
   {
