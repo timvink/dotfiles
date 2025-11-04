@@ -74,9 +74,6 @@
         // Remap Ctrl-d and Ctrl-U to move down/up half a page and then center the screen
         { "before": ["<C-d>"], "after": ["<C-d>", "z", "z"] },
         { "before": ["<C-u>"], "after": ["<C-u>", "z", "z"] },
-        // Remap move 5 lines up/down with arrow keys
-        { "before": ["<Down>"], "after": ["5", "j", "z", "z"] },
-        { "before": ["<Up>"], "after": ["5", "k", "z", "z"] },
 
         // Remap Y to yank from the cursor to the end of the line
         { "before": ["Y"], "after": ["y", "$"] },
@@ -99,9 +96,6 @@
         // Remap J and K (capitals) in visual mode to move the selected lines down or up
         { "before": ["J"], "commands": ["editor.action.moveLinesDownAction"] },
         { "before": ["K"], "commands": ["editor.action.moveLinesUpAction"] },
-        // Remap move 5 lines up/down with arrow keys
-        { "before": ["<Down>"], "after": ["5", "j", "z", "z"] },
-        { "before": ["<Up>"], "after": ["5", "k", "z", "z"] },
         // When we paste over a selection, keep the current clipboard content (don't override it with the replaced text)
         { "before": ["p"], "after": ["\"", "_", "d", "P"] },
         // Remap <leader>/ to toggle comment on the current line or selection (also in visual mode)
