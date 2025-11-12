@@ -16,6 +16,9 @@ export SAVEHIST=5000
 setopt histignorealldups   # No duplicate history entries
 setopt sharehistory        # Share history across sessions
 
+# Update path for claude code
+export PATH="$HOME/.local/bin:$PATH"
+
 {{ if eq .chezmoi.os "darwin" }}
 source $HOMEBREW_PREFIX/opt/zsh-fast-syntax-highlighting/share/zsh-fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh
 source $HOMEBREW_PREFIX/share/zsh-autocomplete/zsh-autocomplete.plugin.zsh

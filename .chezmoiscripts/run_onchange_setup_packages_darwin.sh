@@ -74,3 +74,6 @@ VSCODE_EXTENSIONS=(
   redhat.vscode-yaml
   catppuccin.catppuccin-vsc
 )
+
+# Install Claude Code
+curl -fsSL https://claude.ai/install.sh | bash
