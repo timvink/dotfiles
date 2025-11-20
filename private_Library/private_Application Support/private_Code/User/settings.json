@@ -140,7 +140,12 @@
        "editor.defaultFormatter": "redhat.vscode-yaml"
    },
     "chat.tools.terminal.autoApprove": {
-        "uv": true
-    }
-
+        "uv": true,
+        "docker exec": true,
+        "import": true,
+    },
+    "chat.mcp.gallery.enabled": true,
+    "containers.containerClient": "com.microsoft.visualstudio.containers.docker",
+    "containers.orchestratorClient": "com.microsoft.visualstudio.orchestrators.dockercompose",
+    "chat.agentSessionsViewLocation": "single-view"
 }
