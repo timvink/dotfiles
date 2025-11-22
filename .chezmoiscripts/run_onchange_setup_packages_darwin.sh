@@ -55,6 +55,7 @@ PACKAGES=(
   zsh-fast-syntax-highlighting
   zsh-autocomplete
   diff-so-fancy
+  visidata
 )
 brew install ${PACKAGES[@]}
 

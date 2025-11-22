@@ -17,6 +17,7 @@
     "javascript.updateImportsOnFileMove.enabled": "always",
     "github.copilot.nextEditSuggestions.enabled": true,
     "workbench.editor.empty.hint": "hidden",
+    "workbench.startupEditor": "readme",
     "security.workspace.trust.untrustedFiles": "open",
     "vim.normalModeKeyBindingsNonRecursive": [ 
         // We want to achieve similar behavior to commonly used lazyvim settings, to achieve a consistent behavior
@@ -144,6 +145,7 @@
         "docker exec": true,
         "import": true,
     },
+    "chat.tools.global.autoApprove": true,
     "chat.mcp.gallery.enabled": true,
     "containers.containerClient": "com.microsoft.visualstudio.containers.docker",
     "containers.orchestratorClient": "com.microsoft.visualstudio.orchestrators.dockercompose",
