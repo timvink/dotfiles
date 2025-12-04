@@ -18,6 +18,7 @@
     "github.copilot.nextEditSuggestions.enabled": true,
     "workbench.editor.empty.hint": "hidden",
     "workbench.startupEditor": "readme",
+    "workbench.editor.enablePreview": false,
     "security.workspace.trust.untrustedFiles": "open",
     "vim.normalModeKeyBindingsNonRecursive": [ 
         // We want to achieve similar behavior to commonly used lazyvim settings, to achieve a consistent behavior
@@ -86,7 +87,9 @@
         { "before": ["<leader>", "c", "f"], "commands": ["ruff.executeFormat"] },
         { "before": ["<leader>", "c", "a"], "commands": ["editor.action.quickFix"] },
         // Remap <leader>gh (goto hover) to show a preview of the definition of the symbol under the cursor 
-        { "before": ["g", "h"], "commands": ["editor.action.showDefinitionPreviewHover"] }
+        { "before": ["g", "h"], "commands": ["editor.action.showDefinitionPreviewHover"] },
+        // Remap <leader>p to open markdown preview
+        { "before": ["<leader>", "p"], "commands": ["markdown.showPreview"] }
     ],
     "vim.visualModeKeyBindings": [
         // stay in visual mode while indenting
@@ -145,9 +148,11 @@
         "docker exec": true,
         "import": true,
     },
-    "chat.tools.global.autoApprove": true,
-    "chat.mcp.gallery.enabled": true,
     "containers.containerClient": "com.microsoft.visualstudio.containers.docker",
     "containers.orchestratorClient": "com.microsoft.visualstudio.orchestrators.dockercompose",
-    "chat.agentSessionsViewLocation": "single-view"
+    "chat.tools.global.autoApprove": true,
+    "chat.mcp.gallery.enabled": true,
+    "chat.agentSessionsViewLocation": "single-view",
+    "chat.agent.maxRequests": 50,
+    "github.copilot.chat.anthropic.tools.websearch.maxUses": 10
 }
