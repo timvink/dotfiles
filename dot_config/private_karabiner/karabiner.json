@@ -156,161 +156,313 @@
                         ]
                     },
                     {
-                        "description": "Hyper + F to open Finder",
+                        "description": "Hyper + F to open Finder (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "from": { "key_code": "f", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "f" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "f", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "f" } },
                                     { "software_function": { "open_application": { "bundle_identifier": "com.apple.finder" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
-                                        { "key_code": "left_arrow", "modifiers": ["control", "option"] }
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
                                     ]
                                 },
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
                                 }
                             }
                         ]
                     },
                     {
-                        "description": "Hyper + B to open Google Chrome",
+                        "description": "Hyper + B to open Google Chrome (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "from": { "key_code": "b", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "b" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "b", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "b" } },
                                     { "software_function": { "open_application": { "bundle_identifier": "com.google.Chrome" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
-                                        { "key_code": "up_arrow", "modifiers": ["control", "option"] }
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
                                     ]
                                 },
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
                                 }
                             }
                         ]
                     },
                     {
-                        "description": "Hyper + Enter to open Alacritty, then move to the right (uses rectangle app shortcut)",
+                        "description": "Hyper + Enter to open Alacritty (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "from": { "key_code": "return_or_enter", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "enter" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "return_or_enter", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "enter" } },
                                     { "software_function": { "open_application": { "bundle_identifier": "org.alacritty" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
-                                        { "key_code": "right_arrow", "modifiers": ["control", "option"] }
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
                                     ]
                                 },
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
                                 }
                             }
                         ]
                     },
                     {
-                        "description": "Hyper + V to open Visual Studio Code",
+                        "description": "Hyper + V to open Visual Studio Code (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "from": { "key_code": "v", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "v" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "v", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "v" } },
                                     { "software_function": { "open_application": { "bundle_identifier": "com.microsoft.VSCode" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
-                                        { "key_code": "up_arrow", "modifiers": ["control", "option"] }
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
                                     ]
                                 },
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
                                 }
                             }
                         ]
                     },
                     {
-                        "description": "Hyper + T to open Todoist",
+                        "description": "Hyper + T to open Todoist (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "from": { "key_code": "t", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "t" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "t", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "t" } },
                                     { "software_function": { "open_application": { "bundle_identifier": "com.todoist.mac.Todoist" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
-                                        { "key_code": "right_arrow", "modifiers": ["control", "option"] }
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
                                     ]
                                 },
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
                                 }
                             }
                         ]
                     },
                     {
-                        "description": "Hyper + S to open Spotify",
+                        "description": "Hyper + S to open Spotify (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "from": { "key_code": "s", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "s" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "s", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "s" } },
                                     { "software_function": { "open_application": { "bundle_identifier": "com.spotify.client" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
-                                        { "key_code": "up_arrow", "modifiers": ["control", "option"] }
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
                                     ]
                                 },
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
                                 }
                             }
                         ]
                     },
                     {
-                        "description": "Hyper + M to open Slack",
+                        "description": "Hyper + M to open Slack (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "from": { "key_code": "m", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "m" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "m", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "m" } },
                                     { "software_function": { "open_application": { "bundle_identifier": "com.tinyspeck.slackmacgap" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
-                                        { "key_code": "up_arrow", "modifiers": ["control", "option"] }
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
                                     ]
                                 },
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
                                 }
                             }
                         ]
                     },
                     {
-                        "description": "Hyper + N to open Notion",
+                        "description": "Hyper + N to open Notion (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "from": { "key_code": "n", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "n" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "n", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "n" } },
                                     { "software_function": { "open_application": { "bundle_identifier": "notion.id" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
-                                        { "key_code": "up_arrow", "modifiers": ["control", "option"] }
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
                                     ]
                                 },
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 80
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
                                 }
                             }
                         ]
