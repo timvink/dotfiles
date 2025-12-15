@@ -234,6 +234,45 @@
                         ]
                     },
                     {
+                        "description": "Hyper + C to open Citrix Viewer (repeat to cycle windows)",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "c", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "key_code": "grave_accent_and_tilde", "modifiers": ["command"] }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                },
+                                "conditions": [
+                                    { "type": "variable_if", "name": "hyper_app", "value": "c" }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "c", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
+                                "to": [
+                                    { "set_variable": { "name": "hyper_app", "value": "c" } },
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.citrix.receiver.icaviewer.mac" } } }
+                                ],
+                                "to_delayed_action": {
+                                    "to_if_invoked": [
+                                        { "set_variable": { "name": "hyper_app", "value": "" } }
+                                    ]
+                                },
+                                "parameters": {
+                                    "basic.to_delayed_action_delay_milliseconds": 1500
+                                }
+                            }
+                        ]
+                    },
+                    {
                         "description": "Hyper + Enter to open Alacritty (repeat to cycle windows)",
                         "manipulators": [
                             {
