@@ -87,12 +87,6 @@
         "command": "-editor.action.accessibleViewAcceptInlineCompletion",
         "when": "accessibleViewIsShown && accessibleViewCurrentProviderId == 'inlineCompletions'"
     },
-    // Open file tree when all tabs are closed
-    // {
-    //   "key": "e",
-    //   "command": "workbench.explorer.fileView.focus",
-    //   "when": "!editorTextFocus && !explorerViewletVisible && !sideBarFocus && !terminalFocus && !auxiliaryBarFocus && !inVimMode"
-    // },
     // FILE TREE
     // New file, use trailing / in filename to create a new folder
     {
