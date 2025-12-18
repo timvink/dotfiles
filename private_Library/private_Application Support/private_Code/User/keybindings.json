@@ -125,11 +125,6 @@
     "key": "q",
     "when": "filesExplorerFocus && !inputFocus"
   },
-  {
-    "before": ["g", "g"],
-    "commands": ["list.focusFirst"],
-    "when": "filesExplorerFocus"
-  },
   // enter to open file
   {
       "key": "enter",
@@ -163,11 +158,5 @@
       ]
     },
     "when": "listFindWidgetVisible && listFocus"
-  },
-  // New keybinding for space t to toggle terminal
-  {
-      "key": "space t",
-      "command": "workbench.action.terminal.toggleTerminal",
-      "when": "editorTextFocus"
   }
 ]
