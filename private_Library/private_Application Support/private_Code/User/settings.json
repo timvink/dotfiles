@@ -154,5 +154,6 @@
     "chat.mcp.gallery.enabled": true,
     "chat.agentSessionsViewLocation": "single-view",
     "chat.agent.maxRequests": 50,
-    "github.copilot.chat.anthropic.tools.websearch.maxUses": 10
+    "github.copilot.chat.anthropic.tools.websearch.maxUses": 10,
+    "python.languageServer": "None" # Disable to avoid conflicts with astral-sh.ty extension
 }
