@@ -70,10 +70,11 @@ VSCODE_EXTENSIONS=(
   periscope
   github.copilot
   github.copilot-chat
-  ruff
+  charliermarsh.ruff
   vscodevim.vim
   redhat.vscode-yaml
   catppuccin.catppuccin-vsc
+  astral-sh.ty
 )
 
 # Install Claude Code
