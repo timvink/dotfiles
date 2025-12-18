@@ -68,24 +68,6 @@
         "key": "shift+l", 
         "command": "workbench.action.nextEditor",
         "when": "editorTextFocus && vim.mode == 'Normal'"
-    },// Map CTRL + / to toggle Terminal. 
-    // Rule 1: From the editor, show and focus the terminal
-    {
-        "key": "ctrl+/",
-        "command": "workbench.action.terminal.focus",
-        "when": "!terminalFocus"
-    },
-    // Map CTRL + / to toggle Terminal. 
-    // Rule 2: From the terminal, close the terminal and focus the editor
-    {
-        "key": "ctrl+/",
-        "command": "workbench.action.terminal.toggleTerminal",
-        "when": "terminalFocus"
-    },
-    {
-        "key": "ctrl+/",
-        "command": "-editor.action.accessibleViewAcceptInlineCompletion",
-        "when": "accessibleViewIsShown && accessibleViewCurrentProviderId == 'inlineCompletions'"
     },
     // Open file tree when all tabs are closed
     // {
@@ -158,5 +140,11 @@
       ]
     },
     "when": "listFindWidgetVisible && listFocus"
+  },
+  // New keybinding for space t to toggle terminal
+  {
+      "key": "space t",
+      "command": "workbench.action.terminal.toggleTerminal",
+      "when": "editorTextFocus"
   }
 ]

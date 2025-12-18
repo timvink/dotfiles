@@ -27,9 +27,9 @@ vim.keymap.set({"n", "v"}, "<leader>/", ":CommentToggle<cr>")
 vim.keymap.set("v", "J", ":m '>+1<CR>gv=gv")
 vim.keymap.set("v", "K", ":m '<-2<CR>gv=gv")
 
--- move 5 lines up/down with arrow keys
-vim.keymap.set("n", "<Down>", "5j")
-vim.keymap.set("n", "<Up>", "5k")
+-- move up/down with arrow keys
+vim.keymap.set("n", "<Down>", "<Down>zz")
+vim.keymap.set("n", "<Up>", "<Up>zz")
 
 -- Keep cursor in the middle when searching next/previous
 vim.keymap.set("n", "n", "nzzzv")
