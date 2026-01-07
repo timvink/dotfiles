@@ -45,6 +45,27 @@ alias n='nvim'
 # LLMs
 alias cc='claude'
 
+# Work
+adp_rename_branch() {
+    # Check if a number was provided
+    if [ -z "$1" ]; then
+        echo "Error: Please provide a ticket number."
+        echo "Usage: rename_branch 123"
+        return 1
+    fi
+
+    # Get the current branch name
+    local old_name=$(git branch --show-current)
+
+    # Construct the new name
+    local new_name="AZPDP-$1-$old_name"
+
+    # Rename the branch
+    git branch -m "$new_name"
+
+    echo "Branch renamed from '$old_name' to '$new_name'"
+}
+
 {{ end }}
 
 ###########
