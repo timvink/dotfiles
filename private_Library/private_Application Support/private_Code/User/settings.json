@@ -155,5 +155,7 @@
     "chat.agentSessionsViewLocation": "single-view",
     "chat.agent.maxRequests": 50,
     "github.copilot.chat.anthropic.tools.websearch.maxUses": 10,
-    "python.languageServer": "None" # Disable to avoid conflicts with astral-sh.ty extension
+    "python.languageServer": "None",
+    "claudeCode.preferredLocation": "panel",
+    "claudeCode.selectedModel": "opus"
 }
