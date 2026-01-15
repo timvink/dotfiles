@@ -5,7 +5,6 @@
 | Starting a task | Read this guide end-to-end and align with any fresh user instructions. |
 | Tool or command hangs | If a command runs longer than 5 minutes, stop it, capture logs, and check with the user. |
 | Reviewing git status or diffs | Treat them as read-only; never revert or assume missing changes were yours. |
-| Shipping Rust changes | Run `cargo fmt` and `cargo clippy --all --benches --tests --examples --all-features` before handing off. |
 | Adding a dependency | Research well-maintained options and confirm fit with the user before adding. |
 
 ## Mindset & Process
@@ -24,6 +23,7 @@
 - Leave each repo better than how you found it. If something is giving a code smell, fix it for the next person.
 - Clean up unused code ruthlessly. If a function no longer needs a parameter or a helper is dead, delete it and update the callers instead of letting the junk linger.
 - **Search before pivoting**. If you are stuck or uncertain, do a quick web search for official docs or specs, then continue with the current approach. Do not change direction unless asked.
+- use context7
 - If code is very confusing or hard to understand:
   1. Try to simplify it.
   1. Add an ASCII art diagram in a code comment if it would help.
