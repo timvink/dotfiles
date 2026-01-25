@@ -56,7 +56,6 @@ PACKAGES=(
   zsh-autocomplete
   diff-so-fancy
   visidata
-  direnv
 )
 brew install ${PACKAGES[@]}
 
