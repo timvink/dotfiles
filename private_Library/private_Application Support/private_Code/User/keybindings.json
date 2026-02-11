@@ -29,17 +29,40 @@
         "command": "workbench.action.closeAuxiliaryBar",
         "when": "auxiliaryBarFocus"
     },
+    // ESC to hide Claude Code panel
+    {
+        "key": "shift+escape",
+        "command": "workbench.action.togglePanel",
+        "when": "activeWebviewPanelId == 'claudeVSCodePanel'"
+    },
     // ESC also closes the terminal if it's focused
       // And it moves focus back to the editor
     {
-      "key": "escape",
+      "key": "shift+escape",
       "command": "workbench.action.terminal.toggleTerminal",
       "when": "terminalFocus"
     },
+    // Navigate between multiple terminals using Alt+j and Alt+k
     {
-        "key": "escape",
-        "command": "workbench.action.terminal.toggleTerminal",
-        "when": "terminalFocus"
+      "key": "alt+j",
+      "command": "workbench.action.terminal.focusNext",
+      "when": "terminalFocus"
+    },
+    {
+      "key": "alt+k",
+      "command": "workbench.action.terminal.focusPrevious",
+      "when": "terminalFocus"
+    },
+    // command+n to create a new terminal, and command+w to kill 
+    {
+      "key": "cmd+n",
+      "command": "workbench.action.terminal.new",
+      "when": "terminalFocus"
+    },
+    {
+      "key": "cmd+w",
+      "command": "workbench.action.terminal.kill",
+      "when": "terminalFocus"
     },
     // ESC closes the search & replace sidebar
     {
