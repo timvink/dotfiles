@@ -69,6 +69,8 @@
         // CODING HELPERS
         // Remap <leader>i to open copilot chat
         { "before": ["<leader>", "i"], "commands": ["workbench.panel.chat.view.copilot.focus"] },
+        // Remap <leader>c to open Claude Code
+        { "before": ["<leader>", "c"], "commands": ["claude-vscode.editor.openLast"] },
         // Remap <leader>t to toggle the terminal
         { "before": ["<leader>", "t"], "commands": ["workbench.action.terminal.toggleTerminal"] },
         
@@ -106,6 +108,8 @@
         { "before": ["<leader>", "/"], "commands": ["editor.action.commentLine"] },
         // Remap <leader>i to open copilot chat
         { "before": ["<leader>", "i"], "commands": ["workbench.panel.chat.view.copilot.focus"] },
+        // Remap <leader>c to open Claude Code
+        { "before": ["<leader>", "c"], "commands": ["claude-vscode.editor.openLast"] },
         // Remap <leader>t to toggle the terminal
         { "before": ["<leader>", "t"], "commands": ["workbench.action.terminal.toggleTerminal"] },
         // Remap <leader>e to Toggle the file tree on/off.
@@ -154,6 +158,7 @@
     "chat.mcp.gallery.enabled": true,
     "chat.agentSessionsViewLocation": "single-view",
     "chat.agent.maxRequests": 50,
+    "chat.useAgentSkills": true,
     "github.copilot.chat.anthropic.tools.websearch.maxUses": 10,
     "python.languageServer": "None",
     "claudeCode.preferredLocation": "panel",
