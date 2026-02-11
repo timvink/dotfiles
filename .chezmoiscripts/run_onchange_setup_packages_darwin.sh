@@ -56,6 +56,9 @@ PACKAGES=(
   zsh-autocomplete
   diff-so-fancy
   visidata
+  gpg2
+  gnupg
+  pinentry-mac
 )
 brew install ${PACKAGES[@]}
 
