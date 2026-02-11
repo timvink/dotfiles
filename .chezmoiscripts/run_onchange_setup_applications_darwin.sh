@@ -32,6 +32,7 @@ CASKS=(
     font-3270-nerd-font
     font-caskaydia-mono-nerd-font
     steipete/tap/codexbar
+    handy
 )
 
 echo "Installing cask apps..."

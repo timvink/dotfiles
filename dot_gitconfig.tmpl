@@ -6,6 +6,7 @@
 [user]
 	name = Tim Vink
 	email = vinktim@gmail.com
+	signingkey = 629C45DA26A97B48
 
 # Conditional config
 [includeIf "gitdir:~/workspace/work/"]
@@ -22,3 +23,9 @@
 
 [interactive]
 	diffFilter = diff-so-fancy --patch
+
+[gpg]
+    program = /opt/homebrew/bin/gpg
+
+[commit]
+	gpgsign = true
