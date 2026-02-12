@@ -43,7 +43,10 @@ alias vim='nvim'
 alias n='nvim'
 
 # LLMs
-alias cc='claude --allow-dangerously-skip-permissions '
+alias cc="claude EDITOR='code --wait ' --dangerously-skip-permissions "
+ccp() {
+  cc "$(cat "$1")"
+}
 
 # Work
 adp_rename_branch() {
@@ -72,8 +75,8 @@ adp_rename_branch() {
 # Settings
 ###########
 
-export VISUAL="vim"
-export EDITOR="vim"
+export VISUAL="nvim"
+export EDITOR="nvim"
 
 ###########
 # Functions
