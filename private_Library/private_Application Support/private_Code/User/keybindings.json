@@ -175,5 +175,11 @@
       ]
     },
     "when": "listFindWidgetVisible && listFocus"
+  },
+  // Let Ctrl+G pass through to terminal apps (e.g. Claude Code editor prompt)
+  {
+    "key": "ctrl+g",
+    "command": "-workbench.action.gotoLine",
+    "when": "terminalFocus"
   }
 ]
