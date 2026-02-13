@@ -3,8 +3,14 @@ if [ -f ~/.bash_aliases ]; then
     source ~/.bash_aliases
 fi
 
+# Source any private env vars
+if [ -f ~/.bash_env ]; then
+    source ~/.bash_env
+fi
+
 ## Pretty prompts, https://starship.rs/
-eval "$(starship init bash)"eval "$(uv generate-shell-completion bash)"
+eval "$(starship init bash)"
+eval "$(uv generate-shell-completion bash)"
 
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
