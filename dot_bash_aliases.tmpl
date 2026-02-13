@@ -43,9 +43,25 @@ alias vim='nvim'
 alias n='nvim'
 
 # LLMs
-alias cc="claude EDITOR='code --wait ' --dangerously-skip-permissions "
+cc() {
+    # Define the flags 
+    local flags="--dangerously-skip-permissions"
+    
+    if [ $# -eq 0 ]; then
+        # Inline prefix: Variables are temporary and only seen by 'claude'
+        EDITOR="code --wait" VISUAL="code --wait" claude $flags
+    else
+        EDITOR="code --wait" VISUAL="code --wait" claude $flags -p "$@"
+    fi
+}
 ccp() {
-  cc "$(cat "$1")"
+    if [[ -f "$1" ]]; then
+        # We pass the file content to cc, which handles the -p flag
+        cc "$(cat "$1")"
+    else
+        echo "Error: File '$1' not found."
+        return 1
+    fi
 }
 
 # Work
