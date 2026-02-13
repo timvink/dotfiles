@@ -4,6 +4,11 @@ autoload -Uz compinit && compinit
 # Source my aliases
 source "$HOME/.bash_aliases"
 
+# Source any private env vars
+if [ -f ~/.bash_env ]; then
+    source ~/.bash_env
+fi
+
 # Pretty prompts, https://starship.rs/
 eval "$(starship init zsh)"
 
