@@ -43,6 +43,7 @@ PACKAGES=(
   wget
   bat
   vim
+  rsync
   neovim
   fd # A simple, fast and user-friendly alternative to 'find'
   btop # Better than htop
