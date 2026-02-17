@@ -30,14 +30,11 @@ alias venv='source .venv/bin/activate'
 
 # LLMs
 cc() {
-    # Define the flags 
-    local flags="--dangerously-skip-permissions"
-    
     if [ $# -eq 0 ]; then
         # Inline prefix: Variables are temporary and only seen by 'claude'
-        EDITOR="code --wait" VISUAL="code --wait" claude $flags
+        EDITOR="code --wait" VISUAL="code --wait" claude --dangerously-skip-permissions 
     else
-        EDITOR="code --wait" VISUAL="code --wait" claude $flags -p "$@"
+        EDITOR="code --wait" VISUAL="code --wait" claude --dangerously-skip-permissions -p "$@"
     fi
 }
 ccp() {
