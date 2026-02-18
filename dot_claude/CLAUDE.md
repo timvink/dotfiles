@@ -38,7 +38,7 @@ Do not introduce `pip` venvs, Poetry, or `requirements.txt` unless asked. Exampl
 - Running a python script: `uv run python <path>`. This will update the venv and activate it.
 - Updating the python version can be done using `uv python pin <version>`
 
-Use strong types, prefer type hints everywhere, keep models explicit instead of loose dicts or strings.
+Use the `uv` skill when using python. When the code base uses type hinting, use the `ty` skill.
 
 # Using Github Actions
 
