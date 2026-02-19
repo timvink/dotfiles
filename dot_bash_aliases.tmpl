@@ -11,6 +11,8 @@ alias gaa='git add --all && gst'
 alias gl='git log --graph'
 alias gpo='git push origin'
 alias gpom='git push origin master'
+# git worktrees -- cd to main branch of worktree
+alias gt_cdmain='cd $(git rev-parse --path-format=absolute --git-common-dir)/..'
 
 # File system
 # alias ls='ls -lash'
