@@ -83,3 +83,6 @@ VSCODE_EXTENSIONS=(
 
 # Install Claude Code
 curl -fsSL https://claude.ai/install.sh | bash
+
+# Install agentsview (https://www.agentsview.io/)
+curl -fsSL https://agentsview.io/install.sh | bash
