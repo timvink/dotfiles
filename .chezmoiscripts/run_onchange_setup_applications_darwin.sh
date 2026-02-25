@@ -34,6 +34,7 @@ CASKS=(
     firefox
     steipete/tap/codexbar
     handy
+    nextcloud
 )
 
 echo "Installing cask apps..."
