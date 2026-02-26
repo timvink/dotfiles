@@ -273,7 +273,7 @@
                         ]
                     },
                     {
-                        "description": "Hyper + Enter to open Alacritty (repeat to cycle windows)",
+                        "description": "Hyper + Enter to open Ghostty (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
@@ -298,7 +298,7 @@
                                 "from": { "key_code": "return_or_enter", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
                                     { "set_variable": { "name": "hyper_app", "value": "enter" } },
-                                    { "software_function": { "open_application": { "bundle_identifier": "org.alacritty" } } }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.mitchellh.ghostty" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
