@@ -11,6 +11,8 @@
     "editor.lineNumbers": "relative",
     "workbench.activityBar.location": "hidden",
     "workbench.statusBar.visible": true,
+    "workbench.panel.defaultLocation": "right",
+    // "terminal.integrated.tabs.location": "top", // Wait for  https://github.com/microsoft/vscode/issues/252647
     // UI things
     "explorer.confirmDelete": false,
     "explorer.confirmDragAndDrop": false,
