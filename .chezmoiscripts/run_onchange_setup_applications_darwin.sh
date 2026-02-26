@@ -35,6 +35,7 @@ CASKS=(
     steipete/tap/codexbar
     handy
     nextcloud
+    ghostty
 )
 
 echo "Installing cask apps..."
