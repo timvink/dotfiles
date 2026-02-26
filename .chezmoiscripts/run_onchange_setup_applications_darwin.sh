@@ -36,6 +36,7 @@ CASKS=(
     handy
     nextcloud
     ghostty
+    netbirdio/tap/netbird-ui
 )
 
 echo "Installing cask apps..."
@@ -55,3 +56,8 @@ defaults write com.apple.Finder AppleShowAllFiles true
 
 # Disable window animations and Get Info animations
 defaults write -g NSAutomaticWindowAnimationsEnabled -bool false
+
+# Install netbird service for VPN Mesh access
+sudo netbird service install
+sudo netbird service start
+# netbird up # run this once to login
