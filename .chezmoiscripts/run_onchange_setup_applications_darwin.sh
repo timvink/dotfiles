@@ -40,7 +40,14 @@ CASKS=(
 )
 
 echo "Installing cask apps..."
-brew install --cask "${CASKS[@]}"
+for cask in "${CASKS[@]}"; do
+    cask_name="${cask##*/}"  # strip tap prefix (e.g. steipete/tap/codexbar -> codexbar)
+    if brew list --cask "$cask_name" &>/dev/null 2>&1; then
+        echo "Already installed, skipping: $cask_name"
+    else
+        brew install --cask "$cask"
+    fi
+done
 
 
 echo "Configuring OSX..."
@@ -58,6 +65,8 @@ defaults write com.apple.Finder AppleShowAllFiles true
 defaults write -g NSAutomaticWindowAnimationsEnabled -bool false
 
 # Install netbird service for VPN Mesh access
-sudo netbird service install
-sudo netbird service start
+if ! sudo launchctl list | grep -q netbird; then
+    sudo netbird service install
+    sudo netbird service start
+fi
 # netbird up # run this once to login
