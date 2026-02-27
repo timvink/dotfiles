@@ -173,7 +173,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "f" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "f" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.apple.finder"] }
                                 ]
                             },
                             {
@@ -212,7 +213,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "b" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "b" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["org.mozilla.firefox"] }
                                 ]
                             },
                             {
@@ -251,7 +253,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "c" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "c" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.citrix.receiver.icaviewer.mac"] }
                                 ]
                             },
                             {
@@ -290,7 +293,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "enter" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "enter" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.mitchellh.ghostty"] }
                                 ]
                             },
                             {
@@ -329,7 +333,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "v" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "v" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.microsoft.VSCode"] }
                                 ]
                             },
                             {
@@ -368,7 +373,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "t" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "t" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.todoist.mac.Todoist"] }
                                 ]
                             },
                             {
@@ -407,7 +413,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "s" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "s" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.spotify.client"] }
                                 ]
                             },
                             {
@@ -446,7 +453,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "m" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "m" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.tinyspeck.slackmacgap"] }
                                 ]
                             },
                             {
@@ -485,7 +493,8 @@
                                     "basic.to_delayed_action_delay_milliseconds": 1500
                                 },
                                 "conditions": [
-                                    { "type": "variable_if", "name": "hyper_app", "value": "n" }
+                                    { "type": "variable_if", "name": "hyper_app", "value": "n" },
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["notion.id"] }
                                 ]
                             },
                             {
