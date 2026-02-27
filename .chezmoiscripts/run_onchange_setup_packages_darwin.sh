@@ -61,6 +61,7 @@ PACKAGES=(
   gnupg
   pinentry-mac
   supabase/tap/supabase
+  scw
 )
 brew install ${PACKAGES[@]}
 
