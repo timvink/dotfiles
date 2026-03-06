@@ -47,6 +47,10 @@ user_pref("extensions.formautofill.creditCards.enabled", false);
 
 // Use Firefox own context menus instead of native macOS ones
 user_pref("widget.macos.native-context-menus", false);
+
+// Disable built-in password manager (using external password manager instead)
+user_pref("signon.rememberSignons", false);
+user_pref("signon.autofillForms", false);
 '
 
 # Deploy user.js to all default-release profiles
