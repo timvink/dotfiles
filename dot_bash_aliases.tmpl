@@ -54,10 +54,15 @@ alias zima="ssh timvink@100.111.206.115"
 unlock-zima() {
     read -s -p "Enter ZFS Passphrase for ZimaOS: " j_pass
     echo ""
+    local repo=/media/storage/private/timvink-homelab
     ssh -t zima "
         echo '$j_pass' | sudo zfs load-key raidpool/private && \
         sudo zfs mount raidpool/private && \
-        docker restart \$(docker ps -q) && \
+        docker stop \$(docker ps -q) 2>/dev/null; \
+        for svc in nextcloud kestra netbird caddy; do \
+            [ -f $repo/\$svc/docker-compose.yml ] && \
+            sudo docker compose --env-file $repo/.env -f $repo/\$svc/docker-compose.yml up -d; \
+        done && \
         echo 'Success!'"
 }
 
