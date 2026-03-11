@@ -19,7 +19,6 @@ brew update
 # Cask programs
 CASKS=(
     visual-studio-code
-    dropbox
     flux
     rectangle
     spotify
@@ -56,7 +55,8 @@ echo "Configuring OSX..."
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
 
 # Make sure to not get those annoying .DS_Store files everywhere
-defaults write com.apple.desktopservices DSDontWriteNetworkStores true
+defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
+defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true
 
 # Show hidden files by default
 defaults write com.apple.Finder AppleShowAllFiles true
