@@ -51,6 +51,15 @@ ccp() {
 
 ## Home server
 alias zima="ssh timvink@100.111.206.115"
+unlock-zima() {
+    read -s -p "Enter ZFS Passphrase for ZimaOS: " j_pass
+    echo ""
+    ssh -t zima "
+        echo '$j_pass' | sudo zfs load-key raidpool/private && \
+        sudo zfs mount raidpool/private && \
+        docker restart \$(docker ps -q) && \
+        echo 'Success!'"
+}
 
 {{ if ne .chezmoi.os "windows" }}
 
