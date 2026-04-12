@@ -29,5 +29,7 @@
     program = /opt/homebrew/bin/gpg
 {{- end }}
 
+{{ if eq .chezmoi.os "darwin" -}}
 [commit]
 	gpgsign = true
+{{- end }}
