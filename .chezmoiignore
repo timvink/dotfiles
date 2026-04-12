@@ -2,5 +2,10 @@ README.md
 
 {{ if ne .chezmoi.os "darwin" }}
 Library/Application Support/Code/User/settings.json
-.chezmoiscripts
+.chezmoiscripts/setup_applications_darwin.sh
+.chezmoiscripts/setup_firefox_darwin.sh
+.chezmoiscripts/setup_packages_darwin.sh
+{{ end }}
+{{ if ne .chezmoi.os "linux" }}
+setup_packages_linux.sh
 {{ end }}
