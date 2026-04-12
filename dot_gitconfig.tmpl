@@ -24,8 +24,10 @@
 [interactive]
 	diffFilter = diff-so-fancy --patch
 
+{{ if eq .chezmoi.os "darwin" -}}
 [gpg]
     program = /opt/homebrew/bin/gpg
+{{- end }}
 
 [commit]
 	gpgsign = true

@@ -21,7 +21,11 @@ alias cd2="cd ../.."
 alias cd3="cd ../../.."
 alias ...="cd ../.."
 alias ....="cd ../../.."
+{{ if eq .chezmoi.os "darwin" -}}
 alias del="rmtrash"
+{{- else -}}
+alias del="trash-put"
+{{- end }}
 
 # Bash commands
 alias e="exit"
