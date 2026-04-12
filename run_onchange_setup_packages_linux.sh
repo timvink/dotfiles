@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Tools referenced by dot_bash_aliases.tmpl: eza, bat, nvim, trash-cli (rmtrash alias).
+# Tools referenced by dot_bashrc / dot_bash_aliases.tmpl:
+# starship, uv, eza, bat, nvim, trash-cli (rmtrash alias).
 # Idempotent — chezmoi reruns this only when the file's hash changes.
 
 echo "=== chezmoi: installing linux CLI tools ==="
@@ -46,6 +47,16 @@ if ! command -v eza >/dev/null 2>&1; then
     fi
     sudo apt-get update -y
     sudo apt-get install -y eza
+fi
+
+# starship — official installer drops a binary into /usr/local/bin
+if ! command -v starship >/dev/null 2>&1; then
+    curl -sS https://starship.rs/install.sh | sudo sh -s -- -y -b /usr/local/bin
+fi
+
+# uv — Astral's installer drops a binary into ~/.local/bin
+if ! command -v uv >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/uv" ]; then
+    curl -LsSf https://astral.sh/uv/install.sh | sh
 fi
 
 echo "=== chezmoi: linux CLI tools ready ==="
