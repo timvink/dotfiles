@@ -54,20 +54,27 @@ ccp() {
 }
 
 ## Home server
-alias zima="ssh timvink@100.111.206.115"
-unlock-zima() {
-    read -s -p "Enter ZFS Passphrase for ZimaOS: " j_pass
-    echo ""
+# Unlock the encrypted ZFS dataset on the homelab after a reboot and
+# restart services that mount paths under /media/storage/private/.
+# Runs locally if on the homelab, otherwise SSH-es into `homelab`.
+zfs_unlock() {
     local repo=/media/storage/private/timvink-homelab
-    ssh -t zima "
-        echo '$j_pass' | sudo zfs load-key raidpool/private && \
+    local services="caddy nextcloud kestra sabnzbd backrest"
+    read -s -p "Enter ZFS passphrase for homelab: " zfs_pass
+    echo ""
+    local cmd="
+        echo '$zfs_pass' | sudo zfs load-key raidpool/private && \
         sudo zfs mount raidpool/private && \
-        docker stop \$(docker ps -q) 2>/dev/null; \
-        for svc in nextcloud kestra netbird caddy; do \
+        for svc in $services; do \
             [ -f $repo/\$svc/docker-compose.yml ] && \
-            sudo docker compose --env-file $repo/.env -f $repo/\$svc/docker-compose.yml up -d; \
+            docker compose --env-file $repo/.env -f $repo/\$svc/docker-compose.yml up -d; \
         done && \
         echo 'Success!'"
+    if [ "$(hostname)" = "homelab" ]; then
+        bash -c "$cmd"
+    else
+        ssh -t homelab "$cmd"
+    fi
 }
 
 {{ if ne .chezmoi.os "windows" }}
