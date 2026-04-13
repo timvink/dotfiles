@@ -59,16 +59,20 @@ ccp() {
 # Runs locally if on the homelab, otherwise SSH-es into `homelab`.
 zfs_unlock() {
     local repo=/media/storage/private/timvink-homelab
-    local services="caddy nextcloud kestra sabnzbd backrest"
+    # The list of services to (re)start lives inside the repo (which is on
+    # the encrypted dataset), so it is read AFTER the dataset is mounted.
+    # See $repo/post-unlock-services.txt — single source of truth.
     read -s -p "Enter ZFS passphrase for homelab: " zfs_pass
     echo ""
     local cmd="
         echo '$zfs_pass' | sudo zfs load-key raidpool/private && \
         sudo zfs mount raidpool/private && \
-        for svc in $services; do \
+        while IFS= read -r svc; do \
+            [ -z \"\$svc\" ] && continue; \
+            case \"\$svc\" in \\#*) continue ;; esac; \
             [ -f $repo/\$svc/docker-compose.yml ] && \
             docker compose --env-file $repo/.env -f $repo/\$svc/docker-compose.yml up -d; \
-        done && \
+        done < $repo/post-unlock-services.txt && \
         echo 'Success!'"
     if [ "$(hostname)" = "homelab" ]; then
         bash -c "$cmd"
