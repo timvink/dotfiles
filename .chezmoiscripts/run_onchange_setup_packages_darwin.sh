@@ -62,6 +62,7 @@ PACKAGES=(
   pinentry-mac
   supabase/tap/supabase
   scw
+  watch
 )
 brew install ${PACKAGES[@]}
 

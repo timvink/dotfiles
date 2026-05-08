@@ -4,8 +4,8 @@ font-size = 14
 
 # Tabs
 keybind = super+n=new_tab
-keybind = alt+l=next_tab
-keybind = alt+h=previous_tab
+keybind = alt+j=next_tab
+keybind = alt+k=previous_tab
 
 # Wait for https://github.com/ghostty-org/ghostty/issues/2504
 # keybind = alt+g=write_scrollback_file:copy
