@@ -54,6 +54,9 @@ ccp() {
 }
 
 ## Home server
+# SSH into the homelab and drop into the timvink-homelab repo.
+alias homelab='ssh -t homelab "cd /media/storage/private/timvink-homelab/ && exec \$SHELL -l"'
+
 # Unlock the encrypted ZFS dataset on the homelab after a reboot and
 # restart services that mount paths under /media/storage/private/.
 # Runs locally if on the homelab, otherwise SSH-es into `homelab`.
