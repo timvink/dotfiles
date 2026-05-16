@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/manaflow-ai/cmux/main/web/data/cmux.schema.json",
+  "schemaVersion": 1,
+
+  "shortcuts": {
+    "bindings": {
+      "nextSidebarTab": "alt+j",
+      "prevSidebarTab": "alt+k",
+      "prevSurface": "alt+h",
+      "nextSurface": "alt+l"
+    }
+  }
+}
