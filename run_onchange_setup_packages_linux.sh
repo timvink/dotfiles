@@ -1,8 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Tools referenced by dot_bashrc / dot_bash_aliases.tmpl:
-# starship, uv, eza, bat, nvim, trash-cli (rmtrash alias).
+# Tools referenced by dot_bashrc / dot_bash_aliases.tmpl / dot_gitconfig.tmpl:
+# starship, uv, eza, bat, nvim, trash-cli (rmtrash alias), diff-so-fancy.
 # Idempotent — chezmoi reruns this only when the file's hash changes.
 
 echo "=== chezmoi: installing linux CLI tools ==="
@@ -137,6 +137,22 @@ if ! command -v fastfetch >/dev/null 2>&1; then
             rm -rf "$tmp"
         fi
     fi
+fi
+
+# diff-so-fancy — not in Ubuntu apt; ships as a Perl script + lib from GitHub.
+# Install the tagged release tree into ~/.local/opt and symlink the script.
+DSF_VERSION=1.4.10
+if ! command -v diff-so-fancy >/dev/null 2>&1 \
+    || [ "$(diff-so-fancy --version 2>/dev/null | awk '/^Diff-so-fancy/ {print $2; exit}')" != "$DSF_VERSION" ]; then
+    mkdir -p "$HOME/.local/opt" "$HOME/.local/bin"
+    tmp=$(mktemp -d)
+    curl -fsSL -o "$tmp/dsf.tar.gz" \
+        "https://github.com/so-fancy/diff-so-fancy/archive/refs/tags/v${DSF_VERSION}.tar.gz"
+    tar -xzf "$tmp/dsf.tar.gz" -C "$tmp"
+    rm -rf "$HOME/.local/opt/diff-so-fancy"
+    mv "$tmp/diff-so-fancy-${DSF_VERSION}" "$HOME/.local/opt/diff-so-fancy"
+    ln -sf "$HOME/.local/opt/diff-so-fancy/diff-so-fancy" "$HOME/.local/bin/diff-so-fancy"
+    rm -rf "$tmp"
 fi
 
 # NOTE on xterm-ghostty terminfo:
