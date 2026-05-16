@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Tools referenced by dot_bashrc / dot_bash_aliases.tmpl / dot_gitconfig.tmpl:
-# starship, uv, eza, bat, nvim, trash-cli (rmtrash alias), diff-so-fancy.
+# starship, uv, eza, bat, nvim, trash-cli (rmtrash alias), diff-so-fancy, gh.
 # Idempotent — chezmoi reruns this only when the file's hash changes.
 
 echo "=== chezmoi: installing linux CLI tools ==="
@@ -137,6 +137,23 @@ if ! command -v fastfetch >/dev/null 2>&1; then
             rm -rf "$tmp"
         fi
     fi
+fi
+
+# gh — GitHub CLI, not in default Ubuntu repos; use the official cli.github.com apt repo
+if ! command -v gh >/dev/null 2>&1; then
+    sudo mkdir -p -m 755 /etc/apt/keyrings
+    if [ ! -f /etc/apt/keyrings/githubcli-archive-keyring.gpg ]; then
+        wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+            | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg >/dev/null
+        sudo chmod 644 /etc/apt/keyrings/githubcli-archive-keyring.gpg
+    fi
+    if [ ! -f /etc/apt/sources.list.d/github-cli.list ]; then
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+            | sudo tee /etc/apt/sources.list.d/github-cli.list >/dev/null
+        sudo chmod 644 /etc/apt/sources.list.d/github-cli.list
+    fi
+    sudo apt-get update -y
+    sudo apt-get install -y gh
 fi
 
 # diff-so-fancy — not in Ubuntu apt; ships as a Perl script + lib from GitHub.
