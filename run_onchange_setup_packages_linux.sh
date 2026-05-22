@@ -19,6 +19,9 @@ install_if_missing() {
     fi
 }
 
+# tmux — terminal multiplexer (in the default apt repos)
+install_if_missing tmux tmux
+
 # bat — shipped as 'batcat' on Debian/Ubuntu; symlink to 'bat' in ~/.local/bin
 install_if_missing batcat bat
 mkdir -p "$HOME/.local/bin"
