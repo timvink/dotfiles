@@ -436,7 +436,7 @@
                         ]
                     },
                     {
-                        "description": "Hyper + M to open Slack (repeat to cycle windows)",
+                        "description": "Hyper + M to open Microsoft Teams (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
@@ -454,7 +454,7 @@
                                 },
                                 "conditions": [
                                     { "type": "variable_if", "name": "hyper_app", "value": "m" },
-                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.tinyspeck.slackmacgap"] }
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.microsoft.teams2"] }
                                 ]
                             },
                             {
@@ -462,7 +462,7 @@
                                 "from": { "key_code": "m", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
                                     { "set_variable": { "name": "hyper_app", "value": "m" } },
-                                    { "software_function": { "open_application": { "bundle_identifier": "com.tinyspeck.slackmacgap" } } }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.microsoft.teams2" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [
