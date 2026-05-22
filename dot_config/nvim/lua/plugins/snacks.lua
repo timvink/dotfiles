@@ -50,6 +50,10 @@ return {
             },
           },
         },
+        -- Where the projects picker (dashboard `p`, `<leader>fp`) scans for repos.
+        projects = {
+          dev = { "~/workspace" },
+        },
       },
     },
   },
