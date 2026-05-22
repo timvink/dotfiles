@@ -89,3 +89,8 @@ curl -fsSL https://claude.ai/install.sh | bash
 
 # Install agentsview (https://www.agentsview.io/)
 curl -fsSL https://agentsview.io/install.sh | bash
+
+# Install agy (antigravity CLI)
+if ! command -v agy >/dev/null 2>&1; then
+    curl -fsSL https://antigravity.google/cli/install.sh | bash
+fi

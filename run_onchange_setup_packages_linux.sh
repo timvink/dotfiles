@@ -97,4 +97,9 @@ fi
 # Mac): `infocmp -x xterm-ghostty | ssh <host> tic -x -`. Until then, the
 # TERM fallback in dot_bashrc keeps commands like `clear` working.
 
+
+# agy — antigravity CLI
+if ! command -v agy >/dev/null 2>&1; then
+    curl -fsSL https://antigravity.google/cli/install.sh | bash
+fi
 echo "=== chezmoi: linux CLI tools ready ==="
