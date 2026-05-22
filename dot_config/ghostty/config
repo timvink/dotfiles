@@ -2,10 +2,16 @@ theme = Catppuccin Mocha
 font-family = CaskaydiaMono Nerd Font
 font-size = 14
 
-# Tabs
+# Tabs — Cmd-based, so Option/Alt stays free for tmux on remote machines.
+# (super+j / super+k are taken by Ghostty defaults scroll_to_selection /
+# clear_screen, hence the shift.)
 keybind = super+n=new_tab
-keybind = alt+j=next_tab
-keybind = alt+k=previous_tab
+keybind = super+shift+j=next_tab
+keybind = super+shift+k=previous_tab
+
+# Send the left Option key as Alt/Meta so tmux's M- bindings work over SSH.
+# The right Option key still types special characters (#, accents, …).
+macos-option-as-alt = left
 
 # Wait for https://github.com/ghostty-org/ghostty/issues/2504
 # keybind = alt+g=write_scrollback_file:copy
