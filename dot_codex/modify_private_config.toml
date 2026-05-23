@@ -1,0 +1,26 @@
+#!/bin/sh
+# Ensure ~/.codex/config.toml has `notify` configured so Codex emits a terminal
+# bell on agent-turn-complete. tmux's monitor-bell picks it up and lights a
+# yellow dot on the tab — mirrors cmux's "needs input" indicator.
+#
+# This is a chezmoi modify_ script: stdin = current target content, stdout =
+# new content. Idempotent — only inserts the notify line when it's missing.
+# All other Codex state (project trust levels, marketplaces, plugins) is
+# preserved untouched since Codex itself updates that file at runtime.
+
+set -eu
+
+content=$(cat)
+
+if printf '%s\n' "$content" | grep -qE '^[[:space:]]*notify[[:space:]]*='; then
+    # Already configured — leave the file exactly as is.
+    printf '%s' "$content"
+else
+    # Top-level TOML keys must precede any [section]; prepend at the very top.
+    cat <<'TOML'
+# tmux "needs input" bell — emits BEL after each agent turn completes
+notify = ["bash", "-c", "printf '\\a' > /dev/tty"]
+
+TOML
+    printf '%s' "$content"
+fi
