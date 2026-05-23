@@ -1,0 +1,21 @@
+#!/bin/sh
+# Ring tmux's monitor-bell on the current pane.
+# Called from Claude Code (Notification/Stop hooks) and Codex (notify) to
+# light the "needs input" yellow ● dot on the tab in the status bar.
+#
+# Why not just `printf '\a' > /dev/tty`?  Agent hook subprocesses are not
+# spawned with a controlling tty (Claude Code's error message:
+# "/bin/sh: /dev/tty: Device not configured"). Instead we ask tmux for the
+# current pane's tty by path and write the BEL there — no controlling tty
+# required, just write permission, which we have (we own the pty).
+#
+# No-op outside tmux. Always exits 0 so the agent doesn't surface an error.
+
+if [ -n "${TMUX_PANE:-}" ]; then
+    tty=$(tmux display-message -t "$TMUX_PANE" -p '#{pane_tty}' 2>/dev/null)
+    if [ -n "${tty:-}" ] && [ -w "$tty" ]; then
+        printf '\a' > "$tty"
+    fi
+fi
+
+exit 0

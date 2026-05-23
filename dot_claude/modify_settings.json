@@ -25,7 +25,7 @@ hook='[
   {
     "matcher": "",
     "hooks": [
-      { "type": "command", "command": "printf '"'"'\\a'"'"' > /dev/tty" }
+      { "type": "command", "command": "$HOME/.local/bin/agent-bell" }
     ]
   }
 ]'

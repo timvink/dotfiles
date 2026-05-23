@@ -1,25 +1,27 @@
 #!/bin/sh
-# Ensure ~/.codex/config.toml has `notify` configured so Codex emits a terminal
-# bell on agent-turn-complete. tmux's monitor-bell picks it up and lights a
-# yellow dot on the tab — mirrors cmux's "needs input" indicator.
+# Ensure ~/.codex/config.toml has `notify` configured to ring tmux's
+# monitor-bell on agent-turn-complete via the shared agent-bell script.
+# That script handles writing to the pane's tty directly (hook subprocesses
+# have no controlling tty, so plain `printf '\a' > /dev/tty` fails).
 #
-# This is a chezmoi modify_ script: stdin = current target content, stdout =
-# new content. Idempotent — only inserts the notify line when it's missing.
-# All other Codex state (project trust levels, marketplaces, plugins) is
-# preserved untouched since Codex itself updates that file at runtime.
+# This is a chezmoi modify_ script: stdin = current target content, stdout
+# = new content. Idempotent — replaces an existing notify line, or inserts
+# one at the top. All other Codex state (project trust levels, marketplaces,
+# plugins) is preserved untouched.
 
 set -eu
 
 content=$(cat)
+new_line='notify = ["sh", "-c", "$HOME/.local/bin/agent-bell"]'
 
 if printf '%s\n' "$content" | grep -qE '^[[:space:]]*notify[[:space:]]*='; then
-    # Already configured — leave the file exactly as is.
-    printf '%s' "$content"
+    # Replace whatever notify is currently set to.
+    printf '%s' "$content" | sed -E "s|^[[:space:]]*notify[[:space:]]*=.*$|$new_line|"
 else
-    # Top-level TOML keys must precede any [section]; prepend at the very top.
-    cat <<'TOML'
+    # Top-level TOML keys must precede any [section]; insert at the very top.
+    cat <<TOML
 # tmux "needs input" bell — emits BEL after each agent turn completes
-notify = ["bash", "-c", "printf '\\a' > /dev/tty"]
+$new_line
 
 TOML
     printf '%s' "$content"
