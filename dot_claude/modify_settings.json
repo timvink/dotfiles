@@ -1,0 +1,27 @@
+#!/bin/sh
+# Ensure ~/.claude/settings.json has a Notification hook that rings the terminal
+# bell when Claude Code is waiting on your attention. tmux's monitor-bell picks
+# up the BEL and lights up a yellow dot on the tab — the "needs input" signal,
+# mirroring cmux's per-workspace status. Outside tmux, modern terminals (Ghostty
+# default, cmux) are silent on bell — no audible/visual side effect.
+#
+# This is a chezmoi modify_ script: stdin = current target file content, stdout
+# = new content. Idempotent — preserves all other settings and any keys Claude
+# Code adds at runtime (plugins, statusLine, permissions, …).
+
+set -eu
+
+input=$(cat)
+[ -z "$input" ] && input='{}'
+
+# `--argjson` keeps the structure typed and avoids brittle string-escape gymnastics.
+hook='[
+  {
+    "matcher": "",
+    "hooks": [
+      { "type": "command", "command": "printf '"'"'\\a'"'"' > /dev/tty" }
+    ]
+  }
+]'
+
+printf '%s' "$input" | jq --argjson n "$hook" '.hooks.Notification = $n'
