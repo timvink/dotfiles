@@ -1,9 +1,15 @@
 #!/bin/sh
-# Ensure ~/.claude/settings.json has a Notification hook that rings the terminal
-# bell when Claude Code is waiting on your attention. tmux's monitor-bell picks
-# up the BEL and lights up a yellow dot on the tab — the "needs input" signal,
-# mirroring cmux's per-workspace status. Outside tmux, modern terminals (Ghostty
-# default, cmux) are silent on bell — no audible/visual side effect.
+# Ensure ~/.claude/settings.json has Notification + Stop hooks that ring the
+# terminal bell when Claude Code is waiting on your attention. tmux's
+# monitor-bell picks up the BEL and lights a yellow dot on the tab — the
+# "needs input" signal, mirroring cmux's per-workspace status.
+#
+# Two events covered:
+#   Stop         — fires after every turn ends (= "your turn now")
+#   Notification — fires on idle-waits and permission prompts (= "agent stuck")
+#
+# Outside tmux, modern terminals (Ghostty default, cmux) are silent on bell —
+# no audible/visual side effect.
 #
 # This is a chezmoi modify_ script: stdin = current target file content, stdout
 # = new content. Idempotent — preserves all other settings and any keys Claude
@@ -24,4 +30,4 @@ hook='[
   }
 ]'
 
-printf '%s' "$input" | jq --argjson n "$hook" '.hooks.Notification = $n'
+printf '%s' "$input" | jq --argjson n "$hook" '.hooks.Notification = $n | .hooks.Stop = $n'
