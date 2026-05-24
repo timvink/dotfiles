@@ -1,0 +1,28 @@
+#!/bin/sh
+# Set the @agent_state user option on the current tmux window. Used by
+# window-status-format to render an explicit per-tab agent indicator:
+#
+#   needs-input → yellow ●  (agent waiting on permission / explicit attention)
+#   idle        → grey   ○  (agent turn complete, awaiting next prompt) —
+#                            overrides activity-from-TUI-redraw which would
+#                            otherwise keep the tab "running" green forever
+#   (empty)     →             fall through to tmux's monitor-activity /
+#                            silence / bell flags; set on UserPromptSubmit
+#                            and PreToolUse so the tab goes back to green
+#                            while the agent is producing output
+#
+# Usage: agent-state <state>     # set state ("idle", "needs-input", …)
+#        agent-state             # clear state
+#
+# No-op outside tmux. Always exits 0 so the agent doesn't surface an error.
+
+state="${1:-}"
+
+if [ -n "${TMUX_PANE:-}" ]; then
+    win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
+    if [ -n "${win:-}" ]; then
+        tmux set-option -wt "$win" '@agent_state' "$state" 2>/dev/null || true
+    fi
+fi
+
+exit 0

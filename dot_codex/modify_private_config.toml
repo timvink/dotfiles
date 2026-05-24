@@ -12,7 +12,8 @@
 set -eu
 
 content=$(cat)
-new_line='notify = ["sh", "-c", "$HOME/.local/bin/agent-bell"]'
+# Codex's notify only fires on agent-turn-complete, so it always means "idle".
+new_line='notify = ["sh", "-c", "$HOME/.local/bin/agent-state idle"]'
 
 if printf '%s\n' "$content" | grep -qE '^[[:space:]]*notify[[:space:]]*='; then
     # Replace whatever notify is currently set to.
