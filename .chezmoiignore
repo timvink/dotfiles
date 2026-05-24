@@ -1,4 +1,5 @@
 README.md
+CLAUDE.md
 
 {{ if ne .chezmoi.os "darwin" }}
 Library/Application Support/Code/User/settings.json
