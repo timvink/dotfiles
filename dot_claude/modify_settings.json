@@ -1,33 +1,45 @@
 #!/bin/sh
-# Ensure ~/.claude/settings.json has Notification + Stop hooks that ring the
-# terminal bell when Claude Code is waiting on your attention. tmux's
-# monitor-bell picks up the BEL and lights a yellow dot on the tab — the
-# "needs input" signal, mirroring cmux's per-workspace status.
+# Ensure ~/.claude/settings.json wires Claude Code's lifecycle hooks to the
+# `agent-state` script, which sets a per-window tmux user option that
+# window-status-format reads to render the per-tab indicator dot:
 #
-# Two events covered:
-#   Stop         — fires after every turn ends (= "your turn now")
-#   Notification — fires on idle-waits and permission prompts (= "agent stuck")
+#   UserPromptSubmit / PreToolUse → clear state — tab falls back to green
+#                                                  while Claude is working
+#   Stop                          → "idle"      — grey ○ when turn ends
+#   Notification                  → "needs-input" — yellow ● when Claude
+#                                                   wants explicit attention
 #
-# Outside tmux, modern terminals (Ghostty default, cmux) are silent on bell —
-# no audible/visual side effect.
-#
-# This is a chezmoi modify_ script: stdin = current target file content, stdout
-# = new content. Idempotent — preserves all other settings and any keys Claude
-# Code adds at runtime (plugins, statusLine, permissions, …).
+# This is a chezmoi modify_ script: stdin = current target content, stdout
+# = new content. Idempotent — overwrites only the four hook keys we manage
+# and preserves every other setting Claude Code adds at runtime.
 
 set -eu
 
 input=$(cat)
 [ -z "$input" ] && input='{}'
 
-# `--argjson` keeps the structure typed and avoids brittle string-escape gymnastics.
-hook='[
-  {
-    "matcher": "",
-    "hooks": [
-      { "type": "command", "command": "$HOME/.local/bin/agent-bell" }
-    ]
-  }
-]'
+mk_hook() {
+    # build a one-element hooks array invoking `agent-state <arg>`.
+    # $HOME is left literal so /bin/sh expands it when Claude Code runs the hook.
+    jq -n --arg cmd "\$HOME/.local/bin/agent-state $1" '[
+        {
+            "matcher": "",
+            "hooks": [
+                { "type": "command", "command": $cmd }
+            ]
+        }
+    ]'
+}
 
-printf '%s' "$input" | jq --argjson n "$hook" '.hooks.Notification = $n | .hooks.Stop = $n'
+clear_hook=$(mk_hook "")
+idle_hook=$(mk_hook "idle")
+input_hook=$(mk_hook "needs-input")
+
+printf '%s' "$input" | jq \
+    --argjson clear "$clear_hook" \
+    --argjson idle  "$idle_hook" \
+    --argjson input "$input_hook" \
+    '.hooks.UserPromptSubmit = $clear
+   | .hooks.PreToolUse       = $clear
+   | .hooks.Stop             = $idle
+   | .hooks.Notification     = $input'
