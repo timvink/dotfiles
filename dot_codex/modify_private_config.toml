@@ -1,8 +1,12 @@
 #!/bin/sh
-# Ensure ~/.codex/config.toml has `notify` configured to ring tmux's
-# monitor-bell on agent-turn-complete via the shared agent-bell script.
-# That script handles writing to the pane's tty directly (hook subprocesses
-# have no controlling tty, so plain `printf '\a' > /dev/tty` fails).
+# Ensure ~/.codex/config.toml has `notify` configured to call the shared
+# `agent-state` script with "idle" on agent-turn-complete. The script sets
+# the per-window tmux @agent_state option that window-status-format reads
+# to render the per-tab indicator dot (grey ○ for idle).
+#
+# Codex's notify only fires one event (agent-turn-complete), so "idle" is
+# the only state Codex can signal. Tabs go back to green (via tmux's
+# monitor-activity) automatically when Codex resumes producing output.
 #
 # This is a chezmoi modify_ script: stdin = current target content, stdout
 # = new content. Idempotent — replaces an existing notify line, or inserts
