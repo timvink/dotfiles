@@ -56,7 +56,7 @@
                                     "simultaneous_options": { "key_down_order": "strict" }
                                 },
                                 "to": [{ "key_code": "h", "modifiers": ["left_option"] }],
-                                "parameters": { "basic.simultaneous_threshold_milliseconds": 80 }
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
                             },
                             {
                                 "type": "basic",
@@ -66,7 +66,7 @@
                                     "simultaneous_options": { "key_down_order": "strict" }
                                 },
                                 "to": [{ "key_code": "j", "modifiers": ["left_option"] }],
-                                "parameters": { "basic.simultaneous_threshold_milliseconds": 80 }
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
                             },
                             {
                                 "type": "basic",
@@ -76,7 +76,7 @@
                                     "simultaneous_options": { "key_down_order": "strict" }
                                 },
                                 "to": [{ "key_code": "k", "modifiers": ["left_option"] }],
-                                "parameters": { "basic.simultaneous_threshold_milliseconds": 80 }
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
                             },
                             {
                                 "type": "basic",
@@ -86,7 +86,7 @@
                                     "simultaneous_options": { "key_down_order": "strict" }
                                 },
                                 "to": [{ "key_code": "l", "modifiers": ["left_option"] }],
-                                "parameters": { "basic.simultaneous_threshold_milliseconds": 80 }
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
                             },
                             {
                                 "type": "basic",
@@ -96,7 +96,7 @@
                                     "simultaneous_options": { "key_down_order": "strict" }
                                 },
                                 "to": [{ "key_code": "t", "modifiers": ["left_option"] }],
-                                "parameters": { "basic.simultaneous_threshold_milliseconds": 80 }
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
                             },
                             {
                                 "type": "basic",
@@ -106,7 +106,7 @@
                                     "simultaneous_options": { "key_down_order": "strict" }
                                 },
                                 "to": [{ "key_code": "n", "modifiers": ["left_option"] }],
-                                "parameters": { "basic.simultaneous_threshold_milliseconds": 80 }
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
                             }
                         ]
                     },
