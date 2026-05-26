@@ -31,7 +31,14 @@ alias del="trash-put"
 alias e="exit"
 alias c="clear"
 
-# tmux — attach to the 'main' session, or create it if it doesn't exist yet
+# tmux — attach to the 'main' session, or create it if it doesn't exist yet.
+#
+# Always use `t` (or the full `tmux new -A -s main`) to start tmux, never
+# plain `tmux`. Plain `tmux` runs `new-session`, which creates a *new*
+# numbered session every time and silently orphans whatever you had
+# running — defeating the persistence point of running tmux on the VM.
+# The `-A` flag makes new-session attach if the named session already
+# exists, so the same one-liner works on first login and on reconnect.
 alias t='tmux new -A -s main'
 
 # Python
