@@ -24,7 +24,8 @@ local function yank(picker, relative)
   picker.list:set_selected() -- clear selection
   -- "c" = charwise: no trailing newline (multiple paths still separated by \n).
   vim.fn.setreg(vim.v.register or "+", table.concat(files, "\n"), "c")
-  Snacks.notify.info("Yanked " .. #files .. " path(s)")
+  local kind = relative and "relative" or "absolute"
+  Snacks.notify.info("Yanked " .. #files .. " " .. kind .. " path(s)")
 end
 
 return {
