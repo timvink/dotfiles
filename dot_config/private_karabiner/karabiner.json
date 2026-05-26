@@ -236,7 +236,7 @@
                         ]
                     },
                     {
-                        "description": "Hyper + C to open cmux (repeat to cycle windows)",
+                        "description": "Hyper + C to open Ghostty (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
@@ -254,7 +254,7 @@
                                 },
                                 "conditions": [
                                     { "type": "variable_if", "name": "hyper_app", "value": "c" },
-                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.cmuxterm.app"] }
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.mitchellh.ghostty"] }
                                 ]
                             },
                             {
@@ -262,7 +262,7 @@
                                 "from": { "key_code": "c", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
                                     { "set_variable": { "name": "hyper_app", "value": "c" } },
-                                    { "software_function": { "open_application": { "bundle_identifier": "com.cmuxterm.app" } } }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.mitchellh.ghostty" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [

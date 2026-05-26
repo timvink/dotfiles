@@ -6,8 +6,8 @@ Linux (used on remote VMs over SSH).
 
 ## Design principle: alt+hjkl across all my tools
 
-Navigation uses `alt` + vim-direction keys in cmux (local terminal), tmux
-(remote), and VSCode — intentionally identical so muscle memory carries
+Navigation uses `alt` + vim-direction keys in tmux (terminal, local and
+remote) and VSCode — intentionally identical so muscle memory carries
 between them. When adding a new binding anywhere, prefer `alt+<vim-key>` if
 it fits the cross-tool model. Specific bindings and their rationale are
 documented next to the configs that set them.
