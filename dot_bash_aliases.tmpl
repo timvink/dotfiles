@@ -47,10 +47,9 @@ alias venv='source .venv/bin/activate'
 # LLMs
 cc() {
     if [ $# -eq 0 ]; then
-        # Inline prefix: Variables are temporary and only seen by 'claude'
-        EDITOR="code --wait" VISUAL="code --wait" claude --dangerously-skip-permissions 
+        claude --dangerously-skip-permissions
     else
-        EDITOR="code --wait" VISUAL="code --wait" claude --dangerously-skip-permissions -p "$@"
+        claude --dangerously-skip-permissions -p "$@"
     fi
 }
 ccp() {
