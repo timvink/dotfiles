@@ -31,6 +31,11 @@ end
 return {
   "folke/snacks.nvim",
   opts = {
+    -- Fall back to indent-based scope detection. snacks.scope's async
+    -- treesitter parse trips an `attempt to call method 'range' (a nil
+    -- value)` crash on BufReadPost under nvim 0.12.2 — the failing
+    -- code path is unchanged on snacks' main, so avoid it.
+    scope = { treesitter = { enabled = false } },
     picker = {
       actions = {
         explorer_yank_relative = function(picker)
