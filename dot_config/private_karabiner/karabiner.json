@@ -236,6 +236,35 @@
                         ]
                     },
                     {
+                        "description": "Firefox: Alt + H/L to switch tabs, Alt + T for new tab (matches tmux/VSCode alt+hjkl model)",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "h", "modifiers": { "mandatory": ["option"] } },
+                                "to": [{ "key_code": "open_bracket", "modifiers": ["command", "shift"] }],
+                                "conditions": [
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["org.mozilla.firefox"] }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "l", "modifiers": { "mandatory": ["option"] } },
+                                "to": [{ "key_code": "close_bracket", "modifiers": ["command", "shift"] }],
+                                "conditions": [
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["org.mozilla.firefox"] }
+                                ]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "key_code": "t", "modifiers": { "mandatory": ["option"] } },
+                                "to": [{ "key_code": "t", "modifiers": ["command"] }],
+                                "conditions": [
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["org.mozilla.firefox"] }
+                                ]
+                            }
+                        ]
+                    },
+                    {
                         "description": "Hyper + C to open Ghostty (repeat to cycle windows)",
                         "manipulators": [
                             {
