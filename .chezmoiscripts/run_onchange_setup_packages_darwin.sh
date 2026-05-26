@@ -63,6 +63,7 @@ PACKAGES=(
   supabase/tap/supabase
   scw
   watch
+  pngpaste # clipboard image -> PNG, used by img-clip.nvim in neovim
 )
 brew install ${PACKAGES[@]}
 

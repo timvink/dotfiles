@@ -65,6 +65,10 @@ fi
 # trash-cli — provides 'trash-put'; bash_aliases aliases 'del' to it on linux
 install_if_missing trash-put trash-cli
 
+# xclip — clipboard backend for img-clip.nvim (paste images into markdown).
+# X11 only; if a VM ever runs Wayland, swap to wl-clipboard.
+install_if_missing xclip xclip
+
 # eza — not in default Ubuntu repos; use the official gierens apt repo
 if ! command -v eza >/dev/null 2>&1; then
     sudo mkdir -p /etc/apt/keyrings
