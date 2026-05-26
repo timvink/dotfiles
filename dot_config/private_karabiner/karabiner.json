@@ -46,7 +46,72 @@
                     //     ]
                     // },
                     {
-                        "description": "Home Row Mods: S (tap S, hold left_option) (MacBook Keyboard Only)",
+                        "description": "Chord: s + h/j/k/l/t/n -> left_option + key (MacBook Keyboard Only). Deterministic alt+hjkl/tn that bypasses the hold rule and its rolling-typing edge cases.",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "h" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "h", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 50 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "j" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "j", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 50 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "k" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "k", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 50 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "l" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "l", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 50 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "t" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "t", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 50 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "n" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "n", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 50 }
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Home Row Mods: S (tap S, hold left_option) (MacBook Keyboard Only). Fallback for alt + keys outside the chord set above.",
                         "manipulators": [
                             {
                                 "type": "basic",
