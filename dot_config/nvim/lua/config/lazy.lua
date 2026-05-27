@@ -19,6 +19,13 @@ vim.opt.rtp:prepend(lazypath)
 require("lazy").setup({
   spec = {
     { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+    -- Language extras: each pulls in LSP + treesitter + formatter + linter
+    -- (and DAP / test runner where applicable) for that filetype.
+    { import = "lazyvim.plugins.extras.lang.python" },
+    { import = "lazyvim.plugins.extras.lang.markdown" },
+    { import = "lazyvim.plugins.extras.lang.yaml" },
+    { import = "lazyvim.plugins.extras.lang.docker" },
+    { import = "lazyvim.plugins.extras.lang.json" },
     -- Custom plugin specs / LazyVim overrides from lua/plugins/
     { import = "plugins" },
   },
