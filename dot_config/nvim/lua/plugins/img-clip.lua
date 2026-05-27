@@ -14,6 +14,9 @@ return {
     },
   },
   keys = {
-    { "<leader>p", "<cmd>PasteImage<cr>", mode = { "n", "i" }, desc = "Paste image from clipboard" },
+    -- Ctrl+V in insert mode pastes a clipboard image as a markdown link.
+    -- Trade-off: replaces Vim's "insert literal char" on <C-v>; use <C-q>
+    -- for that instead (e.g. <C-q><Tab> for a real tab).
+    { "<C-v>", "<cmd>PasteImage<cr>", mode = "i", desc = "Paste image from clipboard" },
   },
 }
