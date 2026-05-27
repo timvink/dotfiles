@@ -1,0 +1,6 @@
+{
+  // MD013 (line-length, default 80) is too noisy for prose editing.
+  // Wrapping at a hard column number fights soft-wrap and conflicts with
+  // long code/URL/table lines that can't be reflowed anyway.
+  "MD013": false
+}
