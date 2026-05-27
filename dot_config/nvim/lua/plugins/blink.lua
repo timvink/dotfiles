@@ -4,6 +4,12 @@ return {
   "saghen/blink.cmp",
   opts = {
     sources = {
+      -- In prose, the `buffer` source scrapes words from open buffers and
+      -- pollutes the popup. Drop it for markdown; keep LSP (fenced code
+      -- blocks), snippets, and path (link targets).
+      per_filetype = {
+        markdown = { "lsp", "path", "snippets" },
+      },
       providers = {
         path = {
           opts = {
