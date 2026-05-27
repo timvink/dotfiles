@@ -46,96 +46,87 @@
                     //     ]
                     // },
                     {
-                        "description": "S-layer activator (MacBook Keyboard Only). Hold s alone past 200ms -> s_layer=1; rolling-typed 's' (any key event within 200ms) cancels the delayed action and types 's' normally. The `to` action belt-and-suspenders resets s_layer to 0 on every press in case to_after_key_up was missed previously.",
+                        "description": "Chord: s + h/j/k/l/t/n -> left_option + key (MacBook Keyboard Only). Deterministic alt+hjkl/tn that bypasses the hold rule and its rolling-typing edge cases.",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "h" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "h", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "j" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "j", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "k" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "k", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "l" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "l", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "t" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "t", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": {
+                                    "simultaneous": [{ "key_code": "s" }, { "key_code": "n" }],
+                                    "simultaneous_options": { "key_down_order": "strict" }
+                                },
+                                "to": [{ "key_code": "n", "modifiers": ["left_option"] }],
+                                "parameters": { "basic.simultaneous_threshold_milliseconds": 65 }
+                            }
+                        ]
+                    },
+                    {
+                        "description": "Home Row Mods: S (tap S, hold left_option) (MacBook Keyboard Only). Fallback for alt + keys outside the chord set above.",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
                                 "from": { "key_code": "s", "modifiers": { "optional": ["caps_lock"] } },
-                                "to": [{ "set_variable": { "name": "s_layer", "value": 0 } }],
                                 "to_delayed_action": {
-                                    "to_if_invoked": [{ "set_variable": { "name": "s_layer", "value": 1 } }],
                                     "to_if_canceled": [{ "key_code": "s" }]
                                 },
-                                "to_after_key_up": [{ "set_variable": { "name": "s_layer", "value": 0 } }],
+                                "to_if_alone": [{ "key_code": "s", "halt": true }],
+                                "to_if_held_down": [{ "key_code": "left_option" }],
                                 "parameters": {
-                                    "basic.to_delayed_action_delay_milliseconds": 200
+                                    "basic.to_if_alone_timeout_milliseconds": 300,
+                                    "basic.to_if_held_down_threshold_milliseconds": 150,
+                                    "basic.to_delayed_action_delay_milliseconds": 150
                                 }
-                            }
-                        ]
-                    },
-                    {
-                        "description": "S-layer keys (MacBook Keyboard Only). While s_layer is active, h/j/k/l/t/n => alt+key. Rapid-fire works as long as s stays held.",
-                        "manipulators": [
-                            {
-                                "type": "basic",
-                                "conditions": [
-                                    { "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" },
-                                    { "type": "variable_if", "name": "s_layer", "value": 1 }
-                                ],
-                                "from": { "key_code": "h" },
-                                "to": [{ "key_code": "h", "modifiers": ["left_option"] }]
-                            },
-                            {
-                                "type": "basic",
-                                "conditions": [
-                                    { "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" },
-                                    { "type": "variable_if", "name": "s_layer", "value": 1 }
-                                ],
-                                "from": { "key_code": "j" },
-                                "to": [{ "key_code": "j", "modifiers": ["left_option"] }]
-                            },
-                            {
-                                "type": "basic",
-                                "conditions": [
-                                    { "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" },
-                                    { "type": "variable_if", "name": "s_layer", "value": 1 }
-                                ],
-                                "from": { "key_code": "k" },
-                                "to": [{ "key_code": "k", "modifiers": ["left_option"] }]
-                            },
-                            {
-                                "type": "basic",
-                                "conditions": [
-                                    { "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" },
-                                    { "type": "variable_if", "name": "s_layer", "value": 1 }
-                                ],
-                                "from": { "key_code": "l" },
-                                "to": [{ "key_code": "l", "modifiers": ["left_option"] }]
-                            },
-                            {
-                                "type": "basic",
-                                "conditions": [
-                                    { "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" },
-                                    { "type": "variable_if", "name": "s_layer", "value": 1 }
-                                ],
-                                "from": { "key_code": "t" },
-                                "to": [{ "key_code": "t", "modifiers": ["left_option"] }]
-                            },
-                            {
-                                "type": "basic",
-                                "conditions": [
-                                    { "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" },
-                                    { "type": "variable_if", "name": "s_layer", "value": 1 }
-                                ],
-                                "from": { "key_code": "n" },
-                                "to": [{ "key_code": "n", "modifiers": ["left_option"] }]
-                            }
-                        ]
-                    },
-                    {
-                        "description": "S-layer panic reset. If s_layer ever gets stuck (e.g. focus change ate the s key_up), pressing Escape clears it. Escape still works as Escape.",
-                        "manipulators": [
-                            {
-                                "type": "basic",
-                                "conditions": [
-                                    { "type": "variable_if", "name": "s_layer", "value": 1 }
-                                ],
-                                "from": { "key_code": "escape" },
-                                "to": [
-                                    { "set_variable": { "name": "s_layer", "value": 0 } },
-                                    { "key_code": "escape" }
-                                ]
                             }
                         ]
                     },
