@@ -14,16 +14,14 @@ My main OS is MacOS, but I try to keep things like keybindings generic as I use 
 
 Keybindings:
 
-- On my Mac internal keyboard I use [karabiner elements](https://karabiner-elements.pqrs.org/) to map my caps lock key to `ESC` (tapped) and hyper (`shift`+`cmd`+`alt`+`ctrl`) (held more than 250ms).
-- Otherwise, I use my ZSA Voyager with custom key mappings.
+- I have a lot of keybindings setup. Mainly alt + hjkl to navigate consistently in VSCode, Neovim, Firefox and tmux. 
+- On my Mac internal keyboard I use [karabiner elements](https://karabiner-elements.pqrs.org/) for key mappings. For example, I've mapped my caps lock key to `ESC` (tapped) and hyper (`shift`+`cmd`+`alt`+`ctrl`) (held more than 250ms).
+- I use my ZSA Voyager with custom key mappings.
 
 Apps:
 
-- Terminal: `zsh` on Alacritty with starship. Additional packages:
-    - btop (computer stats)
-    - eza (`ls`)
-- Editors: VSCode and neovim
-    - VSCode settings inspired by neovim keybinds
-- Tiling manager: Rectangle (will move to aerospace)
+- Terminal: `zsh` on Ghostty with starship.
+- Editors: tmux and neovim
+- Tiling manager: Rectangle
 
 Theme: [catppuccin](https://github.com/orgs/catppuccin/repositories?type=all)!
