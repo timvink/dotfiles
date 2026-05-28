@@ -52,6 +52,13 @@ cc() {
         claude --dangerously-skip-permissions -p "$@"
     fi
 }
+ccc() {
+    if [ $# -eq 0 ]; then
+        claude --dangerously-skip-permissions --chrome
+    else
+        claude --dangerously-skip-permissions --chrome -p "$@"
+    fi
+}
 ccp() {
     if [[ -f "$1" ]]; then
         # We pass the file content to cc, which handles the -p flag
