@@ -1,18 +1,17 @@
 #!/bin/sh
-# Set the @agent_state user option on the current tmux window. Used by
-# window-status-format to render an explicit per-tab agent indicator:
+# Set the @agent_state user option on the current tmux window. The tmux
+# window-status-format reads it to render a per-tab agent indicator dot:
 #
-#   needs-input → yellow ●  (agent waiting on permission / explicit attention)
-#   idle        → grey   ○  (agent turn complete, awaiting next prompt) —
-#                            overrides activity-from-TUI-redraw which would
-#                            otherwise keep the tab "running" green forever
-#   (empty)     →             fall through to tmux's monitor-activity /
-#                            silence / bell flags; set on UserPromptSubmit
-#                            and PreToolUse so the tab goes back to green
-#                            while the agent is producing output
+#   running     → green  ●  (agent is producing output)
+#   needs-input → yellow ●  (agent is blocked on a question / approval)
+#   idle        → grey   ○  (turn complete or fresh session, awaiting a prompt)
 #
-# Usage: agent-state <state>     # set state ("idle", "needs-input", …)
-#        agent-state             # clear state
+# Driven entirely by the Claude Code and Codex lifecycle hooks (see
+# dot_claude/modify_settings.json and dot_codex/private_hooks.json). Tabs that
+# never run an agent (shells, nvim, …) never set @agent_state, so they show no
+# dot at all.
+#
+# Usage: agent-state running|idle|needs-input
 #
 # No-op outside tmux. Always exits 0 so the agent doesn't surface an error.
 

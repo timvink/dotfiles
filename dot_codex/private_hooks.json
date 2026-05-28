@@ -1,0 +1,22 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state idle" } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state running" } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": ".*", "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state running" } ] }
+    ],
+    "PostToolUse": [
+      { "matcher": ".*", "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state running" } ] }
+    ],
+    "PermissionRequest": [
+      { "matcher": ".*", "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state needs-input" } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state idle" } ] }
+    ]
+  }
+}
