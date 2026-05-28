@@ -3,15 +3,20 @@
 # `agent-state` script, which sets a per-window tmux user option that
 # window-status-format reads to render the per-tab indicator dot:
 #
-#   UserPromptSubmit / PreToolUse → clear state — tab falls back to green
-#                                                  while Claude is working
-#   Stop                          → "idle"      — grey ○ when turn ends
-#   Notification                  → "needs-input" — yellow ● when Claude
-#                                                   wants explicit attention
+#   SessionStart / Stop              → "idle"        grey ○  (fresh session or
+#                                                     turn done, awaiting input)
+#   UserPromptSubmit / PreToolUse /
+#   PostToolUse                      → "running"     green ● (Claude is working)
+#   Notification[permission_prompt]  → "needs-input" yellow ● (blocked on an
+#                                                     approval). The idle_prompt
+#                                                     nudge is deliberately NOT
+#                                                     hooked, so a finished tab
+#                                                     stays grey ○ instead of
+#                                                     turning yellow after ~60s.
 #
 # This is a chezmoi modify_ script: stdin = current target content, stdout
-# = new content. Idempotent — overwrites only the four hook keys we manage
-# and preserves every other setting Claude Code adds at runtime.
+# = new content. Idempotent — overwrites only the hook keys we manage and
+# preserves every other setting Claude Code adds at runtime.
 
 set -eu
 
@@ -19,11 +24,12 @@ input=$(cat)
 [ -z "$input" ] && input='{}'
 
 mk_hook() {
-    # build a one-element hooks array invoking `agent-state <arg>`.
-    # $HOME is left literal so /bin/sh expands it when Claude Code runs the hook.
-    jq -n --arg cmd "\$HOME/.local/bin/agent-state $1" '[
+    # build a one-element hooks array invoking `agent-state <arg>`. $1 = the
+    # agent-state argument, $2 = the event matcher (default ""). $HOME is left
+    # literal so /bin/sh expands it when Claude Code runs the hook.
+    jq -n --arg cmd "\$HOME/.local/bin/agent-state $1" --arg matcher "${2:-}" '[
         {
-            "matcher": "",
+            "matcher": $matcher,
             "hooks": [
                 { "type": "command", "command": $cmd }
             ]
@@ -31,15 +37,17 @@ mk_hook() {
     ]'
 }
 
-clear_hook=$(mk_hook "")
 idle_hook=$(mk_hook "idle")
-input_hook=$(mk_hook "needs-input")
+running_hook=$(mk_hook "running")
+perm_hook=$(mk_hook "needs-input" "permission_prompt")
 
 printf '%s' "$input" | jq \
-    --argjson clear "$clear_hook" \
-    --argjson idle  "$idle_hook" \
-    --argjson input "$input_hook" \
-    '.hooks.UserPromptSubmit = $clear
-   | .hooks.PreToolUse       = $clear
-   | .hooks.Stop             = $idle
-   | .hooks.Notification     = $input'
+    --argjson idle    "$idle_hook" \
+    --argjson running "$running_hook" \
+    --argjson perm    "$perm_hook" \
+    '.hooks.SessionStart     = $idle
+   | .hooks.UserPromptSubmit = $running
+   | .hooks.PreToolUse       = $running
+   | .hooks.PostToolUse      = $running
+   | .hooks.Notification     = $perm
+   | .hooks.Stop             = $idle'
