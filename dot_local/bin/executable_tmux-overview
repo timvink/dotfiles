@@ -1,0 +1,255 @@
+#!/usr/bin/env python3
+"""tmux-overview — a live full-screen montage of every tmux tab.
+
+Bound to prefix+o. One band per session, a column per window (tab), each showing
+a colour-preserving snapshot of that window's screen. Over each cell floats a
+label box ("N name", numbered 1-9 running across all sessions) filled with the
+window's @agent_state colour — that status is the point of the view and it
+refreshes live (~1s). Press a digit 1-9 to jump to that window; any other key
+closes. Windows past the 9th are shown unnumbered (not jumpable):
+
+    green ● running    yellow ● waiting    grey ○ idle    dim · not an agent
+
+Redraws in place each tick (content first, then separators, then the boxes on
+top) without clearing, so the status stays current with minimal flicker. Any key
+closes it; the popup is opened with -E so the script exiting closes the popup.
+"""
+
+import os
+import re
+import select
+import shutil
+import subprocess
+import sys
+import unicodedata
+
+ESC = "\033"
+RESET = f"{ESC}[0m"
+BOLD = f"{ESC}[1m"
+
+# Catppuccin Mocha
+MAUVE = (203, 166, 247)
+GREEN = (166, 227, 161)
+YELLOW = (249, 226, 175)
+GREY = (147, 153, 178)
+DIM = (108, 112, 134)
+SEP = (88, 91, 112)
+INK = (30, 30, 46)
+SNOW = (235, 235, 245)
+
+STATE = {"running": GREEN, "needs-input": YELLOW, "idle": GREY}
+OTHER = DIM
+INTERVAL = 1.0
+
+CSI = re.compile(r"\033\[[0-9;:?]*[ -/]*[@-~]")
+
+
+def fg(rgb):
+    return f"{ESC}[38;2;{rgb[0]};{rgb[1]};{rgb[2]}m"
+
+
+def bg(rgb):
+    return f"{ESC}[48;2;{rgb[0]};{rgb[1]};{rgb[2]}m"
+
+
+def char_width(ch):
+    if unicodedata.combining(ch):
+        return 0
+    return 2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1
+
+
+def vis_width(s):
+    return sum(char_width(c) for c in s)
+
+
+def strip_ansi(s):
+    return CSI.sub("", s)
+
+
+def crop_plain(s, width):
+    out, w = [], 0
+    for ch in s:
+        cw = char_width(ch)
+        if w + cw > width:
+            break
+        out.append(ch)
+        w += cw
+    return "".join(out)
+
+
+def cell_ansi(s, width):
+    """Crop to `width` visible cols keeping SGR escapes, then pad to width."""
+    out, w, i, n = [], 0, 0, len(s)
+    while i < n:
+        if s[i] == ESC:
+            m = CSI.match(s, i)
+            if m:
+                out.append(m.group())
+                i = m.end()
+                continue
+            i += 1
+            continue
+        if s[i] in ("\t", "\r", "\n"):
+            i += 1
+            continue
+        cw = char_width(s[i])
+        if w + cw > width:
+            break
+        out.append(s[i])
+        w += cw
+        i += 1
+    out.append(RESET)
+    out.append(" " * (width - w))
+    return "".join(out)
+
+
+def at(r, c):
+    return f"{ESC}[{r};{c}H"
+
+
+def tmux(*args):
+    return subprocess.run(
+        ["tmux", *args], capture_output=True, text=True, encoding="utf-8", errors="replace"
+    ).stdout
+
+
+def gather():
+    sessions = [s for s in tmux("list-sessions", "-F", "#{session_name}").split("\n") if s]
+    wins = {}
+    maxcols = 1
+    for s in sessions:
+        rec = []
+        listing = tmux("list-windows", "-t", s, "-F", "#{window_index}\t#{window_name}\t#{@agent_state}")
+        for line in listing.split("\n"):
+            if not line:
+                continue
+            idx, name, state = (line.split("\t", 2) + ["", ""])[:3]
+            cap = tmux("capture-pane", "-e", "-p", "-t", f"{s}:{idx}").split("\n")
+            while cap and not strip_ansi(cap[-1]).strip():
+                cap.pop()
+            rec.append((idx, name, state, cap))
+        wins[s] = rec
+        maxcols = max(maxcols, len(rec))
+    return sessions, wins, maxcols
+
+
+def box_style(state):
+    if state in STATE:
+        return bg(STATE[state]) + fg(INK) + BOLD
+    return bg(OTHER) + fg(SNOW) + BOLD
+
+
+def build_frame(cols, rows, sessions, wins, maxcols, clear):
+    if not sessions:
+        return f"{ESC}[2J{at(1, 1)}no sessions", {}
+
+    nsess = len(sessions)
+    cell_w = max(6, (cols - (maxcols - 1)) // maxcols)
+    content_h = max(1, (rows - 1 - nsess) // nsess)
+
+    buf = [f"{ESC}[2J"] if clear else []
+    boxes = []
+    sep_rows = []
+    jumpmap = {}
+    g = 0  # running window number across all sessions; 1-9 are jumpable
+    r = 1
+    for s in sessions:
+        fill = max(0, cols - 4 - vis_width(s))
+        buf.append(at(r, 1) + fg(MAUVE) + BOLD + f"━━ {s} " + "━" * fill + RESET)
+        cstart = r + 1
+        rec = wins[s]
+        for c in range(maxcols):
+            cx = c * (cell_w + 1) + 1
+            if c < len(rec):
+                idx, name, state, cap = rec[c]
+                g += 1
+                if g <= 9:
+                    label = f"{g} {name}"
+                    jumpmap[str(g)] = (s, idx)
+                else:
+                    label = name
+                disp = cap[-content_h:]
+                disp = [""] * (content_h - len(disp)) + disp
+                for i in range(content_h):
+                    buf.append(at(cstart + i, cx) + cell_ansi(disp[i], cell_w))
+                boxes.append((cstart, cx, cell_w, content_h, label, state))
+            else:
+                for i in range(content_h):
+                    buf.append(at(cstart + i, cx) + " " * cell_w)
+        sep_rows.extend(range(cstart, cstart + content_h))
+        r = cstart + content_h
+
+    for c in range(maxcols - 1):
+        sx = (c + 1) * (cell_w + 1)
+        for rr in sep_rows:
+            buf.append(at(rr, sx) + fg(SEP) + "│" + RESET)
+
+    for cstart, cx, cw_, ch_, label, state in boxes:
+        style = box_style(state)
+        if ch_ >= 3 and cw_ >= 8:
+            lab = crop_plain(label, cw_ - 6)
+            interior = vis_width(lab) + 4
+            bw = interior + 2
+            bx = cx + max(0, (cw_ - bw) // 2)
+            brow = cstart + max(0, (ch_ - 3) // 2)
+            buf.append(at(brow, bx) + style + "┌" + "─" * interior + "┐" + RESET)
+            buf.append(at(brow + 1, bx) + style + "│  " + lab + "  │" + RESET)
+            buf.append(at(brow + 2, bx) + style + "└" + "─" * interior + "┘" + RESET)
+        else:
+            buf.append(at(cstart, cx) + style + crop_plain(f" {label} ", cw_) + RESET)
+
+    buf.append(at(rows, 1) + legend(cols))
+    return "".join(buf), jumpmap
+
+
+def legend(cols):
+    parts = [(GREEN, "● running"), (YELLOW, "● waiting"), (GREY, "○ idle"), (DIM, "· other")]
+    left = "  ".join(f"{fg(rgb)}{txt}{RESET}" for rgb, txt in parts)
+    left_w = sum(vis_width(txt) for _, txt in parts) + 2 * (len(parts) - 1)
+    hint = "1-9 jump · any key closes"
+    pad = max(1, cols - left_w - vis_width(hint) - 1)
+    return f"{left}{' ' * pad}{fg(DIM)}{hint}{RESET}"
+
+
+def main():
+    if not sys.stdin.isatty():
+        cols, rows = shutil.get_terminal_size((100, 30))
+        sessions, wins, maxcols = gather()
+        sys.stdout.write(build_frame(cols, rows, sessions, wins, maxcols, clear=True)[0])
+        return
+    run_live()
+
+
+def run_live():
+    import termios
+    import tty
+
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    target = None
+    try:
+        tty.setraw(fd)
+        sys.stdout.write(f"{ESC}[?25l{ESC}[?7l{ESC}[2J")
+        prev = None
+        while True:
+            cols, rows = shutil.get_terminal_size((100, 30))
+            sessions, wins, maxcols = gather()
+            dims = (cols, rows, len(sessions), maxcols)
+            frame, jumpmap = build_frame(cols, rows, sessions, wins, maxcols, clear=dims != prev)
+            sys.stdout.write(frame)
+            sys.stdout.flush()
+            prev = dims
+            if select.select([sys.stdin], [], [], INTERVAL)[0]:
+                target = jumpmap.get(os.read(fd, 1).decode("utf-8", "ignore"))
+                break
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+        sys.stdout.write(f"{ESC}[?7h{ESC}[?25h{RESET}")
+    if target:
+        s, idx = target
+        tmux("select-window", "-t", f"{s}:{idx}")
+        tmux("switch-client", "-t", s)
+
+
+if __name__ == "__main__":
+    main()
