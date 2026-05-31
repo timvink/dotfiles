@@ -48,6 +48,7 @@ return {
       sources = {
         explorer = {
           hidden = true, -- show dotfiles in the file tree
+          ignored = true, -- show gitignored paths too; toggle off in-tree with I
           win = {
             list = {
               keys = {
