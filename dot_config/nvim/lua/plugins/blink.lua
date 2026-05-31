@@ -5,10 +5,12 @@ return {
   opts = {
     sources = {
       -- In prose, the `buffer` source scrapes words from open buffers and
-      -- pollutes the popup. Drop it for markdown; keep LSP (fenced code
-      -- blocks), snippets, and path (link targets).
+      -- pollutes the popup. Drop it for markdown; also drop `snippets` — the
+      -- table~ / NxMtable~ shorthands kept popping up mid-sentence and broke
+      -- the flow of writing prose. Keep LSP (fenced code blocks) and path
+      -- (link targets), which only trigger on code/`/`, not on normal words.
       per_filetype = {
-        markdown = { "lsp", "path", "snippets" },
+        markdown = { "lsp", "path" },
       },
       providers = {
         path = {
