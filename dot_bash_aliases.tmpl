@@ -68,6 +68,20 @@ ccp() {
         return 1
     fi
 }
+# Start Claude in an isolated git worktree under .claude/worktrees/<name>/.
+# Native worktree support handles branch creation, .worktreeinclude copying
+# and cleanup on exit, so this is just a thin wrapper (cc() can't take flags —
+# it folds every arg into -p). No name → Claude generates one (and we can't
+# rename the tab since we don't know it). Inside tmux, name the tab "cc <name>"
+# so the worktree stands out in the prefix+w tree and prefix+o montage; the
+# manual rename also disables automatic-rename-format, which would relabel it
+# "claude" the moment the agent starts.
+ccw() {
+    if [ -n "$TMUX" ] && [ -n "$1" ]; then
+        tmux rename-window "cc $1"
+    fi
+    claude --dangerously-skip-permissions --worktree "$@"
+}
 
 ## Home server
 # SSH into the homelab and drop into the timvink-homelab repo.

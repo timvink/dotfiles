@@ -19,3 +19,13 @@ Clean up unused code ruthlessly. If a function no longer needs a parameter or a 
 Define success criteria. Loop until verified.
 Don't follow steps. Define success and iterate.
 Strong success criteria let you loop independently.
+
+## Git worktrees
+When working in a git worktree (e.g. started with `claude --worktree`) the
+checkout is fresh: gitignored files are absent and dependencies aren't
+installed. Before starting project work, confirm the repo provides both:
+- a `.worktreeinclude` at the repo root (gitignore syntax, one path per line)
+  listing gitignored files to copy in — `.env`, `.env.local`, local secrets;
+- a `setup` target in the `Makefile` that prepares the environment (install
+  deps, build venvs, seed config); run it with `make setup`.
+If either is missing, stop and ask the user to add it before continuing.

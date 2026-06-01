@@ -9,3 +9,6 @@
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Claude Code git worktrees (claude --worktree / ccw) live here; never track them
+.claude/worktrees/
