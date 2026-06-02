@@ -41,15 +41,21 @@ idle_hook=$(mk_hook "idle")
 running_hook=$(mk_hook "running")
 perm_hook=$(mk_hook "needs-input" "permission_prompt")
 
-# UserPromptSubmit: mark the tab running, except a bare `e` prompt exits the
-# session — a shell-style `e`=exit alias. This is one sequential script rather
-# than a separate exit hook on purpose: Claude Code may run an event's hooks
-# concurrently, so a standalone exit hook would race the `running` set above and
-# could leave the tab stuck on the green dot. On `e` we reset the tab to idle
-# first (killing the CLI means the Stop hook never fires to clear it), then
-# SIGTERM Claude Code's own process ($PPID of the hook). $HOME/$PPID stay
-# literal so /bin/sh expands them when Claude Code runs the hook.
-prompt_cmd='if [ "$(jq -r .prompt)" = e ]; then $HOME/.local/bin/agent-state idle; kill -TERM "$PPID"; else $HOME/.local/bin/agent-state running; fi'
+# UserPromptSubmit: mark the tab running, except a bare `e` prompt exits — a
+# shell-style `e`=exit. This is one sequential script rather than a separate
+# exit hook on purpose: Claude Code may run an event's hooks concurrently, so a
+# standalone exit hook would race the `running` set above and could leave the
+# tab stuck on the running dot.
+#
+# On `e` inside tmux we `kill-pane`, which tears down the whole pane process
+# tree — Claude Code, its launching shell, and any nested shells — in one shot,
+# so the tmux tab closes (no more chasing it with extra `exit`s). This matches
+# the `e` shell function in .bash_aliases, which also kill-panes. Outside tmux
+# there's no pane to close, so we fall back to clearing the dot (the Stop hook
+# never fires once the CLI is killed) and SIGTERM-ing Claude Code ($PPID of the
+# hook). $HOME / $PPID / $TMUX_PANE stay literal so /bin/sh expands them when
+# Claude Code runs the hook.
+prompt_cmd='if [ "$(jq -r .prompt)" = e ]; then if [ -n "$TMUX_PANE" ]; then tmux kill-pane -t "$TMUX_PANE"; else $HOME/.local/bin/agent-state idle; kill -TERM "$PPID"; fi; else $HOME/.local/bin/agent-state running; fi'
 prompt_hook=$(jq -n --arg cmd "$prompt_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
