@@ -11,9 +11,6 @@ else
     echo "Homebrew found. Skipping installation."
 fi
 
-# Install Homebrew packages
-brew install bat 
-
 # Update homebrew recipes
 brew update
 
@@ -22,9 +19,6 @@ brew install coreutils
 
 # Install GNU `find`, `locate`, `updatedb`, and `xargs`, g-prefixed
 brew install findutils
-
-# The much faster `ag` command
-brew install the_silver_searcher
 
 # Managing dotfiles
 brew install chezmoi
@@ -48,6 +42,8 @@ PACKAGES=(
   fd # A simple, fast and user-friendly alternative to 'find'
   btop # Better than htop
   ripgrep # required for lazyvim fuzzy file search
+  fzf # fuzzy finder: ctrl-r history, ctrl-t files, **<tab> completion
+  gh # GitHub CLI (used by claude skills, PRs, gh api)
   lazydocker
   uv
   starship
@@ -57,7 +53,6 @@ PACKAGES=(
   zsh-autocomplete
   diff-so-fancy
   visidata
-  gpg2
   gnupg
   pinentry-mac
   supabase/tap/supabase
@@ -72,10 +67,9 @@ brew cleanup
 
 # Install VSCode extensions
 
-echo "Installing VSCode extensions..."
 VSCODE_EXTENSIONS=(
   ms-python.python
-  periscope
+  joshmu.periscope
   github.copilot
   github.copilot-chat
   charliermarsh.ruff
@@ -84,6 +78,17 @@ VSCODE_EXTENSIONS=(
   catppuccin.catppuccin-vsc
   astral-sh.ty
 )
+
+# Install VSCode extensions (skip silently if the `code` CLI isn't on PATH —
+# e.g. a fresh box where VSCode's shell command hasn't been registered yet).
+if command -v code >/dev/null 2>&1; then
+    echo "Installing VSCode extensions..."
+    for ext in "${VSCODE_EXTENSIONS[@]}"; do
+        code --install-extension "$ext" --force
+    done
+else
+    echo "VSCode 'code' CLI not found on PATH; skipping extension install."
+fi
 
 # Install Claude Code
 curl -fsSL https://claude.ai/install.sh | bash

@@ -19,13 +19,11 @@ brew update
 # Cask programs
 CASKS=(
     visual-studio-code
-    flux
     rectangle
     spotify
     notion
     font-roboto
     font-fira-code
-    font-meslo-for-powerlevel10k
     font-powerline-symbols
     font-hack-nerd-font
     font-3270-nerd-font
@@ -50,6 +48,17 @@ done
 
 
 echo "Configuring OSX..."
+
+# Fast key repeat for vim-style hjkl navigation everywhere.
+# - ApplePressAndHoldEnabled=false: holding a key repeats it instead of popping
+#   the accent/diacritic picker (so holding `j` scrolls instead of offering ĵ).
+# - KeyRepeat=1: ~15ms between repeats once repeating starts (lower = faster;
+#   1 is below what the System Settings slider can reach).
+# - InitialKeyRepeat=12: ~180ms before the repeat kicks in (lower = shorter hold
+#   before it starts). Takes effect after logout/restart.
+defaults write -g ApplePressAndHoldEnabled -bool false
+defaults write -g KeyRepeat -int 1
+defaults write -g InitialKeyRepeat -int 12
 
 # Show filename extensions by default
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
