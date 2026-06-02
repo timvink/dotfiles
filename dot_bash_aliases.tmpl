@@ -27,7 +27,20 @@ alias del="trash-put"
 {{- end }}
 
 # Bash commands
-alias e="exit"
+# `e` = leave this tmux tab. Plain `exit` only pops one shell level, so nested
+# shells (a `chezmoi cd` subshell, a stacked `zsh`, etc.) need several `exit`s
+# before the tab finally closes. `tmux kill-pane` destroys the pane's entire
+# process tree at once, so one `e` always closes the tab. Outside tmux it just
+# exits the shell. Matches the Claude Code `e` hook (see dot_claude/
+# modify_settings.json), which kill-panes too. Note: over SSH ($TMUX is unset on
+# the remote) `e` exits the remote shell first, as you'd want.
+e() {
+    if [ -n "$TMUX" ]; then
+        tmux kill-pane -t "${TMUX_PANE:-}"
+    else
+        exit
+    fi
+}
 alias c="clear"
 
 # tmux — attach to the 'main' session, or create it if it doesn't exist yet.
