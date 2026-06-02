@@ -65,6 +65,11 @@ fi
 # trash-cli — provides 'trash-put'; bash_aliases aliases 'del' to it on linux
 install_if_missing trash-put trash-cli
 
+# fzf — fuzzy finder (ctrl-r history, ctrl-t files). Ubuntu's apt fzf is older
+# than 0.48, so it lacks `fzf --zsh`; the shell rc falls back to sourcing the
+# key-binding files this package drops under /usr/share.
+install_if_missing fzf fzf
+
 # xclip — clipboard backend for img-clip.nvim (paste images into markdown).
 # X11 only; if a VM ever runs Wayland, swap to wl-clipboard.
 install_if_missing xclip xclip
