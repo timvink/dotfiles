@@ -3,16 +3,16 @@
 # `agent-state` script, which sets a per-window tmux user option that
 # window-status-format reads to render the per-tab indicator dot:
 #
-#   SessionStart / Stop              → "idle"        grey ○  (fresh session or
+#   SessionStart / Stop              → "idle"        yellow ○ (fresh session or
 #                                                     turn done, awaiting input)
 #   UserPromptSubmit / PreToolUse /
-#   PostToolUse                      → "running"     green ● (Claude is working)
-#   Notification[permission_prompt]  → "needs-input" peach ● (blocked on an
+#   PostToolUse                      → "running"     blue ●  (Claude is working)
+#   Notification[permission_prompt]  → "needs-input" red ●   (blocked on an
 #                                                     approval). The idle_prompt
 #                                                     nudge is deliberately NOT
 #                                                     hooked, so a finished tab
-#                                                     stays grey ○ instead of
-#                                                     turning peach after ~60s.
+#                                                     stays yellow ○ instead of
+#                                                     turning red after ~60s.
 #
 # This is a chezmoi modify_ script: stdin = current target content, stdout
 # = new content. Idempotent — overwrites only the hook keys we manage and

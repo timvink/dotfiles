@@ -2,9 +2,9 @@
 # Set the @agent_state user option on the current tmux window. The tmux
 # window-status-format reads it to render a per-tab agent indicator dot:
 #
-#   running     → green  ●  (agent is producing output)
-#   needs-input → peach  ●  (agent is blocked on a question / approval)
-#   idle        → grey   ○  (turn complete or fresh session, awaiting a prompt)
+#   running     → blue   ●  (agent is producing output)
+#   needs-input → red    ●  (agent is blocked on a question / approval)
+#   idle        → yellow ○  (turn complete or fresh session, awaiting a prompt)
 #
 # Driven entirely by the Claude Code and Codex lifecycle hooks (see
 # dot_claude/modify_settings.json and dot_codex/private_hooks.json). Tabs that
