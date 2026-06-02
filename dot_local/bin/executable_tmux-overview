@@ -8,7 +8,7 @@ window's @agent_state colour — that status is the point of the view and it
 refreshes live (~1s). Press a digit 1-9 to jump to that window; any other key
 closes. Windows past the 9th are shown unnumbered (not jumpable):
 
-    green ● running    yellow ● waiting    grey ○ idle    dim · not an agent
+    green ● running    peach ● waiting    grey ○ idle    dim · not an agent
 
 Redraws in place each tick (content first, then separators, then the boxes on
 top) without clearing, so the status stays current with minimal flicker. Any key
@@ -30,14 +30,14 @@ BOLD = f"{ESC}[1m"
 # Catppuccin Mocha
 MAUVE = (203, 166, 247)
 GREEN = (166, 227, 161)
-YELLOW = (249, 226, 175)
+PEACH = (250, 179, 135)
 GREY = (147, 153, 178)
 DIM = (108, 112, 134)
 SEP = (88, 91, 112)
 INK = (30, 30, 46)
 SNOW = (235, 235, 245)
 
-STATE = {"running": GREEN, "needs-input": YELLOW, "idle": GREY}
+STATE = {"running": GREEN, "needs-input": PEACH, "idle": GREY}
 OTHER = DIM
 INTERVAL = 1.0
 
@@ -203,7 +203,7 @@ def build_frame(cols, rows, sessions, wins, maxcols, clear):
 
 
 def legend(cols):
-    parts = [(GREEN, "● running"), (YELLOW, "● waiting"), (GREY, "○ idle"), (DIM, "· other")]
+    parts = [(GREEN, "● running"), (PEACH, "● waiting"), (GREY, "○ idle"), (DIM, "· other")]
     left = "  ".join(f"{fg(rgb)}{txt}{RESET}" for rgb, txt in parts)
     left_w = sum(vis_width(txt) for _, txt in parts) + 2 * (len(parts) - 1)
     hint = "1-9 jump · any key closes"

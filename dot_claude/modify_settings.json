@@ -7,12 +7,12 @@
 #                                                     turn done, awaiting input)
 #   UserPromptSubmit / PreToolUse /
 #   PostToolUse                      → "running"     green ● (Claude is working)
-#   Notification[permission_prompt]  → "needs-input" yellow ● (blocked on an
+#   Notification[permission_prompt]  → "needs-input" peach ● (blocked on an
 #                                                     approval). The idle_prompt
 #                                                     nudge is deliberately NOT
 #                                                     hooked, so a finished tab
 #                                                     stays grey ○ instead of
-#                                                     turning yellow after ~60s.
+#                                                     turning peach after ~60s.
 #
 # This is a chezmoi modify_ script: stdin = current target content, stdout
 # = new content. Idempotent — overwrites only the hook keys we manage and
