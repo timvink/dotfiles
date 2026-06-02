@@ -24,12 +24,13 @@ input=$(cat)
 [ -z "$input" ] && input='{}'
 
 mk_hook() {
-    # build a one-element hooks array invoking `agent-state <arg>`. $1 = the
-    # agent-state argument, $2 = the event matcher (default ""). $HOME is left
+    # build a one-element hooks array invoking `agent-state <arg>` with an empty
+    # matcher. The events these drive (SessionStart / Stop / Pre|PostToolUse)
+    # aren't filtered by tool name, so the matcher is always "". $HOME is left
     # literal so /bin/sh expands it when Claude Code runs the hook.
-    jq -n --arg cmd "\$HOME/.local/bin/agent-state $1" --arg matcher "${2:-}" '[
+    jq -n --arg cmd "\$HOME/.local/bin/agent-state $1" '[
         {
-            "matcher": $matcher,
+            "matcher": "",
             "hooks": [
                 { "type": "command", "command": $cmd }
             ]
@@ -39,7 +40,18 @@ mk_hook() {
 
 idle_hook=$(mk_hook "idle")
 running_hook=$(mk_hook "running")
-perm_hook=$(mk_hook "needs-input" "permission_prompt")
+
+# Notification fires for two cases, distinguished by the payload's
+# "notification_type" field (NOT by the matcher — matchers only match tool
+# names, so the old matcher:"permission_prompt" matched nothing and the dot
+# never went red). We want red only for permission_prompt; idle_prompt (the
+# ~60s "waiting for your input" nudge) must leave the dot alone so a finished
+# tab stays idle instead of turning red. So: match all Notifications (matcher
+# ""), then gate on notification_type inside the command. $HOME stays literal.
+perm_cmd='if [ "$(jq -r .notification_type)" = permission_prompt ]; then $HOME/.local/bin/agent-state needs-input; fi'
+perm_hook=$(jq -n --arg cmd "$perm_cmd" '[
+    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
+]')
 
 # UserPromptSubmit: mark the tab running, except a bare `e` prompt exits — a
 # shell-style `e`=exit. This is one sequential script rather than a separate
