@@ -3,7 +3,7 @@
 # window-status-format reads it to render a per-tab agent indicator dot:
 #
 #   running     → green  ●  (agent is producing output)
-#   needs-input → yellow ●  (agent is blocked on a question / approval)
+#   needs-input → peach  ●  (agent is blocked on a question / approval)
 #   idle        → grey   ○  (turn complete or fresh session, awaiting a prompt)
 #
 # Driven entirely by the Claude Code and Codex lifecycle hooks (see
