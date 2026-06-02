@@ -49,6 +49,11 @@ done
 
 echo "Configuring OSX..."
 
+# Hold a key to repeat it instead of popping the accent/diacritic picker, so
+# holding hjkl scrolls (vim) instead of offering ĵ. Key-repeat *speed* is left
+# at the System Settings default on purpose. Takes effect after logout/restart.
+defaults write -g ApplePressAndHoldEnabled -bool false
+
 # Show filename extensions by default
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
 
