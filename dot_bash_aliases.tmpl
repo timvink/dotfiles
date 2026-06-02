@@ -34,9 +34,14 @@ alias del="trash-put"
 # exits the shell. Matches the Claude Code `e` hook (see dot_claude/
 # modify_settings.json), which kill-panes too. Note: over SSH ($TMUX is unset on
 # the remote) `e` exits the remote shell first, as you'd want.
+#
+# If kill-pane can't reach the server (e.g. its /tmp socket was deleted, leaving
+# the server orphaned), fall back to `exit` — that still closes the pane, since
+# pane teardown happens over the pty, not the socket. The 2>/dev/null hides the
+# "error connecting …" noise in that case.
 e() {
     if [ -n "$TMUX" ]; then
-        tmux kill-pane -t "${TMUX_PANE:-}"
+        tmux kill-pane -t "${TMUX_PANE:-}" 2>/dev/null || exit
     else
         exit
     fi
