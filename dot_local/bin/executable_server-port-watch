@@ -28,9 +28,15 @@ win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null) || exi
 # Numeric LISTEN ports, one per line, sorted. -n: no host lookup, -P: numeric
 # ports — both keep $9 as IP:PORT so the last ":"-field is always the port
 # (handles *:3000, 127.0.0.1:3000 and [::1]:3000 alike). Works on macOS + Linux.
+#
+# Ports in the IANA dynamic/ephemeral range (>= 49152) are skipped: real dev
+# servers bind fixed lower ports, while OS daemons that churn ephemeral ports
+# (macOS rapportd / Handoff, etc.) re-bind new ones mid-serve and would
+# otherwise be misattributed to the server. Persistent low-port daemons are
+# already excluded by the baseline; this only filters the churning ones.
 ports() {
     lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null \
-        | awk 'NR>1 {n=split($9,a,":"); print a[n]}' \
+        | awk 'NR>1 {n=split($9,a,":"); p=a[n]; if (p+0 < 49152) print p}' \
         | sort -un
 }
 
