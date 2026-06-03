@@ -33,3 +33,13 @@
 [commit]
 	gpgsign = true
 {{- end }}
+
+{{ if eq .chezmoi.os "darwin" -}}
+# Git Credential Manager — browser/Entra OAuth for Azure Repos, GitHub, etc.
+# Installed via Homebrew; the empty first helper resets inherited helpers (e.g. osxkeychain).
+[credential]
+	helper =
+	helper = /usr/local/bin/git-credential-manager
+[credential "https://dev.azure.com"]
+	useHttpPath = true
+{{- end }}
