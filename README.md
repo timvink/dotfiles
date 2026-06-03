@@ -24,7 +24,7 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 | Key | App | Mnemonic |
 |-----|-----|----------|
 | `A` | Spotify | "Audio" |
-| `S` | Teams | think "Slack" (chat) |
+| `S` | Teams | "Social" |
 | `D` | Ghostty | "Dev" |
 | `F` | Firefox | Firefox |
 | `W` | Signal | "Whisper" (Open Whisper Systems) |
