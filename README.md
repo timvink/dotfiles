@@ -23,7 +23,7 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 
 | Key | App | Mnemonic |
 |-----|-----|----------|
-| `A` | Spotify | "Aaaah" — music |
+| `A` | Spotify | "Audio" |
 | `S` | Teams | think "Slack" (chat) |
 | `D` | Ghostty | "Dev" |
 | `F` | Firefox | Firefox |
