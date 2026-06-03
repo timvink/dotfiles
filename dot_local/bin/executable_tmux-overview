@@ -3,19 +3,20 @@
 
 Bound to prefix+o. One band per session, a column per window (tab), each showing
 a colour-preserving snapshot of that window's screen. Over each cell floats a
-label box ("N name", numbered 1-9 running across all sessions) filled with the
-window's @agent_state colour — that status is the point of the view and it
-refreshes live (~1s). Press a digit 1-9 to jump to that window; any other key
-closes. Windows past the 9th are shown unnumbered (not jumpable):
+label box ("KEY name") filled with the window's @agent_state colour. A window
+running a foreground `make serve` gets a green box with its port(s) appended
+(e.g. "3 api  8000"), so servers stand out from agents.
 
-    blue ● running    red ● waiting    yellow ○ idle    dim · not an agent
+Navigate: hjkl (or arrow keys) move a peach highlight between cells, wrapping at
+every edge; Enter opens the highlighted cell. Or jump straight to a cell by its
+KEY — 1-9 then a-z (skipping the h/j/k/l/q keys) — or by clicking it with the
+mouse. q or Esc closes. Nothing is highlighted until you first move.
 
-A window running a foreground `make serve` gets a green box with the listening
-port appended (e.g. "3 api  3000"), so servers stand out from agents.
+    blue ● running    red ● waiting    yellow ○ idle    green ■ server
 
-Redraws in place each tick (content first, then separators, then the boxes on
-top) without clearing, so the status stays current with minimal flicker. Any key
-closes it; the popup is opened with -E so the script exiting closes the popup.
+Redraws in place each tick (~1s) — content, then separators, then boxes, then
+the highlight on top — without clearing, so it stays current with minimal
+flicker. Opened with -E so the script exiting closes the popup.
 """
 
 import os
@@ -36,6 +37,7 @@ BLUE = (137, 180, 250)
 RED = (243, 139, 168)
 YELLOW = (249, 226, 175)
 GREEN = (166, 227, 161)
+PEACH = (250, 179, 135)   # selection highlight — distinct from every state colour
 DIM = (108, 112, 134)
 SEP = (88, 91, 112)
 INK = (30, 30, 46)
@@ -44,6 +46,11 @@ SNOW = (235, 235, 245)
 STATE = {"running": BLUE, "needs-input": RED, "idle": YELLOW}
 OTHER = DIM
 INTERVAL = 1.0
+
+# Direct-jump hotkeys: 1-9 then letters, SKIPPING the hjkl nav keys and the q
+# quit key so a jump can never be read as a move or a quit.
+_RESERVED = set("hjklq")
+HOTKEYS = [str(d) for d in range(1, 10)] + [c for c in "abcdefghijklmnopqrstuvwxyz" if c not in _RESERVED]
 
 CSI = re.compile(r"\033\[[0-9;:?]*[ -/]*[@-~]")
 
@@ -148,45 +155,50 @@ def box_style(state, server):
     return bg(OTHER) + fg(SNOW) + BOLD
 
 
-def build_frame(cols, rows, sessions, wins, maxcols, clear):
+def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
     if not sessions:
-        return f"{ESC}[2J{at(1, 1)}no sessions", {}
+        return f"{ESC}[2J{at(1, 1)}no sessions", {}, [], []
 
     nsess = len(sessions)
     cell_w = max(6, (cols - (maxcols - 1)) // maxcols)
     content_h = max(1, (rows - 1 - nsess) // nsess)
 
     buf = [f"{ESC}[2J"] if clear else []
-    boxes = []
+    boxes = []          # (ri, ci, cstart, cx, cell_w, content_h, label, state, server)
     sep_rows = []
-    jumpmap = {}
-    g = 0  # running window number across all sessions; 1-9 are jumpable
+    jumpmap = {}        # hotkey -> (session, idx)
+    grid = []           # grid[ri] = [(session, idx), …] in column order, for nav/Enter
+    hitboxes = []       # (top, left, bottom, right, (session, idx)) for mouse clicks
+    g = 0               # running cell number across all sessions
     r = 1
-    for s in sessions:
+    for ri, s in enumerate(sessions):
         fill = max(0, cols - 4 - vis_width(s))
         buf.append(at(r, 1) + fg(MAUVE) + BOLD + f"━━ {s} " + "━" * fill + RESET)
         cstart = r + 1
         rec = wins[s]
+        rowcells = []
         for c in range(maxcols):
             cx = c * (cell_w + 1) + 1
             if c < len(rec):
                 idx, name, state, server, port, cap = rec[c]
+                hotkey = HOTKEYS[g] if g < len(HOTKEYS) else None
                 g += 1
-                if g <= 9:
-                    label = f"{g} {name}"
-                    jumpmap[str(g)] = (s, idx)
-                else:
-                    label = name
-                if server == "running":
-                    label = label + (f"  {port}" if port else "")
+                label = f"{hotkey} {name}" if hotkey else name
+                if server == "running" and port:
+                    label = f"{label}  {port}"
+                if hotkey:
+                    jumpmap[hotkey] = (s, idx)
+                rowcells.append((s, idx))
+                hitboxes.append((cstart, cx, cstart + content_h - 1, cx + cell_w - 1, (s, idx)))
                 disp = cap[-content_h:]
                 disp = [""] * (content_h - len(disp)) + disp
                 for i in range(content_h):
                     buf.append(at(cstart + i, cx) + cell_ansi(disp[i], cell_w))
-                boxes.append((cstart, cx, cell_w, content_h, label, state, server))
+                boxes.append((ri, c, cstart, cx, cell_w, content_h, label, state, server))
             else:
                 for i in range(content_h):
                     buf.append(at(cstart + i, cx) + " " * cell_w)
+        grid.append(rowcells)
         sep_rows.extend(range(cstart, cstart + content_h))
         r = cstart + content_h
 
@@ -195,7 +207,7 @@ def build_frame(cols, rows, sessions, wins, maxcols, clear):
         for rr in sep_rows:
             buf.append(at(rr, sx) + fg(SEP) + "│" + RESET)
 
-    for cstart, cx, cw_, ch_, label, state, server in boxes:
+    for ri, ci, cstart, cx, cw_, ch_, label, state, server in boxes:
         style = box_style(state, server)
         if ch_ >= 3 and cw_ >= 8:
             lab = crop_plain(label, cw_ - 6)
@@ -209,15 +221,31 @@ def build_frame(cols, rows, sessions, wins, maxcols, clear):
         else:
             buf.append(at(cstart, cx) + style + crop_plain(f" {label} ", cw_) + RESET)
 
+    # Heavy peach frame around the selected cell, drawn last so it sits on top of
+    # content, separators and the label box.
+    if sel is not None:
+        for ri, ci, cstart, cx, cw_, ch_, label, state, server in boxes:
+            if (ri, ci) != sel:
+                continue
+            if cw_ >= 2 and ch_ >= 2:
+                hl = fg(PEACH) + BOLD
+                top, bottom, left, right = cstart, cstart + ch_ - 1, cx, cx + cw_ - 1
+                buf.append(at(top, left) + hl + "┏" + "━" * (cw_ - 2) + "┓" + RESET)
+                for rr in range(top + 1, bottom):
+                    buf.append(at(rr, left) + hl + "┃" + RESET)
+                    buf.append(at(rr, right) + hl + "┃" + RESET)
+                buf.append(at(bottom, left) + hl + "┗" + "━" * (cw_ - 2) + "┛" + RESET)
+            break
+
     buf.append(at(rows, 1) + legend(cols))
-    return "".join(buf), jumpmap
+    return "".join(buf), jumpmap, grid, hitboxes
 
 
 def legend(cols):
     parts = [(BLUE, "● running"), (RED, "● waiting"), (YELLOW, "○ idle"), (GREEN, "■ server"), (DIM, "· other")]
     left = "  ".join(f"{fg(rgb)}{txt}{RESET}" for rgb, txt in parts)
     left_w = sum(vis_width(txt) for _, txt in parts) + 2 * (len(parts) - 1)
-    hint = "1-9 jump · any key closes"
+    hint = "hjkl move · ↵ open · 1-9/a-z/click jump · q quit"
     pad = max(1, cols - left_w - vis_width(hint) - 1)
     return f"{left}{' ' * pad}{fg(DIM)}{hint}{RESET}"
 
@@ -226,9 +254,55 @@ def main():
     if not sys.stdin.isatty():
         cols, rows = shutil.get_terminal_size((100, 30))
         sessions, wins, maxcols = gather()
-        sys.stdout.write(build_frame(cols, rows, sessions, wins, maxcols, clear=True)[0])
+        sys.stdout.write(build_frame(cols, rows, sessions, wins, maxcols, None, clear=True)[0])
         return
     run_live()
+
+
+def move(sel, nav, grid):
+    """Next selection after an hjkl/arrow move, wrapping at every edge.
+
+    From no selection we enter the grid in the pressed direction: l → top-left,
+    h → top-right, j → second row (col 0), k → last row (col 0). Once selected,
+    h/l wrap within the session band and j/k wrap across bands (clamping the
+    column into the target band, which may be shorter)."""
+    nrows = len(grid)
+    if nrows == 0:
+        return None
+    if sel is None:
+        if nav == "l":
+            return (0, 0)
+        if nav == "h":
+            return (0, len(grid[0]) - 1)
+        if nav == "j":
+            return (1 % nrows, 0)
+        if nav == "k":
+            return (nrows - 1, 0)
+        return None
+    r, c = sel
+    if nav == "h":
+        c = (c - 1) % len(grid[r])
+    elif nav == "l":
+        c = (c + 1) % len(grid[r])
+    elif nav == "j":
+        r = (r + 1) % nrows
+        c = min(c, len(grid[r]) - 1)
+    elif nav == "k":
+        r = (r - 1) % nrows
+        c = min(c, len(grid[r]) - 1)
+    return (r, c)
+
+
+def hit_test(hitboxes, x, y):
+    for top, left, bottom, right, tgt in hitboxes:
+        if top <= y <= bottom and left <= x <= right:
+            return tgt
+    return None
+
+
+ARROWS = {"\x1b[A": "k", "\x1b[B": "j", "\x1b[C": "l", "\x1b[D": "h",
+          "\x1bOA": "k", "\x1bOB": "j", "\x1bOC": "l", "\x1bOD": "h"}
+MOUSE_RE = re.compile(r"\x1b\[<(\d+);(\d+);(\d+)([Mm])")
 
 
 def run_live():
@@ -238,24 +312,65 @@ def run_live():
     fd = sys.stdin.fileno()
     old = termios.tcgetattr(fd)
     target = None
+    sel = None          # (band, col), or None until the first move
     try:
         tty.setraw(fd)
-        sys.stdout.write(f"{ESC}[?25l{ESC}[?7l{ESC}[2J")
+        # hide cursor, disable autowrap, clear, enable SGR mouse reporting
+        sys.stdout.write(f"{ESC}[?25l{ESC}[?7l{ESC}[2J{ESC}[?1000h{ESC}[?1006h")
         prev = None
         while True:
             cols, rows = shutil.get_terminal_size((100, 30))
             sessions, wins, maxcols = gather()
+            # drop a stale selection if the layout shrank under it
+            if sel is not None and (
+                sel[0] >= len(sessions)
+                or sel[1] >= len(wins.get(sessions[sel[0]], []))
+            ):
+                sel = None
             dims = (cols, rows, len(sessions), maxcols)
-            frame, jumpmap = build_frame(cols, rows, sessions, wins, maxcols, clear=dims != prev)
+            frame, jumpmap, grid, hitboxes = build_frame(
+                cols, rows, sessions, wins, maxcols, sel, clear=dims != prev)
             sys.stdout.write(frame)
             sys.stdout.flush()
             prev = dims
-            if select.select([sys.stdin], [], [], INTERVAL)[0]:
-                target = jumpmap.get(os.read(fd, 1).decode("utf-8", "ignore"))
+            if not select.select([sys.stdin], [], [], INTERVAL)[0]:
+                continue
+            data = os.read(fd, 1024)
+            if not data:
+                continue
+            s = data.decode("utf-8", "ignore")
+            m = MOUSE_RE.search(s)
+            if m:
+                b, x, y, typ = int(m.group(1)), int(m.group(2)), int(m.group(3)), m.group(4)
+                if typ == "M" and (b & 0xE3) == 0:        # left press, no motion/wheel
+                    hit = hit_test(hitboxes, x, y)
+                    if hit:
+                        target = hit
+                        break
+                continue
+            for seq, kk in ARROWS.items():
+                if s.startswith(seq):
+                    s = kk
+                    break
+            ch = s[0] if s else ""
+            if len(s) == 1 and ch in "hjkl":
+                sel = move(sel, ch, grid)
+                continue
+            if ch in ("\r", "\n"):
+                if sel is not None:
+                    target = grid[sel[0]][sel[1]]
+                    break
+                continue
+            if ch in ("q", "\x1b", "\x03"):
                 break
+            if ch in jumpmap:
+                target = jumpmap[ch]
+                break
+            # anything else: ignore (do not close)
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
-        sys.stdout.write(f"{ESC}[?7h{ESC}[?25h{RESET}")
+        # disable mouse, restore autowrap + cursor
+        sys.stdout.write(f"{ESC}[?1000l{ESC}[?1006l{ESC}[?7h{ESC}[?25h{RESET}")
     if target:
         s, idx = target
         tmux("select-window", "-t", f"{s}:{idx}")
