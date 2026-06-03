@@ -1,0 +1,53 @@
+#!/bin/sh
+# Watch for the TCP port a `make serve` server starts listening on and publish
+# it to the current tmux window's @server_port option, so the status bar and
+# prefix+o overview can show e.g. "8000".
+#
+# How: snapshot every LISTEN port at startup (the baseline), then poll and treat
+# any port that appears *after* that as the server's. Diffing against a baseline
+# — rather than walking make's process tree — is what lets this catch
+# docker-published ports too: those are opened by the Docker daemon / vpnkit /
+# docker-proxy, not by a child of make, so a tree walk would miss them. The
+# smallest new port wins (app ports like 3000/8000 sort below docker's high
+# ephemeral ones); if some unrelated server also starts mid-serve it could be
+# misattributed, but that's rare on a dev box.
+#
+# Lifetime: started fire-and-forget by the make wrapper (dot_bash_aliases.tmpl),
+# which sets @server_state to running before launching us and back to off when
+# `make serve` exits (normal exit, Ctrl-C, or a detached server). We poll that
+# flag and exit the moment it leaves "running" — so the wrapper needs no PID and
+# can launch us silently in a subshell. No-op outside tmux. Resolves its window
+# once from $TMUX_PANE (inherited from the wrapper).
+
+[ -n "${TMUX_PANE:-}" ] || exit 0
+win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null) || exit 0
+[ -n "$win" ] || exit 0
+
+# Numeric LISTEN ports, one per line, sorted. -n: no host lookup, -P: numeric
+# ports — both keep $9 as IP:PORT so the last ":"-field is always the port
+# (handles *:3000, 127.0.0.1:3000 and [::1]:3000 alike). Works on macOS + Linux.
+ports() {
+    lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null \
+        | awk 'NR>1 {n=split($9,a,":"); print a[n]}' \
+        | sort -un
+}
+
+base=$(mktemp) || exit 0
+# A signal trap in sh runs the handler and then *resumes* the script unless it
+# exits — so INT/TERM must explicitly exit, or the loop would spin on a
+# already-deleted $base and spew "grep: … No such file". EXIT cleans up on the
+# normal (self-terminating) path. grep's stderr is muted as a belt-and-braces
+# guard against the same race.
+trap 'rm -f "$base"' EXIT
+trap 'rm -f "$base"; exit' INT TERM
+ports > "$base"
+
+interval=1
+while [ "$(tmux show-options -wv -t "$win" '@server_state' 2>/dev/null)" = running ]; do
+    new=$(ports | grep -vxF -f "$base" 2>/dev/null | head -1)
+    if [ -n "$new" ]; then
+        tmux set-option -wt "$win" '@server_port' "$new" 2>/dev/null || true
+        interval=5   # found it; relax the poll — the port rarely changes
+    fi
+    sleep "$interval"
+done

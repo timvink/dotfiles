@@ -10,6 +10,9 @@ closes. Windows past the 9th are shown unnumbered (not jumpable):
 
     blue ● running    red ● waiting    yellow ○ idle    dim · not an agent
 
+A window running a foreground `make serve` gets a green box with the listening
+port appended (e.g. "3 api  3000"), so servers stand out from agents.
+
 Redraws in place each tick (content first, then separators, then the boxes on
 top) without clearing, so the status stays current with minimal flicker. Any key
 closes it; the popup is opened with -E so the script exiting closes the popup.
@@ -32,6 +35,7 @@ MAUVE = (203, 166, 247)
 BLUE = (137, 180, 250)
 RED = (243, 139, 168)
 YELLOW = (249, 226, 175)
+GREEN = (166, 227, 161)
 DIM = (108, 112, 134)
 SEP = (88, 91, 112)
 INK = (30, 30, 46)
@@ -119,21 +123,26 @@ def gather():
     maxcols = 1
     for s in sessions:
         rec = []
-        listing = tmux("list-windows", "-t", s, "-F", "#{window_index}\t#{window_name}\t#{@agent_state}")
+        listing = tmux(
+            "list-windows", "-t", s, "-F",
+            "#{window_index}\t#{window_name}\t#{@agent_state}\t#{@server_state}\t#{@server_port}",
+        )
         for line in listing.split("\n"):
             if not line:
                 continue
-            idx, name, state = (line.split("\t", 2) + ["", ""])[:3]
+            idx, name, state, server, port = (line.split("\t", 4) + [""] * 4)[:5]
             cap = tmux("capture-pane", "-e", "-p", "-t", f"{s}:{idx}").split("\n")
             while cap and not strip_ansi(cap[-1]).strip():
                 cap.pop()
-            rec.append((idx, name, state, cap))
+            rec.append((idx, name, state, server, port, cap))
         wins[s] = rec
         maxcols = max(maxcols, len(rec))
     return sessions, wins, maxcols
 
 
-def box_style(state):
+def box_style(state, server):
+    if server == "running":
+        return bg(GREEN) + fg(INK) + BOLD
     if state in STATE:
         return bg(STATE[state]) + fg(INK) + BOLD
     return bg(OTHER) + fg(SNOW) + BOLD
@@ -161,18 +170,20 @@ def build_frame(cols, rows, sessions, wins, maxcols, clear):
         for c in range(maxcols):
             cx = c * (cell_w + 1) + 1
             if c < len(rec):
-                idx, name, state, cap = rec[c]
+                idx, name, state, server, port, cap = rec[c]
                 g += 1
                 if g <= 9:
                     label = f"{g} {name}"
                     jumpmap[str(g)] = (s, idx)
                 else:
                     label = name
+                if server == "running":
+                    label = label + (f"  {port}" if port else "")
                 disp = cap[-content_h:]
                 disp = [""] * (content_h - len(disp)) + disp
                 for i in range(content_h):
                     buf.append(at(cstart + i, cx) + cell_ansi(disp[i], cell_w))
-                boxes.append((cstart, cx, cell_w, content_h, label, state))
+                boxes.append((cstart, cx, cell_w, content_h, label, state, server))
             else:
                 for i in range(content_h):
                     buf.append(at(cstart + i, cx) + " " * cell_w)
@@ -184,8 +195,8 @@ def build_frame(cols, rows, sessions, wins, maxcols, clear):
         for rr in sep_rows:
             buf.append(at(rr, sx) + fg(SEP) + "│" + RESET)
 
-    for cstart, cx, cw_, ch_, label, state in boxes:
-        style = box_style(state)
+    for cstart, cx, cw_, ch_, label, state, server in boxes:
+        style = box_style(state, server)
         if ch_ >= 3 and cw_ >= 8:
             lab = crop_plain(label, cw_ - 6)
             interior = vis_width(lab) + 4
@@ -203,7 +214,7 @@ def build_frame(cols, rows, sessions, wins, maxcols, clear):
 
 
 def legend(cols):
-    parts = [(BLUE, "● running"), (RED, "● waiting"), (YELLOW, "○ idle"), (DIM, "· other")]
+    parts = [(BLUE, "● running"), (RED, "● waiting"), (YELLOW, "○ idle"), (GREEN, "■ server"), (DIM, "· other")]
     left = "  ".join(f"{fg(rgb)}{txt}{RESET}" for rgb, txt in parts)
     left_w = sum(vis_width(txt) for _, txt in parts) + 2 * (len(parts) - 1)
     hint = "1-9 jump · any key closes"

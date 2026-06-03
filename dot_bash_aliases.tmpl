@@ -72,6 +72,28 @@ alias t='tmux new -A -s main'
 # Python
 alias venv='source .venv/bin/activate'
 
+# Wrap `make` so `make serve` shows a green port chip on the tab (next to the
+# agent dot — see dot_tmux.conf) for the lifetime of the foreground server, then
+# clears it on exit. A background server-port-watch sniffs out the listening
+# port and fills it in. Every other make target passes straight through. The
+# INT/TERM trap clears the chip on Ctrl-C; `command make` avoids recursing into
+# this wrapper. The watcher is launched in a subshell — `( … & )` — so the shell
+# prints no "[1] 12345" job line; it self-exits when @server_state leaves
+# running (set below), so there's no PID to track or kill. Only tracks
+# foreground servers — a target that detaches (docker compose up -d) returns
+# immediately, so the chip clears even though the container stays up. See
+# dot_local/bin/executable_server-state.
+make() {
+    [ "$1" = serve ] || { command make "$@"; return; }
+    server-state running
+    ( server-port-watch & )
+    trap 'server-state off' INT TERM
+    command make "$@"; local rc=$?
+    server-state off
+    trap - INT TERM
+    return $rc
+}
+
 # LLMs
 cc() {
     if [ $# -eq 0 ]; then
