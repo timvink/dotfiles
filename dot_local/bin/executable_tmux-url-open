@@ -62,17 +62,21 @@ n=0
 if [ -n "$servers" ]; then
     set -- "" "" ""                              # absorbed; lets the header show
     set -- "$@" "-servers · all sessions" "" ""
-    while IFS="$TAB" read -r port loc name; do
-        [ -n "$port" ] || continue
-        n=$((n + 1))
-        if [ "$n" -le 9 ]; then key="$n"; else key=""; fi
-        url="http://localhost:$port"
-        srv_urls="$srv_urls$url$TAB"
+    while IFS="$TAB" read -r ports_field loc name; do
+        [ -n "$ports_field" ] || continue
         here=""
         [ "$loc" = "$cur" ] && here=" ←"
-        cmd="run-shell -b \"$opener '$(shquote "$url")'\""
-        label=$(printf ':%-5s %s  %s%s' "$port" "$name" "$loc" "$here")
-        set -- "$@" "$label" "$key" "$cmd"
+        # @server_port may hold several space-separated ports (a compose stack);
+        # list each as its own pickable entry.
+        for port in $ports_field; do
+            n=$((n + 1))
+            if [ "$n" -le 9 ]; then key="$n"; else key=""; fi
+            url="http://localhost:$port"
+            srv_urls="$srv_urls$url$TAB"
+            cmd="run-shell -b \"$opener '$(shquote "$url")'\""
+            label=$(printf ':%-5s %s  %s%s' "$port" "$name" "$loc" "$here")
+            set -- "$@" "$label" "$key" "$cmd"
+        done
     done <<EOF
 $servers
 EOF

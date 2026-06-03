@@ -1,16 +1,18 @@
 #!/bin/sh
-# Watch for the TCP port a `make serve` server starts listening on and publish
-# it to the current tmux window's @server_port option, so the status bar and
-# prefix+o overview can show e.g. "8000".
+# Watch for the TCP port(s) a `make serve` server starts listening on and
+# publish them (space-separated) to the current tmux window's @server_port
+# option, so the status bar and prefix+o overview can show e.g. "8000 8080".
 #
 # How: snapshot every LISTEN port at startup (the baseline), then poll and treat
-# any port that appears *after* that as the server's. Diffing against a baseline
-# — rather than walking make's process tree — is what lets this catch
+# any port that appears *after* that as belonging to this serve. Diffing against
+# a baseline — rather than walking make's process tree — is what lets this catch
 # docker-published ports too: those are opened by the Docker daemon / vpnkit /
-# docker-proxy, not by a child of make, so a tree walk would miss them. The
-# smallest new port wins (app ports like 3000/8000 sort below docker's high
-# ephemeral ones); if some unrelated server also starts mid-serve it could be
-# misattributed, but that's rare on a dev box.
+# docker-proxy, not by a child of make, so a tree walk would miss them. We
+# publish ALL the new ports, not a guessed "main" one: a docker compose stack
+# routinely publishes several (api + web + …) from the same daemon PID, so
+# there's no reliable way to single one out — the picker lists each so you
+# choose. (If some unrelated server starts mid-serve it's also caught, but
+# that's rare on a dev box.)
 #
 # Lifetime: started fire-and-forget by the make wrapper (dot_bash_aliases.tmpl),
 # which sets @server_state to running before launching us and back to off when
@@ -44,10 +46,13 @@ ports > "$base"
 
 interval=1
 while [ "$(tmux show-options -wv -t "$win" '@server_state' 2>/dev/null)" = running ]; do
-    new=$(ports | grep -vxF -f "$base" 2>/dev/null | head -1)
+    # All ports that appeared after baseline, sorted ascending, capped, joined
+    # with spaces. Capped at 6 so a stack that publishes a db/cache/etc. can't
+    # blow up the chip width.
+    new=$(ports | grep -vxF -f "$base" 2>/dev/null | head -6 | tr '\n' ' ' | sed 's/ *$//')
     if [ -n "$new" ]; then
         tmux set-option -wt "$win" '@server_port' "$new" 2>/dev/null || true
-        interval=5   # found it; relax the poll — the port rarely changes
+        interval=5   # found at least one; relax the poll
     fi
     sleep "$interval"
 done
