@@ -25,7 +25,7 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 |-----|-----|----------|
 | `A` | Spotify | "Aaaah" — music |
 | `S` | Teams | think "Slack" (chat) |
-| `D` | Ghostty | "Derminal" |
+| `D` | Ghostty | "Dev" |
 | `F` | Firefox | Firefox |
 | `W` | Signal | "Whisper" (Open Whisper Systems) |
 | `E` | Finder | "Explorer" |
