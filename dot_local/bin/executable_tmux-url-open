@@ -1,10 +1,17 @@
 #!/bin/sh
-# tmux-url-open — pop up a tmux menu of every http(s) URL visible in the
-# current pane and open the chosen one in the system default browser.
-# Cross-platform (Darwin / Linux).
+# tmux-url-open — pop up a tmux menu to open a local dev server or an on-screen
+# URL in the system default browser. Bound from .tmux.conf to `prefix u`.
 #
-# Bound from .tmux.conf to `prefix u`. This replaces Ghostty's cmd-click
-# URL-open, which tmux's `set -g mouse on` swallows before Ghostty sees it.
+# Two sections, two key styles so they never collide and picking is fast:
+#   Servers (1-9): every running `make serve` across ALL sessions, keyed off the
+#     @server_port we track per window (see server-port-watch / the make
+#     wrapper). Opens http://localhost:PORT. The server in the current tab is
+#     marked →. This works workspace-wide, so a server in another session is one
+#     keystroke away without switching to its tab.
+#   URLs (a-z): every http(s) URL visible in the current pane.
+#
+# Replaces Ghostty's cmd-click URL-open, which tmux's `set -g mouse on` swallows
+# before Ghostty sees it. Cross-platform (Darwin / Linux).
 
 set -eu
 
@@ -13,10 +20,24 @@ case "$(uname)" in
     *)      opener=xdg-open ;;
 esac
 
-# -J joins wrapped lines so URLs split across rows come back as one match.
-# Trailing punctuation (.,;:) and an unbalanced closing paren are common in
-# log lines / markdown links — strip them so we don't open a broken URL.
-# Dedupe in first-seen order; cap at 26 so each entry gets a unique a..z key.
+TAB=$(printf '\t')
+here=$(tmux display-message -p '#{session_name}:#{window_index}')
+
+# Escape single quotes so a value is safe inside a single-quoted shell word.
+shquote() { printf '%s' "$1" | sed "s/'/'\\\\''/g"; }
+
+# ---- servers across the whole workspace -------------------------------------
+# -a spans every session; keep only windows whose tab is flagged running with a
+# detected port. Fields: PORT \t session:index \t name.
+servers=$(
+    tmux list-windows -a -F "#{@server_port}${TAB}#{@server_state}${TAB}#{session_name}:#{window_index}${TAB}#{window_name}" \
+        | awk -F"$TAB" '$2=="running" && $1!="" { print $1 FS $3 FS $4 }'
+)
+
+# ---- http(s) URLs in the current pane ---------------------------------------
+# -J joins wrapped lines so a split URL comes back whole. Trailing punctuation
+# (.,;:) and an unbalanced ) are common in logs/markdown — strip them. Dedupe
+# in first-seen order; cap at 26 so each gets a unique a..z key.
 urls=$(
     tmux capture-pane -J -p \
         | grep -oE 'https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+' \
@@ -25,29 +46,55 @@ urls=$(
         | head -n 26
 )
 
-if [ -z "$urls" ]; then
-    tmux display-message "tmux-url-open: no URLs in pane"
+# Build display-menu arg triplets in "$@": <label> <hotkey> <tmux-command>.
+# A label starting with "-" is a dimmed, non-selectable section header.
+set --
+srv_urls=""   # localhost URLs we've shown as servers, to dedupe the URL list
+n=0
+
+if [ -n "$servers" ]; then
+    set -- "-Servers · this workspace" "" ""
+    while IFS="$TAB" read -r port loc name; do
+        [ -n "$port" ] || continue
+        n=$((n + 1))
+        if [ "$n" -le 9 ]; then key="$n"; else key=""; fi
+        url="http://localhost:$port"
+        srv_urls="$srv_urls$url$TAB"
+        mark=" "
+        [ "$loc" = "$here" ] && mark="→"
+        cmd="run-shell -b \"$opener '$(shquote "$url")'\""
+        label=$(printf '%s :%-5s %s  #[fg=#6c7086]%s' "$mark" "$port" "$name" "$loc")
+        set -- "$@" "$label" "$key" "$cmd"
+    done <<EOF
+$servers
+EOF
+fi
+
+if [ -n "$urls" ]; then
+    i=0
+    header_done=
+    while IFS= read -r url; do
+        [ -n "$url" ] || continue
+        # Skip an on-screen URL that's already listed as a server.
+        case "$srv_urls" in *"$url$TAB"*) continue ;; esac
+        if [ -z "$header_done" ]; then
+            [ "$n" -gt 0 ] && set -- "$@" "" "" ""   # separator after servers
+            set -- "$@" "-URLs · this pane" "" ""
+            header_done=1
+        fi
+        hotkey=$(awk -v c=$((97 + i)) 'BEGIN { printf "%c", c }')   # a, b, c, …
+        i=$((i + 1))
+        cmd="run-shell -b \"$opener '$(shquote "$url")'\""
+        label=$(printf '%s' "$url" | cut -c1-90)
+        set -- "$@" "$label" "$hotkey" "$cmd"
+    done <<EOF
+$urls
+EOF
+fi
+
+if [ "$#" -eq 0 ]; then
+    tmux display-message "tmux-url-open: no servers or URLs found"
     exit 0
 fi
 
-# Build display-menu arg triplets in "$@": <label> <hotkey> <tmux-command>.
-# The here-doc form keeps the loop in this shell, so $@ survives past `done`.
-i=0
-set --
-while IFS= read -r url; do
-    [ -n "$url" ] || continue
-    # Hotkey: 'a' + i  ⇒  a, b, c, …, z
-    hotkey=$(awk -v n=$((97 + i)) 'BEGIN { printf "%c", n }')
-    # Escape single quotes in the URL for safe single-quoted shell embedding.
-    safe=$(printf '%s' "$url" | sed "s/'/'\\\\''/g")
-    # tmux command: parsed by tmux (double-quoted), then by /bin/sh (URL is
-    # single-quoted so the shell treats it literally — no glob/var expansion).
-    cmd="run-shell -b \"$opener '$safe'\""
-    label=$(printf '%s' "$url" | cut -c1-90)
-    set -- "$@" "$label" "$hotkey" "$cmd"
-    i=$((i + 1))
-done <<EOF
-$urls
-EOF
-
-tmux display-menu -T ' open URL ' -x C -y C "$@"
+tmux display-menu -T ' open · server / url ' -x C -y C "$@"
