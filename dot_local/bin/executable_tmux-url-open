@@ -21,7 +21,7 @@ case "$(uname)" in
 esac
 
 TAB=$(printf '\t')
-here=$(tmux display-message -p '#{session_name}:#{window_index}')
+cur=$(tmux display-message -p '#{session_name}:#{window_index}')   # this tab
 
 # Escape single quotes so a value is safe inside a single-quoted shell word.
 shquote() { printf '%s' "$1" | sed "s/'/'\\\\''/g"; }
@@ -47,23 +47,31 @@ urls=$(
 )
 
 # Build display-menu arg triplets in "$@": <label> <hotkey> <tmux-command>.
-# A label starting with "-" is a dimmed, non-selectable section header.
+# A label starting with "-" is a dimmed, non-selectable section header; an empty
+# label is a horizontal rule. Two quirks learned the hard way (tmux 3.6):
+#   * tmux SWALLOWS the very first menu item if it's non-selectable, so the
+#     servers section leads with a throwaway empty item to let its header show.
+#   * #[...] styles in an item *name* corrupt tmux's width maths and the row gets
+#     truncated with a ">", so labels are kept PLAIN. Clarity instead comes from
+#     the headers, the digit-vs-letter keys, and flush-left alignment (every row
+#     carries only the box's one-space padding, so ports and URLs line up).
 set --
 srv_urls=""   # localhost URLs we've shown as servers, to dedupe the URL list
 n=0
 
 if [ -n "$servers" ]; then
-    set -- "-Servers · this workspace" "" ""
+    set -- "" "" ""                              # absorbed; lets the header show
+    set -- "$@" "-servers · all sessions" "" ""
     while IFS="$TAB" read -r port loc name; do
         [ -n "$port" ] || continue
         n=$((n + 1))
         if [ "$n" -le 9 ]; then key="$n"; else key=""; fi
         url="http://localhost:$port"
         srv_urls="$srv_urls$url$TAB"
-        mark=" "
-        [ "$loc" = "$here" ] && mark="→"
+        here=""
+        [ "$loc" = "$cur" ] && here=" ←"
         cmd="run-shell -b \"$opener '$(shquote "$url")'\""
-        label=$(printf '%s :%-5s %s  #[fg=#6c7086]%s' "$mark" "$port" "$name" "$loc")
+        label=$(printf ':%-5s %s  %s%s' "$port" "$name" "$loc" "$here")
         set -- "$@" "$label" "$key" "$cmd"
     done <<EOF
 $servers
@@ -78,8 +86,8 @@ if [ -n "$urls" ]; then
         # Skip an on-screen URL that's already listed as a server.
         case "$srv_urls" in *"$url$TAB"*) continue ;; esac
         if [ -z "$header_done" ]; then
-            [ "$n" -gt 0 ] && set -- "$@" "" "" ""   # separator after servers
-            set -- "$@" "-URLs · this pane" "" ""
+            [ "$n" -gt 0 ] && set -- "$@" "" "" ""   # rule between sections
+            set -- "$@" "-urls · this pane" "" ""
             header_done=1
         fi
         hotkey=$(awk -v c=$((97 + i)) 'BEGIN { printf "%c", c }')   # a, b, c, …
@@ -97,4 +105,6 @@ if [ "$#" -eq 0 ]; then
     exit 0
 fi
 
-tmux display-menu -T ' open · server / url ' -x C -y C "$@"
+# -H sets the selected-row style: a subtle surface-1 background (instead of the
+# default reverse video) so the green port / dim location stay legible.
+tmux display-menu -T ' open ' -H 'bg=#45475a' -x C -y C "$@"
