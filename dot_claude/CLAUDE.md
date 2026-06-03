@@ -20,6 +20,16 @@ Define success criteria. Loop until verified.
 Don't follow steps. Define success and iterate.
 Strong success criteria let you loop independently.
 
+## Machine setup via chezmoi
+Dotfiles and machine configuration are managed with chezmoi. Any change to the
+machine setup — shell config, `~/.gitconfig`, `~/.claude/`, installed-tool config,
+etc. — must be made in the chezmoi source repo, never by hand-editing the live
+file (a direct edit is silently overwritten on the next `chezmoi apply`).
+Run `chezmoi cd` to enter the repo (source root: `~/.local/share/chezmoi`).
+Use `chezmoi source-path <file>` to find a file's source, edit that source
+(e.g. `dot_gitconfig.tmpl`), then `chezmoi apply` to update the live file. When
+committing, stage only the files you changed — the repo may hold unrelated WIP.
+
 ## Git worktrees
 When working in a git worktree (e.g. started with `claude --worktree`) the
 checkout is fresh: gitignored files are absent and dependencies aren't
