@@ -1,6 +1,14 @@
 # ----- Completions -----
 autoload -Uz compinit && compinit
 
+# Alt+Left / Alt+Right jump words. Ghostty's default sent these as ESC b / ESC f
+# (which zsh binds to word-motion by default), but that collided with the Alt+f
+# tmux picker — both produced the same bytes. Ghostty now sends the standard
+# modified-cursor CSI sequences instead (see dot_config/ghostty/config), so
+# rebind word-motion onto those. ESC b / ESC f are now free for Alt+b / Alt+f.
+bindkey '^[[1;3D' backward-word   # Alt+Left
+bindkey '^[[1;3C' forward-word    # Alt+Right
+
 # Source my aliases
 source "$HOME/.bash_aliases"
 
