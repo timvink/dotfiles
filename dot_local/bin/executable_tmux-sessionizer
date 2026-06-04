@@ -19,10 +19,10 @@
 # own input order (sessions by recency, projects alphabetically).
 # Type to filter, Enter to jump. An open session is switched to; a not-yet-open
 # project gets a fresh session named after its dir (tmux forbids . and :, so
-# they squash to _) with `cc` (Claude) launched in the first tab — the same
-# create-or-switch shape as the `t.` shell function (dot_bash_aliases.tmpl),
-# though this copy also captures the new pane id and routes the switch through
-# go(). NOTE: that . / : → _ squash means two dirs like `a.b` and `a:b` map to
+# they squash to _) with `cc` (Claude) in the first tab and `nvim .` in a
+# second tab (the nvim tab is selected) — the same create-or-switch shape as
+# the `t.` shell function (dot_bash_aliases.tmpl), though this copy also captures
+# the new pane id and routes the switch through go(). NOTE: that . / : → _ squash means two dirs like `a.b` and `a:b` map to
 # the one session name `a_b`; the second is then hidden from the list (or jumps
 # you to the first). Accepted — tmux simply can't name those two apart.
 #
@@ -141,6 +141,9 @@ else
     # would abort the script before the switch below ever runs.
     pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$target")
     tmux send-keys -t "$pane" cc Enter
+    # Second tab (window) with nvim; no -d so it becomes the selected window.
+    nvim_pane=$(tmux new-window -P -F '#{pane_id}' -t "=$name" -c "$target")
+    tmux send-keys -t "$nvim_pane" 'nvim .' Enter
   fi
   go "$name"
 fi
