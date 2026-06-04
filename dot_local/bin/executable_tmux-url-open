@@ -26,6 +26,13 @@ cur=$(tmux display-message -p '#{session_name}:#{window_index}')   # this tab
 # Escape single quotes so a value is safe inside a single-quoted shell word.
 shquote() { printf '%s' "$1" | sed "s/'/'\\\\''/g"; }
 
+# Escape a display-menu item *name* for tmux's format engine: a literal '#'
+# (URL fragments like #section, or a '#' in a window name) is otherwise read as
+# the start of '#[style]', '#{format}' or even '#(run-shell)', which corrupts
+# the row's width maths (truncating it with a ">") or runs a command. Doubling
+# '#'→'##' makes tmux render a single literal '#'. (See the quirks note below.)
+menulabel() { printf '%s' "$1" | sed 's/#/##/g'; }
+
 # Fit a URL into $2 columns. A plain end-cut hides the part that actually tells
 # two long URLs apart (same host + path, differing only in a tail beyond the
 # cut), so instead keep the scheme://host/ prefix and as much of the tail as
@@ -58,13 +65,14 @@ servers=$(
 # ---- http(s) URLs in the current pane ---------------------------------------
 # -J joins wrapped lines so a split URL comes back whole. Trailing punctuation
 # (.,;:) and an unbalanced ) are common in logs/markdown — strip them. Dedupe
-# in first-seen order; cap at 26 so each gets a unique a..z key.
+# in first-seen order. The a..z key cap (26) is applied in the loop below, AFTER
+# server URLs are filtered out — capping here would let localhost servers eat
+# slots and silently drop genuine on-screen URLs past line 26.
 urls=$(
     tmux capture-pane -J -p \
         | grep -oE 'https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+' \
         | sed -E 's/[.,;:)]+$//' \
-        | awk '!seen[$0]++' \
-        | head -n 26
+        | awk '!seen[$0]++'
 )
 
 # Build display-menu arg triplets in "$@": <label> <hotkey> <tmux-command>.
@@ -96,7 +104,7 @@ if [ -n "$servers" ]; then
             srv_urls="$srv_urls$url$TAB"
             cmd="run-shell -b \"$opener '$(shquote "$url")'\""
             label=$(printf ':%-5s %s  %s%s' "$port" "$name" "$loc" "$here")
-            set -- "$@" "$label" "$key" "$cmd"
+            set -- "$@" "$(menulabel "$label")" "$key" "$cmd"
         done
     done <<EOF
 $servers
@@ -110,6 +118,9 @@ if [ -n "$urls" ]; then
         [ -n "$url" ] || continue
         # Skip an on-screen URL that's already listed as a server.
         case "$srv_urls" in *"$url$TAB"*) continue ;; esac
+        # Only a..z keys available; stop once they're spent (after server-dedup,
+        # so real URLs aren't crowded out by localhost servers — see capture above).
+        [ "$i" -ge 26 ] && break
         if [ -z "$header_done" ]; then
             # Always emit an empty item before the header. When servers precede
             # us it reads as the rule between sections; when URLs are the first
@@ -124,7 +135,7 @@ if [ -n "$urls" ]; then
         i=$((i + 1))
         cmd="run-shell -b \"$opener '$(shquote "$url")'\""
         label=$(ellipsize_url "$url" 90)
-        set -- "$@" "$label" "$hotkey" "$cmd"
+        set -- "$@" "$(menulabel "$label")" "$hotkey" "$cmd"
     done <<EOF
 $urls
 EOF
