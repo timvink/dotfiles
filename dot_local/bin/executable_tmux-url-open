@@ -26,6 +26,27 @@ cur=$(tmux display-message -p '#{session_name}:#{window_index}')   # this tab
 # Escape single quotes so a value is safe inside a single-quoted shell word.
 shquote() { printf '%s' "$1" | sed "s/'/'\\\\''/g"; }
 
+# Fit a URL into $2 columns. A plain end-cut hides the part that actually tells
+# two long URLs apart (same host + path, differing only in a tail beyond the
+# cut), so instead keep the scheme://host/ prefix and as much of the tail as
+# fits, joined by a middle ellipsis: https://dev.azure.com/…/nwf-foo.git
+ellipsize_url() {
+    url=$1; max=$2
+    [ "${#url}" -le "$max" ] && { printf '%s' "$url"; return; }
+    # prefix = everything through the first slash after the authority. If the
+    # URL has no path slash, this matches nothing and we fall back to end-cut.
+    prefix=$(printf '%s' "$url" | sed -nE 's#^([a-z][a-z0-9+.-]*://[^/]*/).*#\1#p')
+    # tail budget = max minus the prefix and the 1-column ellipsis. If the
+    # prefix alone won't fit (or there was none), just hard end-cut.
+    tail_len=$((max - ${#prefix} - 1))
+    if [ -z "$prefix" ] || [ "$tail_len" -lt 1 ]; then
+        printf '%s' "$url" | cut -c1-"$max"
+        return
+    fi
+    tail=$(printf '%s' "$url" | awk -v n="$tail_len" '{ print substr($0, length($0)-n+1) }')
+    printf '%s…%s' "$prefix" "$tail"
+}
+
 # ---- servers across the whole workspace -------------------------------------
 # -a spans every session; keep only windows whose tab is flagged running with a
 # detected port. Fields: PORT \t session:index \t name.
@@ -90,14 +111,19 @@ if [ -n "$urls" ]; then
         # Skip an on-screen URL that's already listed as a server.
         case "$srv_urls" in *"$url$TAB"*) continue ;; esac
         if [ -z "$header_done" ]; then
-            [ "$n" -gt 0 ] && set -- "$@" "" "" ""   # rule between sections
+            # Always emit an empty item before the header. When servers precede
+            # us it reads as the rule between sections; when URLs are the first
+            # (and only) section it's the throwaway tmux swallows — and, crucially,
+            # it keeps the "-"-prefixed header off the front of display-menu's arg
+            # list, where tmux would parse "-urls…" as flags (-> "unknown flag -u").
+            set -- "$@" "" "" ""
             set -- "$@" "-urls · this pane" "" ""
             header_done=1
         fi
         hotkey=$(awk -v c=$((97 + i)) 'BEGIN { printf "%c", c }')   # a, b, c, …
         i=$((i + 1))
         cmd="run-shell -b \"$opener '$(shquote "$url")'\""
-        label=$(printf '%s' "$url" | cut -c1-90)
+        label=$(ellipsize_url "$url" 90)
         set -- "$@" "$label" "$hotkey" "$cmd"
     done <<EOF
 $urls
