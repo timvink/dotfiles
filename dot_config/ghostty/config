@@ -23,5 +23,13 @@ macos-option-as-alt = left
 keybind = alt+arrow_left=csi:1;3D
 keybind = alt+arrow_right=csi:1;3C
 
+# Alt+Down → end of line. Claude Code's prompt (and zsh) hard-code end-of-line to
+# Ctrl+E and only honour the readline Meta bytes (ESC f / ESC b) for word motion —
+# they ignore the modified-cursor CSI that Alt+Down otherwise sends, which is why
+# it went dead once a fresh tmux server started forwarding the modifier intact.
+# A bare 0x05 (Ctrl+E) is understood by both and passes through tmux untouched
+# regardless of extended-keys. (Symmetric Alt+Up → start of line is `text:\x01`.)
+keybind = alt+arrow_down=text:\x05
+
 # Wait for https://github.com/ghostty-org/ghostty/issues/2504
 # keybind = alt+g=write_scrollback_file:copy
