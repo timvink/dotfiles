@@ -3,8 +3,13 @@
 # `agent-state` script, which sets a per-window tmux user option that
 # window-status-format reads to render the per-tab indicator dot:
 #
-#   SessionStart                     → "idle"        yellow ○ (fresh session,
-#                                                     awaiting input)
+#   SessionStart                     → "none"        (no dot) a fresh session
+#                                                     hasn't finished a turn, so
+#                                                     it looks like a plain shell
+#                                                     tab — yellow ○ would wrongly
+#                                                     read as "your turn". Also
+#                                                     clears any stale state left
+#                                                     on a reused tmux window.
 #   Stop                             → "idle"        yellow ○ when the turn is
 #                                                     fully done, OR "running"
 #                                                     blue ● when it ended with
@@ -50,7 +55,7 @@ mk_hook() {
     ]'
 }
 
-idle_hook=$(mk_hook "idle")
+none_hook=$(mk_hook "none")
 running_hook=$(mk_hook "running")
 
 # Notification fires for two cases, distinguished by the payload's
@@ -99,12 +104,12 @@ stop_hook=$(jq -n --arg cmd "$stop_cmd" '[
 ]')
 
 printf '%s' "$input" | jq \
-    --argjson idle    "$idle_hook" \
+    --argjson none    "$none_hook" \
     --argjson running "$running_hook" \
     --argjson prompt  "$prompt_hook" \
     --argjson perm    "$perm_hook" \
     --argjson stop    "$stop_hook" \
-    '.hooks.SessionStart     = $idle
+    '.hooks.SessionStart     = $none
    | .hooks.UserPromptSubmit = $prompt
    | .hooks.PreToolUse       = $running
    | .hooks.PostToolUse      = $running
