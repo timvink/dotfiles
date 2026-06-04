@@ -3,8 +3,15 @@
 # snacks.nvim Projects picker (which scans the same ~/workspace root).
 #
 # Bound to Alt+f (see dot_tmux.conf). Shows, in one fzf popup:
-#   • every RUNNING workspace (tmux session)              — green ● marker
+#   • every RUNNING workspace (tmux session)              — agent-state dot
 #   • every PROJECT under ~/workspace not already open    — folder icon
+#
+# The session dot reuses the per-tab agent indicator palette (@agent_state, set
+# per-window by the agent-state helper and rendered in dot_tmux.conf):
+#   needs-input → red    ●   running → blue ●   idle → yellow ○   none → grey ●
+# A session's dot is the highest-priority state across its windows, precedence
+# needs-input > running > idle > none — so a single blocked or working window
+# colours the whole session. Plain shell sessions (no agent ever) show grey ●.
 # Open sessions are listed first (most-recently-attached order) and, thanks to
 # fzf --no-sort, that grouping survives filtering — so a typed query never
 # buries an open session below a project that happens to match better. The cost
@@ -49,12 +56,40 @@ open_names=$(
     | sort -t'|' -k1,1 -rn | cut -d'|' -f2 || true
 )
 
+# Highest-priority @agent_state per session, across all its windows. One pass
+# over every window; precedence needs-input(3) > running(2) > idle(1) > none(0).
+# bash-3.2-safe: no associative arrays — we resolve each session's rank inline
+# in the emit loop below by grepping this <session>|<state> table.
+win_states=$(tmux list-windows -a -F '#{session_name}|#{@agent_state}' 2>/dev/null || true)
+
+# Print the truecolor escape + glyph for a session's aggregate agent state.
+# Reads $win_states; sets nothing — just emits e.g. "\033[38;2;...m●\033[0m".
+session_dot() {
+  _rank=0
+  while IFS='|' read -r _s _st; do
+    [ "$_s" = "$1" ] || continue
+    case "$_st" in
+      needs-input) _rank=3; break ;;                    # red — highest, stop
+      running)     if [ "$_rank" -lt 2 ]; then _rank=2; fi ;;
+      idle)        if [ "$_rank" -lt 1 ]; then _rank=1; fi ;;
+    esac
+  done <<EOF
+$win_states
+EOF
+  case "$_rank" in
+    3) printf '\033[38;2;243;139;168m●\033[0m' ;;  # needs-input  #f38ba8
+    2) printf '\033[38;2;137;180;250m●\033[0m' ;;  # running      #89b4fa
+    1) printf '\033[38;2;249;226;175m○\033[0m' ;;  # idle         #f9e2af
+    *) printf '\033[38;2;108;112;134m●\033[0m' ;;  # none         #6c7086
+  esac
+}
+
 selected=$(
   {
-    # Open workspaces first (recency order, already sorted), green-dot marked.
+    # Open workspaces first (recency order, already sorted), agent-state dotted.
     printf '%s\n' "$open_names" | while IFS= read -r s; do
       [ -z "$s" ] && continue
-      printf '\033[32m●\033[0m  %s\tsession\t%s\n' "$s" "$s"
+      printf '%s  %s\tsession\t%s\n' "$(session_dot "$s")" "$s" "$s"
     done
     # Then projects under ~/workspace that aren't already open as a session.
     if [ -d "$WORKSPACE" ]; then
