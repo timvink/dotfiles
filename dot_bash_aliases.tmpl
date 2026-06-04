@@ -93,7 +93,7 @@ t.() {
 # Python
 alias venv='source .venv/bin/activate'
 
-# Wrap `make` so `make serve` shows a green port chip on the tab (next to the
+# Wrap `make` so `make serve`/`make docs` show a green port chip on the tab (next to the
 # agent dot — see dot_tmux.conf) for the lifetime of the foreground server, then
 # clears it on exit. A background server-port-watch sniffs out the listening
 # port and fills it in. Every other make target passes straight through. The
@@ -105,7 +105,7 @@ alias venv='source .venv/bin/activate'
 # immediately, so the chip clears even though the container stays up. See
 # dot_local/bin/executable_server-state.
 make() {
-    [ "$1" = serve ] || { command make "$@"; return; }
+    case "$1" in serve|docs) ;; *) command make "$@"; return ;; esac
     server-state running
     ( server-port-watch & )
     trap 'server-state off' INT TERM
