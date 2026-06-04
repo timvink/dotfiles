@@ -69,6 +69,30 @@ export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
 # exists, so the same one-liner works on first login and on reconnect.
 alias t='tmux new -A -s main'
 
+# t. — spin up (or jump to) a per-project workspace for the current directory.
+# Session = workspace named after $PWD's basename (tmux forbids . and :, so they
+# squash to _). A fresh session launches `cc` (Claude) in its first tab;
+# automatic-rename then labels it "claude" with the usual agent dot (see
+# dot_tmux.conf). Re-running in the same dir just switches to the existing
+# workspace instead of duplicating it. Works inside tmux (switch-client) or from
+# a bare shell (attach). Pairs with `t` (the main workspace) and Alt+n (a blank
+# workspace). `cc` is a shell function, not on PATH, so it's launched via
+# send-keys into an interactive shell — when Claude exits you're left at a
+# working shell in that workspace rather than a dead pane.
+t.() {
+    local name=${PWD##*/}
+    name=${name//[.:]/_}
+    if ! tmux has-session -t "=$name" 2>/dev/null; then
+        tmux new-session -d -s "$name" -c "$PWD"
+        tmux send-keys -t "=$name" cc Enter
+    fi
+    if [ -n "$TMUX" ]; then
+        tmux switch-client -t "=$name"
+    else
+        tmux attach -t "=$name"
+    fi
+}
+
 # Python
 alias venv='source .venv/bin/activate'
 

@@ -13,5 +13,15 @@ keybind = super+shift+k=previous_tab
 # The right Option key still types special characters (#, accents, …).
 macos-option-as-alt = left
 
+# Free up ESC f / ESC b for use as Alt+f / Alt+b bindings. Ghostty's DEFAULT
+# maps Alt+Left/Right to esc:b / esc:f (readline word-motion) — the exact same
+# bytes a plain Alt+b / Alt+f produce, so tmux can't tell Alt+Right from Alt+f
+# and an `M-f` binding fires on Alt+Right too (see dot_tmux.conf's Alt+f picker).
+# Remapping the arrows to the standard modified-cursor CSI sequences makes them
+# distinct keys (tmux sees M-Right / M-Left). Word-motion is re-added on those
+# sequences in zsh (see dot_zshrc.tmpl), so Alt+arrow still jumps words.
+keybind = alt+arrow_left=csi:1;3D
+keybind = alt+arrow_right=csi:1;3C
+
 # Wait for https://github.com/ghostty-org/ghostty/issues/2504
 # keybind = alt+g=write_scrollback_file:copy

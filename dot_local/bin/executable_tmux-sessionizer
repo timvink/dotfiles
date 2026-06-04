@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# tmux-sessionizer — fuzzy project/workspace switcher, the tmux twin of the
+# snacks.nvim Projects picker (which scans the same ~/workspace root).
+#
+# Bound to Alt+f (see dot_tmux.conf). Shows, in one fzf popup:
+#   • every RUNNING workspace (tmux session)              — green ● marker
+#   • every PROJECT under ~/workspace not already open    — folder icon
+# Open sessions are listed first (most-recently-attached order) and, thanks to
+# fzf --no-sort, that grouping survives filtering — so a typed query never
+# buries an open session below a project that happens to match better. The cost
+# is that fzf no longer reorders by match score, so each group filters in its
+# own input order (sessions by recency, projects alphabetically).
+# Type to filter, Enter to jump. An open session is switched to; a not-yet-open
+# project gets a fresh session named after its dir (tmux forbids . and :, so
+# they squash to _) with `cc` (Claude) launched in the first tab — identical
+# create-or-switch logic to the `t.` shell function (dot_bash_aliases.tmpl).
+#
+# Written bash-3.2-safe (macOS /usr/bin/bash): no associative arrays. Each fzf
+# line is tab-separated  <display>\t<kind>\t<target> ; --with-nth=1 shows only
+# the display column while the selection still carries kind+target to act on.
+#
+# A command run inside `display-popup` isn't tied to a client, so a bare
+# `switch-client` no-ops. tmux does NOT expand #{client_name} in a popup command
+# (it arrives as the literal string) and doesn't set $TMUX_PANE there either, so
+# we identify the client ourselves: the most-recently-active one, which is
+# whichever client just opened this popup. We then switch it by name with -c.
+set -euo pipefail
+
+WORKSPACE="$HOME/workspace"
+CLIENT=$(tmux list-clients -F '#{client_activity} #{client_name}' 2>/dev/null \
+  | sort -rn | head -1 | cut -d' ' -f2- || true)
+
+# Switch that client to session $1 (attach if we somehow have no client/server).
+go() {
+  if [ -n "$CLIENT" ]; then
+    tmux switch-client -c "$CLIENT" -t "=$1"
+  elif [ -n "${TMUX:-}" ]; then
+    tmux switch-client -t "=$1"
+  else
+    tmux attach -t "=$1"
+  fi
+}
+
+# Running sessions, most-recently-attached first (the useful jump order; with
+# fzf --no-sort below this input order is preserved through filtering, so open
+# sessions stay ranked above projects instead of intermixing by match score).
+open_names=$(
+  tmux list-sessions -F '#{session_last_attached}|#{session_name}' 2>/dev/null \
+    | sort -t'|' -k1,1 -rn | cut -d'|' -f2 || true
+)
+
+selected=$(
+  {
+    # Open workspaces first (recency order, already sorted), green-dot marked.
+    printf '%s\n' "$open_names" | while IFS= read -r s; do
+      [ -z "$s" ] && continue
+      printf '\033[32m●\033[0m  %s\tsession\t%s\n' "$s" "$s"
+    done
+    # Then projects under ~/workspace that aren't already open as a session.
+    if [ -d "$WORKSPACE" ]; then
+      find "$WORKSPACE" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort |
+      while IFS= read -r d; do
+        base=$(basename "$d")
+        case "$base" in .*) continue ;; esac   # skip hidden dirs (.claude, …)
+        name=${base//[.:]/_}
+        printf '%s\n' "$open_names" | grep -qxF "$name" && continue
+        printf '  %s\tdir\t%s\n' "$base" "$d"
+      done
+    fi
+  } | fzf --ansi --no-sort --reverse --cycle --no-multi \
+          --border=rounded --border-label=' Projects ' \
+          --prompt='  ' --pointer='▶' --delimiter=$'\t' --with-nth=1 \
+          --color='border:#cba6f7,label:#cba6f7,prompt:#89b4fa,pointer:#f38ba8,bg+:#45475a,fg+:#cdd6f4'
+) || exit 0
+[ -z "$selected" ] && exit 0
+
+kind=$(printf '%s' "$selected" | cut -f2)
+target=$(printf '%s' "$selected" | cut -f3)
+
+if [ "$kind" = session ]; then
+  go "$target"
+else
+  name=$(basename "$target"); name=${name//[.:]/_}
+  if ! tmux has-session -t "=$name" 2>/dev/null; then
+    # Capture the new session's pane id for send-keys. send-keys needs a *pane*
+    # target, and the "=name" exact-match form (fine for session lookups like
+    # has-session) does NOT resolve as a pane — it errors, which under set -e
+    # would abort the script before the switch below ever runs.
+    pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$target")
+    tmux send-keys -t "$pane" cc Enter
+  fi
+  go "$name"
+fi
