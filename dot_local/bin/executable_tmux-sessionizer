@@ -12,11 +12,13 @@
 # A session's dot is the highest-priority state across its windows, precedence
 # needs-input > running > idle > none — so a single blocked or working window
 # colours the whole session. Plain shell sessions (no agent ever) show grey ●.
-# Open sessions are listed first (most-recently-attached order) and, thanks to
-# fzf --no-sort, that grouping survives filtering — so a typed query never
-# buries an open session below a project that happens to match better. The cost
-# is that fzf no longer reorders by match score, so each group filters in its
-# own input order (sessions by recency, projects alphabetically).
+# Open sessions rank first, projects after; WITHIN each group fzf sorts by match
+# score, and sessions always stay above projects regardless of score. So typing
+# an exact name surfaces it, while an open session never sinks below a project
+# that merely matches better (e.g. query "wa" keeps both warmtefonds sessions on
+# top). fzf can't express that two-tier order itself — it only sorts the whole
+# list by one score — so we recompute the candidate list per keystroke; see the
+# "Re-rank mode" block below.
 # Type to filter, Enter to jump. An open session is switched to; a not-yet-open
 # project gets a fresh session named after its dir (tmux forbids . and :, so
 # they squash to _) with `cc` (Claude) in the first tab and `nvim .` in a
@@ -36,6 +38,27 @@
 # we identify the client ourselves: the most-recently-active one, which is
 # whichever client just opened this popup. We then switch it by name with -c.
 set -euo pipefail
+
+# ── Re-rank mode (fzf reload target) ────────────────────────────────────────
+# fzf sorts the whole candidate list by a single match score; it has no notion
+# of "open sessions always above projects, each group score-sorted within". So
+# the interactive fzf below runs --no-sort and we feed it the order we want,
+# recomputed on every keystroke: fzf's `change:reload` re-invokes this script as
+#   tmux-sessionizer --rerank <sess_file> <proj_file> <query>
+# which score-sorts each group on its own (via `fzf --filter`) and prints
+# sessions first. Empty query → the files' natural order (sessions by recency,
+# projects alphabetical). This runs before any tmux call, so re-invocation stays
+# cheap. `|| true`: `fzf --filter` exits 1 on zero matches, which set -e aborts.
+if [ "${1:-}" = "--rerank" ]; then
+  sess_file=$2 proj_file=$3 query=${4:-}
+  if [ -z "$query" ]; then
+    cat "$sess_file" "$proj_file"
+  else
+    fzf --filter="$query" --delimiter=$'\t' --with-nth=1 --ansi < "$sess_file" || true
+    fzf --filter="$query" --delimiter=$'\t' --with-nth=1 --ansi < "$proj_file" || true
+  fi
+  exit 0
+fi
 
 WORKSPACE="$HOME/workspace"
 TAB=$'\t'   # field delimiter for the tmux -F tables below; '|' is legal in a
@@ -57,9 +80,8 @@ go() {
   fi
 }
 
-# Running sessions, most-recently-attached first (the useful jump order; with
-# fzf --no-sort below this input order is preserved through filtering, so open
-# sessions stay ranked above projects instead of intermixing by match score).
+# Running sessions, most-recently-attached first — the jump order shown on an
+# empty query, and the within-sessions order before a typed query score-sorts.
 open_names=$(
   tmux list-sessions -F "#{session_last_attached}${TAB}#{session_name}" 2>/dev/null \
     | sort -t"$TAB" -k1,1 -rn | cut -d"$TAB" -f2 || true
@@ -89,40 +111,54 @@ rank_dot() {
   esac
 }
 
+# Build the two candidate groups into temp files; --rerank (above) reads them on
+# every keystroke, and the trap clears them however we leave (pick, Esc, error).
+sess_file=$(mktemp) proj_file=$(mktemp)
+trap 'rm -f "$sess_file" "$proj_file"' EXIT
+
+# Open workspaces (recency order, already sorted), agent-state dotted.
+printf '%s\n' "$open_names" | while IFS= read -r s; do
+  [ -z "$s" ] && continue
+  r=0
+  case "$ranks_nl" in
+    *$'\n'"$s$TAB"*) r=${ranks_nl#*$'\n'"$s$TAB"}; r=${r%%$'\n'*} ;;
+  esac
+  rank_dot "$r"
+  printf '%s  %s\tsession\t%s\n' "$_dot" "$s" "$s"
+done > "$sess_file"
+
+# Projects under ~/workspace not already open as a session. Pure-bash, no per-dir
+# forks: an earlier version ran basename + grep per directory and that loop alone
+# cost ~90ms (it dominated startup). Here the glob lists dirs alphabetically (and
+# skips dotdirs like .claude for free, since pathname expansion ignores leading
+# dots), parameter expansion does the basename, and a newline-delimited substring
+# match tests open-ness.
+if [ -d "$WORKSPACE" ]; then
+  open_nl=$'\n'"$open_names"$'\n'              # \n<name>\n … \n for the match;
+                                               # wrap directly — $() would strip
+                                               # the trailing \n off the last name
+  for d in "$WORKSPACE"/*/; do
+    [ -d "$d" ] || continue                    # no-match glob stays literal
+    d=${d%/}; base=${d##*/}                     # strip trailing / then dirname
+    name=${base//[.:]/_}
+    case "$open_nl" in *$'\n'"$name"$'\n'*) continue ;; esac
+    printf '  %s\tdir\t%s\n' "$base" "$d"
+  done
+fi > "$proj_file"
+
+# Interactive picker. --no-sort keeps the two-tier order --rerank hands us;
+# change:reload recomputes it per keystroke; the initial list is the empty-query
+# grouping. fzf still matches {q} to highlight, and drops nothing (every fed line
+# already matched). $0/$sess_file/$proj_file expand now and bake into the bind
+# string; {q} stays literal for fzf to substitute (it shell-quotes the query).
 selected=$(
-  {
-    # Open workspaces first (recency order, already sorted), agent-state dotted.
-    printf '%s\n' "$open_names" | while IFS= read -r s; do
-      [ -z "$s" ] && continue
-      r=0
-      case "$ranks_nl" in
-        *$'\n'"$s$TAB"*) r=${ranks_nl#*$'\n'"$s$TAB"}; r=${r%%$'\n'*} ;;
-      esac
-      rank_dot "$r"
-      printf '%s  %s\tsession\t%s\n' "$_dot" "$s" "$s"
-    done
-    # Then projects under ~/workspace that aren't already open as a session.
-    # Pure-bash, no per-dir forks: an earlier version ran basename + grep per
-    # directory and that loop alone cost ~90ms (it dominated startup). Here the
-    # glob lists dirs alphabetically (and skips dotdirs like .claude for free,
-    # since pathname expansion ignores leading dots), parameter expansion does
-    # the basename, and a newline-delimited substring match tests open-ness.
-    if [ -d "$WORKSPACE" ]; then
-      open_nl=$'\n'"$open_names"$'\n'            # \n<name>\n … \n for the match;
-                                                 # wrap directly — $() would strip
-                                                 # the trailing \n off the last name
-      for d in "$WORKSPACE"/*/; do
-        [ -d "$d" ] || continue                  # no-match glob stays literal
-        d=${d%/}; base=${d##*/}                  # strip trailing / then dirname
-        name=${base//[.:]/_}
-        case "$open_nl" in *$'\n'"$name"$'\n'*) continue ;; esac
-        printf '  %s\tdir\t%s\n' "$base" "$d"
-      done
-    fi
-  } | fzf --ansi --no-sort --reverse --cycle --no-multi \
-          --border=rounded --border-label=' Projects ' \
-          --prompt='  ' --pointer='▶' --delimiter=$'\t' --with-nth=1 \
-          --color='border:#cba6f7,label:#cba6f7,prompt:#89b4fa,pointer:#f38ba8,bg+:#45475a,fg+:#cdd6f4'
+  "$0" --rerank "$sess_file" "$proj_file" "" \
+  | fzf --ansi --no-sort --reverse --cycle --no-multi \
+        --delimiter=$'\t' --with-nth=1 \
+        --bind "change:reload(\"$0\" --rerank \"$sess_file\" \"$proj_file\" {q})" \
+        --border=rounded --border-label=' Projects ' \
+        --prompt='  ' --pointer='▶' \
+        --color='border:#cba6f7,label:#cba6f7,prompt:#89b4fa,pointer:#f38ba8,bg+:#45475a,fg+:#cdd6f4'
 ) || exit 0
 [ -z "$selected" ] && exit 0
 
