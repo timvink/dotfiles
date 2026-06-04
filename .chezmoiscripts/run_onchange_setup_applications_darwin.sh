@@ -34,6 +34,8 @@ CASKS=(
     nextcloud
     ghostty
     netbirdio/tap/netbird-ui
+    signal
+    whatsapp
 )
 
 echo "Installing cask apps..."

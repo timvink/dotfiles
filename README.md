@@ -27,7 +27,7 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 | `S` | Teams | "Social" |
 | `D` | Ghostty | "Dev" |
 | `F` | Firefox | Firefox |
-| `W` | Signal | "Whisper" (Open Whisper Systems) |
+| `W` | Signal ⇄ WhatsApp | "Whisper" / WhatsApp (toggles between the two, Signal first) |
 | `E` | Finder | "Explorer" |
 | `R` | Notion | "Records" |
 | `T` | Todoist | "Todo" |
