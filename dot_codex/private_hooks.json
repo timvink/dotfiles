@@ -1,7 +1,7 @@
 {
   "hooks": {
     "SessionStart": [
-      { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state idle" } ] }
+      { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state none" } ] }
     ],
     "UserPromptSubmit": [
       { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state running" } ] }

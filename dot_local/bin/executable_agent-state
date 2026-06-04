@@ -7,14 +7,18 @@
 #                            run_in_background shell, subagent, … — that will
 #                            auto-resume it; either way, don't expect a prompt)
 #   needs-input → red    ●  (agent is blocked on a question / approval)
-#   idle        → yellow ○  (turn complete or fresh session, awaiting a prompt)
+#   idle        → yellow ○  (turn complete, awaiting a prompt — "your turn")
+#   none        → (no dot) (clears the option: a fresh session that hasn't
+#                            finished a turn yet looks like a plain shell tab.
+#                            Set on SessionStart so a new session isn't yellow
+#                            and a reused window drops any stale prior state.)
 #
 # Driven entirely by the Claude Code and Codex lifecycle hooks (see
 # dot_claude/modify_settings.json and dot_codex/private_hooks.json). Tabs that
 # never run an agent (shells, nvim, …) never set @agent_state, so they show no
 # dot at all.
 #
-# Usage: agent-state running|idle|needs-input
+# Usage: agent-state running|idle|needs-input|none
 #
 # No-op outside tmux. Always exits 0 so the agent doesn't surface an error.
 
@@ -23,7 +27,13 @@ state="${1:-}"
 if [ -n "${TMUX_PANE:-}" ]; then
     win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
     if [ -n "${win:-}" ]; then
-        tmux set-option -wt "$win" '@agent_state' "$state" 2>/dev/null || true
+        if [ "$state" = none ]; then
+            # Unset the option entirely → no dot, and a reused window doesn't
+            # carry a stale state from a previous agent session.
+            tmux set-option -wt "$win" -u '@agent_state' 2>/dev/null || true
+        else
+            tmux set-option -wt "$win" '@agent_state' "$state" 2>/dev/null || true
+        fi
     fi
 fi
 
