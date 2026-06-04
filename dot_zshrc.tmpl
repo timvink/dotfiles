@@ -1,6 +1,15 @@
 # ----- Completions -----
 autoload -Uz compinit && compinit
 
+# Emacs-style line editing. Without this, zsh infers its keymap from $EDITOR,
+# and because EDITOR=nvim contains "vi" it silently comes up in vi mode — whose
+# insert keymap self-inserts Ctrl+A / Ctrl+E as literal "^A^E" instead of moving
+# to line start / end (exactly the bytes Ghostty's Cmd+Left / Cmd+Right send).
+# emacs mode binds the readline motions we actually use: Ctrl+A/E (line ends),
+# Alt+b/f (word), Alt+Backspace (kill word). Must precede the binds below so
+# they attach to the emacs keymap, not the vi one.
+bindkey -e
+
 # Alt+Left / Alt+Right jump words. Ghostty's default sent these as ESC b / ESC f
 # (which zsh binds to word-motion by default), but that collided with the Alt+f
 # tmux picker — both produced the same bytes. Ghostty now sends the standard
