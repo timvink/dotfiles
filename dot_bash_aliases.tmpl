@@ -48,14 +48,11 @@ e() {
 }
 alias c="clear"
 
-# Keep tmux's socket out of /tmp. By default tmux puts its socket in
-# /tmp/tmux-$UID/, which macOS's periodic cleaner (and a manual `rm` of /tmp)
-# will happily delete out from under a running server. When that happens the
-# server stays alive and the attached client keeps working, but NEW clients and
-# hooks can't connect ("error connecting … No such file or directory") — so the
-# agent-state dot updates silently no-op and the per-tab dots freeze. ~/.cache
-# is persistent, so the socket survives any /tmp wipe. tmux won't create the
-# parent dir itself, so ensure it exists.
+# Keep tmux's socket out of /tmp (macOS's periodic cleaner deletes it out from
+# under a running server). The canonical export lives in ~/.zshenv so EVERY zsh
+# — including non-interactive ones that may launch tmux — agrees on the socket;
+# this copy just covers interactive bash, which never reads .zshenv. Keep the
+# two in sync. See dot_zshenv for the full rationale.
 export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
 [ -d "$TMUX_TMPDIR" ] || mkdir -p "$TMUX_TMPDIR"
 

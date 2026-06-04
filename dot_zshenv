@@ -1,0 +1,15 @@
+# ~/.zshenv is read by EVERY zsh invocation — login, interactive, and
+# non-interactive scripts alike — and before .zshrc. That makes it the right
+# home for TMUX_TMPDIR: any zsh that ends up launching tmux (a script, a
+# launchd job, an early hook, not just an interactive prompt) then starts its
+# server on the same socket. Setting it only in .bash_aliases (interactive
+# shells) once let a non-interactive launch spin up a second server in the
+# default /tmp location, stranding the real sessions on a socket `t` no longer
+# pointed at. See the matching note in dot_bash_aliases.tmpl.
+#
+# Keep tmux's socket out of /tmp: macOS's periodic cleaner (and a manual `rm`
+# of /tmp) deletes /tmp/tmux-$UID/ out from under a running server, after which
+# new clients and hooks can't connect. ~/.cache is persistent. tmux won't
+# create the parent dir itself, so ensure it exists.
+export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
+[ -d "$TMUX_TMPDIR" ] || mkdir -p "$TMUX_TMPDIR"
