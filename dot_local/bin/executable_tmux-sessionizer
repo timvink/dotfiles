@@ -19,8 +19,12 @@
 # own input order (sessions by recency, projects alphabetically).
 # Type to filter, Enter to jump. An open session is switched to; a not-yet-open
 # project gets a fresh session named after its dir (tmux forbids . and :, so
-# they squash to _) with `cc` (Claude) launched in the first tab — identical
-# create-or-switch logic to the `t.` shell function (dot_bash_aliases.tmpl).
+# they squash to _) with `cc` (Claude) launched in the first tab — the same
+# create-or-switch shape as the `t.` shell function (dot_bash_aliases.tmpl),
+# though this copy also captures the new pane id and routes the switch through
+# go(). NOTE: that . / : → _ squash means two dirs like `a.b` and `a:b` map to
+# the one session name `a_b`; the second is then hidden from the list (or jumps
+# you to the first). Accepted — tmux simply can't name those two apart.
 #
 # Written bash-3.2-safe (macOS /usr/bin/bash): no associative arrays. Each fzf
 # line is tab-separated  <display>\t<kind>\t<target> ; --with-nth=1 shows only
@@ -34,6 +38,8 @@
 set -euo pipefail
 
 WORKSPACE="$HOME/workspace"
+TAB=$'\t'   # field delimiter for the tmux -F tables below; '|' is legal in a
+            # session name (and would mis-split), a tab effectively never is.
 
 # Switch that client to session $1 (attach if we somehow have no client/server).
 # CLIENT is resolved lazily on first use — keeping that tmux call off the path
@@ -55,35 +61,31 @@ go() {
 # fzf --no-sort below this input order is preserved through filtering, so open
 # sessions stay ranked above projects instead of intermixing by match score).
 open_names=$(
-  tmux list-sessions -F '#{session_last_attached}|#{session_name}' 2>/dev/null \
-    | sort -t'|' -k1,1 -rn | cut -d'|' -f2 || true
+  tmux list-sessions -F "#{session_last_attached}${TAB}#{session_name}" 2>/dev/null \
+    | sort -t"$TAB" -k1,1 -rn | cut -d"$TAB" -f2 || true
 )
 
-# Highest-priority @agent_state per session, across all its windows. One pass
-# over every window; precedence needs-input(3) > running(2) > idle(1) > none(0).
-# bash-3.2-safe: no associative arrays — we resolve each session's rank inline
-# in the emit loop below by grepping this <session>|<state> table.
-win_states=$(tmux list-windows -a -F '#{session_name}|#{@agent_state}' 2>/dev/null || true)
+# Aggregate @agent_state to a numeric rank per session in ONE awk pass over all
+# windows (precedence needs-input 3 > running 2 > idle 1 > none/unset 0) — the
+# previous version re-scanned this whole table once per session (O(sessions ×
+# windows) on the popup's paint path). Emits "<session>\t<rank>"; a session whose
+# windows are all none/unset is simply absent → rank 0 on the lookup below.
+win_states=$(tmux list-windows -a -F "#{session_name}${TAB}#{@agent_state}" 2>/dev/null || true)
+session_ranks=$(printf '%s\n' "$win_states" | awk -F"$TAB" '
+  { r = $2=="needs-input" ? 3 : $2=="running" ? 2 : $2=="idle" ? 1 : 0 }
+  r > seen[$1] { seen[$1] = r }
+  END { for (s in seen) print s "\t" seen[s] }
+')
+ranks_nl=$'\n'"$session_ranks"$'\n'   # \n<name>\t<rank>\n … for fork-free lookup
 
-# Print the truecolor escape + glyph for a session's aggregate agent state.
-# Reads $win_states; sets nothing — just emits e.g. "\033[38;2;...m●\033[0m".
-session_dot() {
-  _rank=0
-  while IFS='|' read -r _s _st; do
-    [ "$_s" = "$1" ] || continue
-    case "$_st" in
-      needs-input) _rank=3; break ;;                    # red — highest, stop
-      running)     if [ "$_rank" -lt 2 ]; then _rank=2; fi ;;
-      idle)        if [ "$_rank" -lt 1 ]; then _rank=1; fi ;;
-    esac
-  done <<EOF
-$win_states
-EOF
-  case "$_rank" in
-    3) printf '\033[38;2;243;139;168m●\033[0m' ;;  # needs-input  #f38ba8
-    2) printf '\033[38;2;137;180;250m●\033[0m' ;;  # running      #89b4fa
-    1) printf '\033[38;2;249;226;175m○\033[0m' ;;  # idle         #f9e2af
-    *) printf '\033[38;2;108;112;134m●\033[0m' ;;  # none         #6c7086
+# Set $_dot to the truecolor glyph for rank $1 (mirrors dot_tmux.conf's palette).
+# Assigns a var rather than printing so the emit loop needs no $() per session.
+rank_dot() {
+  case "$1" in
+    3) _dot=$'\033[38;2;243;139;168m●\033[0m' ;;  # needs-input  #f38ba8
+    2) _dot=$'\033[38;2;137;180;250m●\033[0m' ;;  # running      #89b4fa
+    1) _dot=$'\033[38;2;249;226;175m○\033[0m' ;;  # idle         #f9e2af
+    *) _dot=$'\033[38;2;108;112;134m●\033[0m' ;;  # none / unset #6c7086
   esac
 }
 
@@ -92,7 +94,12 @@ selected=$(
     # Open workspaces first (recency order, already sorted), agent-state dotted.
     printf '%s\n' "$open_names" | while IFS= read -r s; do
       [ -z "$s" ] && continue
-      printf '%s  %s\tsession\t%s\n' "$(session_dot "$s")" "$s" "$s"
+      r=0
+      case "$ranks_nl" in
+        *$'\n'"$s$TAB"*) r=${ranks_nl#*$'\n'"$s$TAB"}; r=${r%%$'\n'*} ;;
+      esac
+      rank_dot "$r"
+      printf '%s  %s\tsession\t%s\n' "$_dot" "$s" "$s"
     done
     # Then projects under ~/workspace that aren't already open as a session.
     # Pure-bash, no per-dir forks: an earlier version ran basename + grep per
@@ -125,7 +132,8 @@ target=$(printf '%s' "$selected" | cut -f3)
 if [ "$kind" = session ]; then
   go "$target"
 else
-  name=$(basename "$target"); name=${name//[.:]/_}
+  name=${target##*/}; name=${name//[.:]/_}   # basename + squash, as the projects
+                                             # loop above does (tmux forbids . :)
   if ! tmux has-session -t "=$name" 2>/dev/null; then
     # Capture the new session's pane id for send-keys. send-keys needs a *pane*
     # target, and the "=name" exact-match form (fine for session lookups like
