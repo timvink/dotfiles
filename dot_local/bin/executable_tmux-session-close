@@ -1,0 +1,74 @@
+#!/usr/bin/env bash
+# tmux-session-close — close the current workspace (session), but only when it's
+# safe to: NEVER while an agent is running/awaiting input, NEVER while nvim has
+# unsaved changes. Bound to Alt+q (see dot_tmux.conf); run backgrounded via
+# `run-shell -b` so the poll never blocks the tmux server.
+#
+# Safe-to-close = no window @agent_state in {running,needs-input} AND no nvim/vim
+# left after a polite :qa. Idle agents + shells then exit via kill-session's
+# SIGHUP (clean for them). On any refusal we keep the session and flash why.
+#
+# Cosmetic note: with multiple nvim tabs and one dirty, the clean ones exit (to
+# shells) before we detect the dirty holdout and abort. Data-safe; the default
+# one-nvim layout (see tmux-sessionizer) never hits this.
+#
+# Written bash-3.2-safe (macOS /usr/bin/bash): no associative arrays, no
+# $EPOCHREALTIME — perl supplies the millisecond clock (BSD `date` has no %N).
+set -euo pipefail
+session=${1:?session name required}
+client=${2:-}
+
+# 1. Debounce (~1s, per client) — swallow accidental repeat presses that would
+#    otherwise cascade through idle workspaces after a successful close. Stamp
+#    file keyed by sanitised client name; non-atomic, which at worst lets a
+#    genuine rapid double-tap through (degrades to "guards only", never breaks).
+key=$(printf '%s' "$client" | tr -c 'A-Za-z0-9' '_')
+stamp="${TMPDIR:-/tmp}/tmux-session-close.${key}"
+now=$(perl -MTime::HiRes=time -e 'printf "%d", time()*1000')   # ms since epoch
+last=$(cat "$stamp" 2>/dev/null || echo 0)
+[ $((now - last)) -lt 1000 ] && exit 0
+printf '%s' "$now" > "$stamp"
+
+# 2. Busy-agent guard — reuse @agent_state (covers Claude & Codex). Abort on the
+#    first running / needs-input window.
+busy=$(tmux list-windows -t "=$session" \
+        -F '#{@agent_state}'$'\t''#{window_index}'$'\t''#{window_name}' 2>/dev/null \
+       | awk -F'\t' '$1=="running"||$1=="needs-input"{print; exit}')
+if [ -n "$busy" ]; then
+  state=$(printf '%s' "$busy" | cut -f1)
+  idx=$(printf '%s'   "$busy" | cut -f2)
+  tmux select-window -t "=$session:$idx"
+  tmux display-message "workspace kept open — agent $state in tab $idx"
+  exit 0
+fi
+
+# 3. Ask every nvim/vim to quit (no force). Escape first in case it's in insert
+#    mode, so the :qa lands as a command and not as inserted text.
+while IFS=$'\t' read -r pane cmd; do
+  case "$cmd" in
+    nvim|vim) tmux send-keys -t "$pane" Escape
+              tmux send-keys -t "$pane" ':qa' Enter ;;
+  esac
+done < <(tmux list-panes -s -t "=$session" \
+           -F '#{pane_id}'$'\t''#{pane_current_command}')
+
+# 4. Poll for clean exits; abort if an nvim/vim is still up (dirty buffer blocked
+#    the :qa). After a clean quit the pane's command is the shell again, so it no
+#    longer matches here — that's how "exited" is told apart from "refused".
+stuck=""
+for _ in 1 2 3 4 5 6; do                       # ~1.5s at 0.25s
+  stuck=$(tmux list-panes -s -t "=$session" \
+            -F '#{pane_id}'$'\t''#{pane_current_command}' 2>/dev/null \
+          | awk -F'\t' '$2=="nvim"||$2=="vim"{print $1; exit}')
+  [ -z "$stuck" ] && break
+  sleep 0.25
+done
+if [ -n "$stuck" ]; then
+  tmux select-window -t "$stuck"
+  tmux display-message "workspace kept open — unsaved changes in nvim"
+  exit 0
+fi
+
+# 5. Safe to close. detach-on-destroy off → the client jumps to another
+#    workspace (or detaches if this was the last one) rather than quitting tmux.
+tmux kill-session -t "=$session"
