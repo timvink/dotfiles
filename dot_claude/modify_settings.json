@@ -76,16 +76,13 @@ perm_hook=$(jq -n --arg cmd "$perm_cmd" '[
 # standalone exit hook would race the `running` set above and could leave the
 # tab stuck on the running dot.
 #
-# On `e` inside tmux we `kill-pane`, which tears down the whole pane process
-# tree — Claude Code, its launching shell, and any nested shells — in one shot,
-# so the tmux tab closes (no more chasing it with extra `exit`s). This matches
-# the `e` shell function in .bash_aliases, which also kill-panes. If there's no
-# pane (outside tmux) OR kill-pane fails to reach the server (e.g. its /tmp
-# socket was deleted, orphaning the server), we fall back to clearing the dot
-# (the Stop hook never fires once the CLI is killed) and SIGTERM-ing Claude Code
-# ($PPID of the hook). $HOME / $PPID / $TMUX_PANE stay literal so /bin/sh
-# expands them when Claude Code runs the hook.
-prompt_cmd='if [ "$(jq -r .prompt)" = e ]; then if [ -n "$TMUX_PANE" ] && tmux kill-pane -t "$TMUX_PANE" 2>/dev/null; then :; else $HOME/.local/bin/agent-state idle; kill -TERM "$PPID"; fi; else $HOME/.local/bin/agent-state running; fi'
+# The exit itself is delegated to `agent-exit` (also used by the /oneoff
+# command), so there's a single source of truth for "leave this session". Inside
+# tmux it kill-panes the whole tree; outside tmux (e.g. a Ghostty tab) it
+# SIGTERMs Claude and SIGHUPs the launching shell so the tab closes too; and if
+# the tmux server is unreachable (orphaned /tmp socket) it falls through to that
+# same kill path. $HOME stays literal so /bin/sh expands it at hook runtime.
+prompt_cmd='if [ "$(jq -r .prompt)" = e ]; then $HOME/.local/bin/agent-exit; else $HOME/.local/bin/agent-state running; fi'
 prompt_hook=$(jq -n --arg cmd "$prompt_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
