@@ -103,15 +103,25 @@ stop_hook=$(jq -n --arg cmd "$stop_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
 
+# Status line: a Catppuccin-coloured Starship-style line (path, git branch,
+# model, ctx%). The script lives in chezmoi too (executable_statusline-command.sh
+# → ~/.claude/statusline-command.sh); we inject the wiring here so a fresh
+# machine gets it. $HOME is expanded now (apply time) into an absolute path —
+# Claude Code runs `command` without shell expansion, so a literal ~ or $HOME
+# would not resolve.
+status_cmd="bash $HOME/.claude/statusline-command.sh"
+
 printf '%s' "$input" | jq \
     --argjson none    "$none_hook" \
     --argjson running "$running_hook" \
     --argjson prompt  "$prompt_hook" \
     --argjson perm    "$perm_hook" \
     --argjson stop    "$stop_hook" \
+    --arg     statuscmd "$status_cmd" \
     '.hooks.SessionStart     = $none
    | .hooks.UserPromptSubmit = $prompt
    | .hooks.PreToolUse       = $running
    | .hooks.PostToolUse      = $running
    | .hooks.Notification     = $perm
-   | .hooks.Stop             = $stop'
+   | .hooks.Stop             = $stop
+   | .statusLine             = { "type": "command", "command": $statuscmd }'
