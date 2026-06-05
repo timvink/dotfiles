@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Print the git branch (or short SHA, when detached) of $1, prefixed with a
+# powerline git glyph. Empty output when $1 isn't a repo. Called from
+# status-right in dot_tmux.conf with '#{pane_current_path}' — tmux expands that
+# to the *active* pane's path, so the right side of the bar always shows the
+# branch of the tab you're looking at. Worktrees included: each tab can sit on a
+# different branch and the bar tracks whichever is focused.
+#
+# GIT_OPTIONAL_LOCKS=0 keeps a busy index (an agent mid-commit) from blocking
+# the lookup. Run async by tmux on status-interval, so it never stalls the bar.
+dir="$1"
+b=$(GIT_OPTIONAL_LOCKS=0 git -C "$dir" symbolic-ref --short HEAD 2>/dev/null) \
+  || b=$(GIT_OPTIONAL_LOCKS=0 git -C "$dir" rev-parse --short HEAD 2>/dev/null) \
+  || exit 0
+printf ' %s' "$b"
