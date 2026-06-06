@@ -10,10 +10,22 @@
 #     keystroke away without switching to its tab.
 #   URLs (a-z): every http(s) URL visible in the current pane.
 #
+# Press `q` to drop into "kill mode": the same menu, servers only, where the
+# digit keys send C-c to a server's pane (a graceful stop — the make wrapper's
+# INT trap shuts the server down and clears the tab's port chip) instead of
+# opening it. Reached by re-invoking ourselves as `tmux-url-open kill`. `q`
+# works as a mnemonic even though tmux documents it as "exit menu": item key
+# shortcuts are matched before the built-in keys (see menu.c menu_key_cb), the
+# same reason the cheatsheet's `q` row fires.
+#
 # Replaces Ghostty's cmd-click URL-open, which tmux's `set -g mouse on` swallows
 # before Ghostty sees it. Cross-platform (Darwin / Linux).
 
 set -eu
+
+# "open" (default) builds the open menu; "kill" builds the servers-only kill
+# menu. The open menu's `q` row re-invokes us with this arg.
+mode="${1:-open}"
 
 case "$(uname)" in
     Darwin) opener=open ;;
@@ -68,12 +80,17 @@ servers=$(
 # in first-seen order. The a..z key cap (26) is applied in the loop below, AFTER
 # server URLs are filtered out — capping here would let localhost servers eat
 # slots and silently drop genuine on-screen URLs past line 26.
-urls=$(
-    tmux capture-pane -J -p \
-        | grep -oE 'https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+' \
-        | sed -E 's/[.,;:)]+$//' \
-        | awk '!seen[$0]++'
-)
+# Only the open menu lists on-screen URLs; kill mode is servers-only.
+if [ "$mode" = open ]; then
+    urls=$(
+        tmux capture-pane -J -p \
+            | grep -oE 'https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+' \
+            | sed -E 's/[.,;:)]+$//' \
+            | awk '!seen[$0]++'
+    )
+else
+    urls=""
+fi
 
 # Build display-menu arg triplets in "$@": <label> <hotkey> <tmux-command>.
 # A label starting with "-" is a dimmed, non-selectable section header; an empty
@@ -90,7 +107,11 @@ n=0
 
 if [ -n "$servers" ]; then
     set -- "" "" ""                              # absorbed; lets the header show
-    set -- "$@" "-servers · all sessions" "" ""
+    if [ "$mode" = kill ]; then
+        set -- "$@" "-kill a server · sends C-c to its pane" "" ""
+    else
+        set -- "$@" "-servers · all sessions" "" ""
+    fi
     while IFS="$TAB" read -r ports_field loc name; do
         [ -n "$ports_field" ] || continue
         here=""
@@ -101,8 +122,16 @@ if [ -n "$servers" ]; then
             n=$((n + 1))
             if [ "$n" -le 9 ]; then key="$n"; else key=""; fi
             url="http://localhost:$port"
-            srv_urls="$srv_urls$url$TAB"
-            cmd="run-shell -b \"$opener '$(shquote "$url")'\""
+            if [ "$mode" = kill ]; then
+                # @server_state/@server_port are window-scoped, so we only know
+                # the window — target it and its active pane gets the C-c (the
+                # serve pane, normally). The make wrapper traps INT, so this is
+                # the same graceful stop as hitting Ctrl-C in that tab.
+                cmd="send-keys -t '$(shquote "$loc")' C-c"
+            else
+                srv_urls="$srv_urls$url$TAB"
+                cmd="run-shell -b \"$opener '$(shquote "$url")'\""
+            fi
             label=$(printf ':%-5s %s  %s%s' "$port" "$name" "$loc" "$here")
             set -- "$@" "$(menulabel "$label")" "$key" "$cmd"
         done
@@ -141,11 +170,24 @@ $urls
 EOF
 fi
 
+# Open menu only: a `q` row into kill mode, but only when there's a server to
+# kill. It re-invokes us as `… kill` from within the (closing) menu, the same
+# nested run-shell the cheatsheet's `u` row uses to reach this very menu.
+if [ "$mode" = open ] && [ -n "$servers" ]; then
+    set -- "$@" "" "" ""
+    set -- "$@" "kill a server…" "q" "run-shell -b \"$0 kill\""
+fi
+
 if [ "$#" -eq 0 ]; then
-    tmux display-message "tmux-url-open: no servers or URLs found"
+    if [ "$mode" = kill ]; then
+        tmux display-message "tmux-url-open: no servers running"
+    else
+        tmux display-message "tmux-url-open: no servers or URLs found"
+    fi
     exit 0
 fi
 
 # -H sets the selected-row style: a subtle surface-1 background (instead of the
 # default reverse video) so the green port / dim location stay legible.
-tmux display-menu -T ' open ' -H 'bg=#45475a' -x C -y C "$@"
+[ "$mode" = kill ] && title=' kill ' || title=' open '
+tmux display-menu -T "$title" -H 'bg=#45475a' -x C -y C "$@"
