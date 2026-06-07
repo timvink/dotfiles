@@ -8,7 +8,9 @@
 #     wrapper). Opens http://localhost:PORT. The server in the current tab is
 #     marked →. This works workspace-wide, so a server in another session is one
 #     keystroke away without switching to its tab.
-#   URLs (a-z): every http(s) URL visible in the current pane.
+#   URLs (a-z): every URL visible in the current pane — including bare domains
+#     like dashboard.stripe.com/... that carry no http(s):// scheme (these are
+#     normalised to https:// so the opener treats them as URLs, not files).
 #
 # Press `q` to drop into "kill mode": the same menu, servers only, where the
 # digit keys send C-c to a server's pane (a graceful stop — the make wrapper's
@@ -74,18 +76,33 @@ servers=$(
         | awk -F"$TAB" '$2=="running" && $1!="" { print $1 FS $3 FS $4 }'
 )
 
-# ---- http(s) URLs in the current pane ---------------------------------------
-# -J joins wrapped lines so a split URL comes back whole. Trailing punctuation
-# (.,;:) and an unbalanced ) are common in logs/markdown — strip them. Dedupe
-# in first-seen order. The a..z key cap (26) is applied in the loop below, AFTER
-# server URLs are filtered out — capping here would let localhost servers eat
-# slots and silently drop genuine on-screen URLs past line 26.
+# ---- URLs in the current pane -----------------------------------------------
+# -J joins wrapped lines so a split URL comes back whole. Two kinds are matched
+# (one alternation, leftmost-longest so a scheme URL always wins over its bare
+# tail at the same spot):
+#   1. scheme URLs: https?://…
+#   2. bare domains: host.tld[/path] with no scheme, e.g. dashboard.stripe.com/x.
+#      Bare matching is gated on a curated TLD list (see $tld) so it fires on
+#      real domains but NOT on filenames (README.md, main.rs, app.py), version
+#      strings (v1.2.3) or prose — their trailing token isn't a listed TLD. The
+#      \b after the TLD stops dashboard.community truncating to dashboard.com.
+# Then: strip trailing punctuation (.,;:) and an unbalanced ) common in
+# logs/markdown; normalise bare domains to https:// (so `open`/xdg-open treats
+# them as URLs, not local files); dedupe in first-seen order. The a..z key cap
+# (26) is applied in the loop below, AFTER server URLs are filtered out — capping
+# here would let localhost servers eat slots and silently drop on-screen URLs.
 # Only the open menu lists on-screen URLs; kill mode is servers-only.
+#
+# $tld leaves out real TLDs that collide with common code-file extensions
+# (md/rs/sh/…) to avoid false hits; add any you actually use as web addresses.
+tld='com|org|net|edu|gov|mil|int|info|biz|io|dev|app|ai|co|xyz|online|site|tech|cloud|nl|be|de|fr|uk|eu|us|ca|au|es|it|se|no|dk|fi|pl|ch|at|ie'
+urlchars='A-Za-z0-9._~:/?#@!$&()*+,;=%-'
 if [ "$mode" = open ]; then
     urls=$(
         tmux capture-pane -J -p \
-            | grep -oE 'https?://[A-Za-z0-9._~:/?#@!$&()*+,;=%-]+' \
+            | grep -oE "https?://[$urlchars]+|([A-Za-z0-9-]+\.)+($tld)\b(:[0-9]+)?(/[$urlchars]*)?" \
             | sed -E 's/[.,;:)]+$//' \
+            | sed -E '\#^https?://#!s#^#https://#' \
             | awk '!seen[$0]++'
     )
 else
