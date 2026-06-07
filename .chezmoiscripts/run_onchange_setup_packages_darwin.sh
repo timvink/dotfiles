@@ -44,6 +44,7 @@ PACKAGES=(
   ripgrep # required for lazyvim fuzzy file search
   fzf # fuzzy finder: ctrl-r history, ctrl-t files, **<tab> completion
   gh # GitHub CLI (used by claude skills, PRs, gh api)
+  lazygit # git TUI; LazyVim binds <leader>gg to it
   lazydocker
   uv
   starship
