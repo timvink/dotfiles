@@ -46,7 +46,7 @@
                     //     ]
                     // },
                     {
-                        "description": "Home Row Mods: S (tap S, hold left_option for 140ms, then h/j/k/l/etc -> alt+key) (MacBook Keyboard Only). Shift is whitelisted in optional so Shift+Alt+<key> (e.g. tmux Alt+Shift+r rename, Alt+Shift+h/l swap) still engages the mod; cmd/ctrl/opt are intentionally left out so the full Hyper combo (cmd+ctrl+opt+shift) defers to the Hyper+S launcher.",
+                        "description": "Home Row Mods: S (tap S, hold left_option for 150ms, then h/j/k/l/etc -> alt+key) (MacBook Keyboard Only). Shift is whitelisted in optional so Shift+Alt+<key> (e.g. tmux Alt+Shift+r rename, Alt+Shift+h/l swap) still engages the mod; cmd/ctrl/opt are intentionally left out so the full Hyper combo (cmd+ctrl+opt+shift) defers to the Hyper+S launcher.",
                         "manipulators": [
                             {
                                 "type": "basic",
@@ -59,7 +59,7 @@
                                 "to_if_held_down": [{ "key_code": "left_option" }],
                                 "parameters": {
                                     "basic.to_if_alone_timeout_milliseconds": 300,
-                                    "basic.to_if_held_down_threshold_milliseconds": 140,
+                                    "basic.to_if_held_down_threshold_milliseconds": 150,
                                     "basic.to_delayed_action_delay_milliseconds": 200
                                 }
                             }
