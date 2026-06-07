@@ -31,6 +31,8 @@ require("lazy").setup({
     { import = "lazyvim.plugins.extras.util.mini-hipatterns" },
     -- Highlight other occurrences of the word under cursor.
     { import = "lazyvim.plugins.extras.editor.illuminate" },
+    -- Surround text objects: gsa add, gsd delete, gsr replace (mini.surround).
+    { import = "lazyvim.plugins.extras.coding.mini-surround" },
     -- Custom plugin specs / LazyVim overrides from lua/plugins/
     { import = "plugins" },
   },
