@@ -21,7 +21,7 @@
     "workbench.editor.empty.hint": "hidden",
     "workbench.startupEditor": "readme",
     "workbench.editor.enablePreview": false,
-    "security.workspace.trust.untrustedFiles": "open",
+    "security.workspace.trust.untrustedFiles": "prompt",
     "vim.normalModeKeyBindingsNonRecursive": [ 
         // We want to achieve similar behavior to commonly used lazyvim settings, to achieve a consistent behavior
         // See for example https://learn.omacom.io/2/the-omarchy-manual/56/neovim
@@ -149,14 +149,10 @@
    "[github-actions-workflow]": {
        "editor.defaultFormatter": "redhat.vscode-yaml"
    },
-    "chat.tools.terminal.autoApprove": {
-        "uv": true,
-        "docker exec": true,
-        "import": true,
-    },
+    "chat.tools.terminal.autoApprove": {},
     "containers.containerClient": "com.microsoft.visualstudio.containers.docker",
     "containers.orchestratorClient": "com.microsoft.visualstudio.orchestrators.dockercompose",
-    "chat.tools.global.autoApprove": true,
+    "chat.tools.global.autoApprove": false,
     "chat.mcp.gallery.enabled": true,
     "chat.agentSessionsViewLocation": "single-view",
     "chat.agent.maxRequests": 50,
