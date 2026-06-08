@@ -91,14 +91,25 @@ if ! command -v eza >/dev/null 2>&1; then
     sudo apt-get install -y eza
 fi
 
-# starship — official installer drops a binary into /usr/local/bin
+# starship — prefer distro packages. Ubuntu only ships this from 25.04 onward;
+# on older releases, install it manually with a reviewed package-manager path
+# (e.g. Linuxbrew or cargo) rather than piping the upstream install script to root.
 if ! command -v starship >/dev/null 2>&1; then
-    curl -sS https://starship.rs/install.sh | sudo sh -s -- -y -b /usr/local/bin
+    if [ "$NEED_UPDATE" -eq 0 ]; then
+        sudo apt-get update -y
+        NEED_UPDATE=1
+    fi
+    if apt-cache show starship >/dev/null 2>&1; then
+        sudo apt-get install -y starship
+    else
+        echo "starship is not available in this apt release; install via Linuxbrew or cargo." >&2
+    fi
 fi
 
-# uv — Astral's installer drops a binary into ~/.local/bin
+# uv — install the PyPI-published binary into an isolated pipx environment.
 if ! command -v uv >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/uv" ]; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
+    install_if_missing pipx pipx
+    pipx install uv
 fi
 
 # NOTE on xterm-ghostty terminfo:
