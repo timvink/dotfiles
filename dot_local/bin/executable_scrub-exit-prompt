@@ -1,0 +1,89 @@
+#!/usr/bin/env python3
+"""Splice the bare `e` exit prompt out of a Claude Code session transcript.
+
+The `e` UserPromptSubmit hook (see agent-exit) types a single `e` to leave a
+session, which Claude Code records as a normal user turn. This removes that turn
+from the given .jsonl transcript without dropping anything else.
+
+It's a node *splice*, not a subtree delete: each `e` user line is removed, and
+any line whose parentUuid pointed at it is re-pointed to the `e` line's own
+parent. That keeps the conversation chain intact in both shapes we see:
+
+  * clean exit  — `e` is followed only by attachment metadata (tool/skill/MCP
+    deltas) that got flushed on that turn; they re-parent harmlessly.
+  * exit that didn't take — the pane wasn't killed, so `e` is followed by a real
+    `No response requested.` reply and genuine continued conversation; that
+    content is preserved, only the stray `e` user node disappears.
+
+Every untouched line is written back byte-for-byte; only the removed `e` lines
+and the few direct children that get re-parented are rewritten. The write is
+atomic (temp file + rename) and the whole thing is a no-op when the file is
+missing, unparseable, or holds no `e` turn — safe to run over any transcript.
+"""
+import json
+import os
+import sys
+import tempfile
+
+
+def is_exit_e(obj):
+    return (
+        isinstance(obj, dict)
+        and obj.get("type") == "user"
+        and isinstance(obj.get("message"), dict)
+        and obj["message"].get("content") == "e"
+        and obj.get("uuid")
+    )
+
+
+def scrub(path):
+    try:
+        with open(path, "r") as f:
+            raw = f.readlines()
+    except OSError:
+        return
+
+    parsed = []
+    for line in raw:
+        s = line.rstrip("\n")
+        try:
+            parsed.append(json.loads(s) if s.strip() else None)
+        except ValueError:
+            parsed.append(None)
+
+    # uuid -> parentUuid for every `e` exit line in this transcript
+    e_parent = {o["uuid"]: o.get("parentUuid") for o in parsed if is_exit_e(o)}
+    if not e_parent:
+        return
+
+    out = []
+    changed = False
+    for line, obj in zip(raw, parsed):
+        if is_exit_e(obj) and obj["uuid"] in e_parent:
+            changed = True  # drop the `e` line itself
+            continue
+        if isinstance(obj, dict) and obj.get("parentUuid") in e_parent:
+            obj["parentUuid"] = e_parent[obj["parentUuid"]]  # splice: re-parent
+            out.append(json.dumps(obj, separators=(",", ":"), ensure_ascii=False) + "\n")
+            changed = True
+        else:
+            out.append(line)  # untouched — verbatim
+    if not changed:
+        return
+
+    d = os.path.dirname(path) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".scrub-exit-")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.writelines(out)
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+
+
+if __name__ == "__main__":
+    for p in sys.argv[1:]:
+        scrub(p)

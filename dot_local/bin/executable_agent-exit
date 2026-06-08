@@ -16,6 +16,29 @@
 
 set -u
 
+# The `e` UserPromptSubmit hook pipes its JSON payload in (so we can find this
+# session's transcript and scrub the bare `e` exit line from it); /oneoff and a
+# manual run give us none. Read it only when stdin is a pipe — never block on a
+# tty, and stay a no-op when there's nothing to read.
+transcript=""
+if [ ! -t 0 ]; then
+    payload=$(cat 2>/dev/null || true)
+    [ -n "$payload" ] && transcript=$(printf '%s' "$payload" | jq -r '.transcript_path // empty' 2>/dev/null)
+fi
+
+# Splice the `e` exit prompt out of this session's transcript on the way out, so
+# it doesn't litter the conversation. `scrub-exit-prompt` removes the `e` user
+# line and re-parents its children (see that script for why a splice, not a
+# delete). Detached + nohup so it outlives the kill below — nohup is exactly the
+# "survive the pty hangup" tool kill-pane triggers — with a short pause first to
+# let Claude finish dying and flushing the log. No-op without a transcript (the
+# /oneoff and manual paths, which never type an `e`).
+if [ -n "$transcript" ] && [ -f "$transcript" ]; then
+    nohup bash -c 'sleep 1; "$HOME/.local/bin/scrub-exit-prompt" "$1"' _ "$transcript" \
+        >/dev/null 2>&1 &
+    disown 2>/dev/null || true
+fi
+
 # 1. tmux (the common case): one shot, kills the entire pane tree. Also covers a
 #    reachable server; if the server is gone, kill-pane fails and we fall through.
 if [ -n "${TMUX_PANE:-}" ] && tmux kill-pane -t "$TMUX_PANE" 2>/dev/null; then

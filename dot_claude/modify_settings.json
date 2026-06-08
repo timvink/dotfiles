@@ -81,8 +81,11 @@ perm_hook=$(jq -n --arg cmd "$perm_cmd" '[
 # tmux it kill-panes the whole tree; outside tmux (e.g. a Ghostty tab) it
 # SIGTERMs Claude and SIGHUPs the launching shell so the tab closes too; and if
 # the tmux server is unreachable (orphaned /tmp socket) it falls through to that
-# same kill path. $HOME stays literal so /bin/sh expands it at hook runtime.
-prompt_cmd='if [ "$(jq -r .prompt)" = e ]; then $HOME/.local/bin/agent-exit; else $HOME/.local/bin/agent-state running; fi'
+# same kill path. We pipe the hook payload into it (capture once into $p, reuse
+# for the .prompt test) so it can read .transcript_path and scrub the bare `e`
+# line from this session's log on the way out. $HOME stays literal so /bin/sh
+# expands it at hook runtime.
+prompt_cmd='p=$(cat); if [ "$(printf "%s" "$p" | jq -r .prompt)" = e ]; then printf "%s" "$p" | $HOME/.local/bin/agent-exit; else $HOME/.local/bin/agent-state running; fi'
 prompt_hook=$(jq -n --arg cmd "$prompt_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
