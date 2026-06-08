@@ -20,8 +20,12 @@ if [ -f ~/.bash_env ]; then
 fi
 
 ## Pretty prompts, https://starship.rs/
-eval "$(starship init bash)"
-eval "$(uv generate-shell-completion bash)"
+if command -v starship >/dev/null 2>&1; then
+    eval "$(starship init bash)"
+fi
+if command -v uv >/dev/null 2>&1; then
+    eval "$(uv generate-shell-completion bash)"
+fi
 
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
