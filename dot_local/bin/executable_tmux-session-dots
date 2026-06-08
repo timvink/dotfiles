@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# tmux-session-dots — a row of summary dots, one per tmux session, for the right
+# side of the status bar (dot_tmux.conf, where the clock used to be). Each dot is
+# that session's aggregate agent state: the highest-priority @agent_state across
+# its windows, precedence needs-input > running > idle > none. So at a glance you
+# can count how many workspaces are working (blue ●), blocked on you (red ●), or
+# done and waiting (yellow ○) — without opening the alt+f finder.
+#
+# Same signal and palette as the per-tab dots and the alt+f finder
+# (tmux-sessionizer); this is the whole-server roll-up of them. The current
+# session's dot is wrapped in [ ] so you can find yourself in the row.
+#
+# Emits tmux FORMAT directives (#[fg=...]), NOT raw ANSI escapes: tmux re-expands
+# #[...] in #() output on the status bar (its injection guard only blocks #{...}
+# and nested #(), not styles). The sessionizer uses ANSI instead because it feeds
+# fzf, not the bar. Run async by tmux on status-interval, like tmux-git-branch,
+# so it never stalls the bar.
+#
+# $1 = the bar's session name (passed as #{q:session_name}); empty is fine — then
+# no dot is bracketed. bg is set by the chip in status-right, so we only ever
+# touch fg here and let it persist through the row.
+set -uo pipefail
+
+current=${1:-}
+TAB=$'\t'   # field delimiter for the -F table; '|' is legal in a session name.
+
+# Aggregate @agent_state to a numeric rank per session in ONE awk pass over every
+# window (needs-input 3 > running 2 > idle 1 > none/unset 0) — same one-pass shape
+# as tmux-sessionizer. A session whose windows are all none/unset is simply absent
+# here and falls through to rank 0 on the lookup below.
+win_states=$(tmux list-windows -a -F "#{session_name}${TAB}#{@agent_state}" 2>/dev/null || true)
+session_ranks=$(printf '%s\n' "$win_states" | awk -F"$TAB" '
+  { r = $2=="needs-input" ? 3 : $2=="running" ? 2 : $2=="idle" ? 1 : 0 }
+  r > seen[$1] { seen[$1] = r }
+  END { for (s in seen) print s "\t" seen[s] }
+')
+ranks_nl=$'\n'"$session_ranks"$'\n'   # \n<name>\t<rank>\n … for fork-free lookup
+
+# Sessions in name order (list-sessions' default sort) — a stable order so each
+# session keeps its slot in the row, and the same order alt+j/alt+k cycle through.
+names=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | sort || true)
+
+# Set $_dot to the tmux-format glyph for rank $1 (mirrors dot_tmux.conf's palette).
+rank_dot() {
+  case "$1" in
+    3) _dot='#[fg=#f38ba8]●' ;;  # needs-input  red
+    2) _dot='#[fg=#89b4fa]●' ;;  # running      blue
+    1) _dot='#[fg=#f9e2af]○' ;;  # idle         yellow
+    *) _dot='#[fg=#6c7086]●' ;;  # none / unset grey
+  esac
+}
+
+out=''
+while IFS= read -r s; do
+  [ -z "$s" ] && continue
+  r=0
+  case "$ranks_nl" in
+    *$'\n'"$s$TAB"*) r=${ranks_nl#*$'\n'"$s$TAB"}; r=${r%%$'\n'*} ;;
+  esac
+  rank_dot "$r"
+  # Every dot occupies a uniform 3-cell "space dot space" slot, so the row width
+  # is stable and the highlight pill (an odd 3 cells) stays centred on the dot —
+  # an even-width pill would sit off to one side.
+  if [ "$s" = "$current" ]; then
+    # Mark the current session by highlighting its slot with the active-tab
+    # surface (#45475a) — the same "you are here" cue the active window tab uses.
+    # No bracket/glyph added, so the row doesn't shift as you switch sessions.
+    # Reset bg to the chip's #313244 after the pill.
+    out="$out#[bg=#45475a] $_dot #[bg=#313244]"
+  else
+    out="$out $_dot "
+  fi
+done <<EOF
+$names
+EOF
+
+printf '%s' "$out"
