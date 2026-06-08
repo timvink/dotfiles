@@ -11,7 +11,14 @@ alias gaa='git add --all && gst'
 alias gl='git log --graph'
 alias gpo='git push origin'
 # git worktrees -- cd to main branch of worktree
-alias gt_cdmain='cd $(git rev-parse --path-format=absolute --git-common-dir)/..'
+gt_cdmain() {
+    local common_dir
+    common_dir=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null) || {
+        echo "gt_cdmain: not inside a git repository" >&2
+        return 1
+    }
+    cd "${common_dir}/.."
+}
 
 # File system
 # alias ls='ls -lash'
@@ -118,9 +125,9 @@ make() {
 # LLMs
 cc() {
     if [ $# -eq 0 ]; then
-        claude --dangerously-skip-permissions
+        claude --permission-mode auto
     else
-        claude --dangerously-skip-permissions -p "$@"
+        claude --permission-mode auto -p "$@"
     fi
 }
 ccc() {
@@ -166,23 +173,36 @@ zfs_unlock() {
     # The list of services to (re)start lives inside the repo (which is on
     # the encrypted dataset), so it is read AFTER the dataset is mounted.
     # See $repo/post-unlock-services.txt — single source of truth.
-    read -s -p "Enter ZFS passphrase for homelab: " zfs_pass
-    echo ""
-    local cmd="
-        echo '$zfs_pass' | sudo zfs load-key raidpool/private && \
-        sudo zfs mount raidpool/private && \
-        while IFS= read -r svc; do \
-            [ -z \"\$svc\" ] && continue; \
-            case \"\$svc\" in \\#*) continue ;; esac; \
-            [ -f $repo/\$svc/docker-compose.yml ] && \
-            docker compose --env-file $repo/.env -f $repo/\$svc/docker-compose.yml up -d; \
-        done < $repo/post-unlock-services.txt && \
-        echo 'Success!'"
+    local stty_state
+    printf "Enter ZFS passphrase for homelab: " >&2
+    stty_state=$(stty -g 2>/dev/null || true)
+    [ -n "$stty_state" ] && stty -echo
+    IFS= read -r zfs_pass
+    [ -n "$stty_state" ] && stty "$stty_state"
+    printf "\n" >&2
+    local cmd='
+        set -e
+        repo=/media/storage/private/timvink-homelab
+        sudo zfs load-key raidpool/private
+        sudo zfs mount raidpool/private
+        while IFS= read -r svc; do
+            [ -z "$svc" ] && continue
+            case "$svc" in \#*) continue ;; esac
+            [ -f "$repo/$svc/docker-compose.yml" ] &&
+            docker compose --env-file "$repo/.env" -f "$repo/$svc/docker-compose.yml" up -d
+        done < "$repo/post-unlock-services.txt"
+        echo "Success!"
+    '
+    local rc
     if [ "$(hostname)" = "homelab" ]; then
-        bash -c "$cmd"
+        printf '%s\n' "$zfs_pass" | bash -c "$cmd"
+        rc=$?
     else
-        ssh -t homelab "$cmd"
+        printf '%s\n' "$zfs_pass" | ssh -tt homelab "bash -c '$cmd'"
+        rc=$?
     fi
+    unset zfs_pass
+    return $rc
 }
 
 {{ if ne .chezmoi.os "windows" }}
