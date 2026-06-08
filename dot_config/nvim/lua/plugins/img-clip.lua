@@ -5,6 +5,18 @@
 return {
   "HakonHarnes/img-clip.nvim",
   event = "VeryLazy",
+  ft = { "markdown", "markdown.mdx" },
+  init = function()
+    vim.api.nvim_create_autocmd("FileType", {
+      pattern = { "markdown", "markdown.mdx" },
+      callback = function(event)
+        vim.keymap.set("i", "<C-v>", "<cmd>PasteImage<cr>", {
+          buffer = event.buf,
+          desc = "Paste image from clipboard",
+        })
+      end,
+    })
+  end,
   opts = {
     default = {
       dir_path = "assets",
@@ -12,11 +24,5 @@ return {
       prompt_for_file_name = true,
       show_dir_path_in_prompt = true,
     },
-  },
-  keys = {
-    -- Ctrl+V in insert mode pastes a clipboard image as a markdown link.
-    -- Trade-off: replaces Vim's "insert literal char" on <C-v>; use <C-q>
-    -- for that instead (e.g. <C-q><Tab> for a real tab).
-    { "<C-v>", "<cmd>PasteImage<cr>", mode = "i", desc = "Paste image from clipboard" },
   },
 }

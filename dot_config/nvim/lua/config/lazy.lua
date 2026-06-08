@@ -17,6 +17,7 @@ vim.opt.rtp:prepend(lazypath)
 
 -- LazyVim + user config (options.lua and keymaps.lua are auto-loaded from lua/config/)
 require("lazy").setup({
+  local_spec = false,
   spec = {
     { "LazyVim/LazyVim", import = "lazyvim.plugins" },
     -- Language extras: each pulls in LSP + treesitter + formatter + linter
