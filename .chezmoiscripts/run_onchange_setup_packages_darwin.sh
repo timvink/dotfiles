@@ -92,10 +92,12 @@ else
 fi
 
 # Install Claude Code
-curl -fsSL https://claude.ai/install.sh | bash
+if ! brew list --cask claude-code >/dev/null 2>&1; then
+    brew install --cask claude-code
+fi
 
 # Install agentsview (https://www.agentsview.io/)
-curl -fsSL https://agentsview.io/install.sh | bash
+uv tool install agentsview
 
 # Install agy (antigravity CLI)
 if ! command -v agy >/dev/null 2>&1; then
