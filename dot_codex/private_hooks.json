@@ -4,7 +4,7 @@
       { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state none" } ] }
     ],
     "UserPromptSubmit": [
-      { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state running" } ] }
+      { "hooks": [ { "type": "command", "command": "p=$(cat); prompt=$(printf \"%s\" \"$p\" | jq -r '.prompt // .message // .input // .text // empty' 2>/dev/null); if [ \"$prompt\" = e ]; then printf \"%s\" \"$p\" | $HOME/.local/bin/agent-exit; else $HOME/.local/bin/agent-state running; fi" } ] }
     ],
     "PreToolUse": [
       { "matcher": ".*", "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state running" } ] }

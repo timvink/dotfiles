@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Terminate this Claude Code session — and the shell/terminal tab hosting it —
-# in one shot. Claude has no "exit yourself" tool, so the things that want the
+# Terminate this agent session — and the shell/terminal tab hosting it — in one
+# shot. Claude/Codex have no "exit yourself" tool, so the things that want the
 # agent to leave (the `e` UserPromptSubmit hook and the /oneoff command) reach
-# this script instead. It always runs inside Claude's own process tree, so it
-# finds Claude — and the shell that launched it — by walking up from its own PID.
+# this script instead. It always runs inside the agent's own process tree, so it
+# finds the agent — and the shell that launched it — by walking up from its own PID.
 #
-#   Inside tmux:  `tmux kill-pane` tears down the whole pane process tree (Claude,
+#   Inside tmux:  `tmux kill-pane` tears down the whole pane process tree (agent,
 #                 its launching shell, any nested shells) at once; the tab closes.
-#   Outside tmux: (e.g. a Ghostty tab) SIGTERM Claude and SIGHUP the shell that
+#   Outside tmux: (e.g. a Ghostty tab) SIGTERM the agent and SIGHUP the shell that
 #                 spawned it, so the terminal closes the tab too — same net effect
 #                 as kill-pane. The kills are detached (nohup, backgrounded) so
-#                 they still land if Claude tears down its children as it dies.
+#                 they still land if the agent tears down its children as it dies.
 #
 # Always exits 0: if no target is found we simply leave the session running.
 
@@ -31,7 +31,7 @@ fi
 # line and re-parents its children (see that script for why a splice, not a
 # delete). Detached + nohup so it outlives the kill below — nohup is exactly the
 # "survive the pty hangup" tool kill-pane triggers — with a short pause first to
-# let Claude finish dying and flushing the log. No-op without a transcript (the
+# let the agent finish dying and flushing the log. No-op without a transcript (the
 # /oneoff and manual paths, which never type an `e`).
 if [ -n "$transcript" ] && [ -f "$transcript" ]; then
     nohup bash -c 'sleep 1; "$HOME/.local/bin/scrub-exit-prompt" "$1"' _ "$transcript" \
@@ -45,9 +45,9 @@ if [ -n "${TMUX_PANE:-}" ] && tmux kill-pane -t "$TMUX_PANE" 2>/dev/null; then
     exit 0
 fi
 
-# 2. No tmux (or its server is unreachable). Walk our ancestry to find the
-#    `claude` process and the shell that launched it (Claude's parent).
-claude_pid=""
+# 2. No tmux (or its server is unreachable). Walk our ancestry to find the agent
+#    process and the shell that launched it (the agent's parent).
+agent_pid=""
 host_shell=""
 pid=$$
 i=0
@@ -55,20 +55,22 @@ while [ "$i" -lt 20 ]; do
     i=$((i + 1))
     read -r ppid comm < <(ps -o ppid=,comm= -p "$pid" 2>/dev/null)
     [ -z "${ppid:-}" ] && break
-    if [ "${comm##*/}" = claude ]; then
-        claude_pid="$pid"
-        host_shell="$ppid"
-        break
-    fi
+    case "${comm##*/}" in
+        claude|codex|codex-*)
+            agent_pid="$pid"
+            host_shell="$ppid"
+            break
+            ;;
+    esac
     [ "$ppid" -le 1 ] 2>/dev/null && break
     pid="$ppid"
 done
 
-# Clear the tab dot now — the Stop hook won't fire once Claude is killed. No-op
+# Clear the tab dot now — the Stop hook won't fire once the agent is killed. No-op
 # outside tmux, but harmless and keeps a reused tmux window from carrying state.
 "$HOME/.local/bin/agent-state" idle 2>/dev/null || true
 
-[ -z "$claude_pid" ] && exit 0
+[ -z "$agent_pid" ] && exit 0
 
 # Only SIGHUP the host process if it's genuinely a shell — never a terminal
 # emulator (would kill the whole window) or init. Login shells show as "-zsh".
@@ -80,12 +82,12 @@ case "${host_shell:+x}" in x)
     esac
 esac
 
-# Detach the kills so they survive Claude reaping its own children as it exits.
+# Detach the kills so they survive the agent reaping its own children as it exits.
 nohup bash -c '
     sleep 0.2
     kill -TERM "$1" 2>/dev/null
     [ "$3" = yes ] && kill -HUP "$2" 2>/dev/null
     exit 0
-' _ "$claude_pid" "${host_shell:-0}" "$kill_host" >/dev/null 2>&1 &
+' _ "$agent_pid" "${host_shell:-0}" "$kill_host" >/dev/null 2>&1 &
 disown 2>/dev/null || true
 exit 0
