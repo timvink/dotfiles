@@ -86,6 +86,11 @@ servers=$(
 #      real domains but NOT on filenames (README.md, main.rs, app.py), version
 #      strings (v1.2.3) or prose — their trailing token isn't a listed TLD. The
 #      \b after the TLD stops dashboard.community truncating to dashboard.com.
+#      A negative lookbehind also rejects a bare domain glued to a preceding
+#      email-local-part char ([A-Za-z0-9@_.-]), so vinktim@gmail.com (my own
+#      address, shown on the status line) no longer surfaces gmail.com. Scheme
+#      URLs match independently, so https://user@host.com keeps its userinfo.
+#      The lookbehind needs PCRE, hence perl rather than POSIX `grep -oE`.
 # Then: strip trailing punctuation (.,;:) and an unbalanced ) common in
 # logs/markdown; normalise bare domains to https:// (so `open`/xdg-open treats
 # them as URLs, not local files); dedupe in first-seen order. The a..z key cap
@@ -96,11 +101,15 @@ servers=$(
 # $tld leaves out real TLDs that collide with common code-file extensions
 # (md/rs/sh/…) to avoid false hits; add any you actually use as web addresses.
 tld='com|org|net|edu|gov|mil|int|info|biz|io|dev|app|ai|co|xyz|online|site|tech|cloud|nl|be|de|fr|uk|eu|us|ca|au|es|it|se|no|dk|fi|pl|ch|at|ie'
-urlchars='A-Za-z0-9._~:/?#@!$&()*+,;=%-'
 if [ "$mode" = open ]; then
     urls=$(
         tmux capture-pane -J -p \
-            | grep -oE "https?://[$urlchars]+|([A-Za-z0-9-]+\.)+($tld)\b(:[0-9]+)?(/[$urlchars]*)?" \
+            | TLD="$tld" perl -ne '
+                my $c = qr/[A-Za-z0-9._~:\/?#\@!\$&()*+,;=%-]/;
+                while (/(https?:\/\/$c+)|(?<![A-Za-z0-9\@_.\-])((?:[A-Za-z0-9-]+\.)+(?:$ENV{TLD})\b(?::[0-9]+)?(?:\/$c*)?)/g) {
+                    print defined($1) ? "$1\n" : "$2\n";
+                }
+            ' \
             | sed -E 's/[.,;:)]+$//' \
             | sed -E '\#^https?://#!s#^#https://#' \
             | awk '!seen[$0]++'
