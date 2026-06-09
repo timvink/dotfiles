@@ -1,0 +1,64 @@
+#!/bin/sh
+# Decide the end-of-turn agent-state dot from the Stop hook payload (stdin).
+# Wired in as the Claude Code Stop hook (see dot_claude/modify_settings.json).
+#
+#   in-flight background work   → running ●     a run_in_background shell,
+#                                               subagent, … will auto-resume the
+#                                               agent, so it's not your turn.
+#                                               Keyed off the payload's
+#                                               background_tasks array.
+#   final message ends with a
+#   question (last line → "?")  → needs-input ● red: the turn ended asking you
+#                                               something — "your input needed".
+#                                               Claude Code exposes no native
+#                                               "ended with a question" signal,
+#                                               so we infer it from the text. The
+#                                               agent is told (~/.claude/CLAUDE.md)
+#                                               to end a waiting turn with a
+#                                               question and a reporting turn with
+#                                               a statement, which makes this
+#                                               heuristic reliable in practice.
+#   otherwise                   → idle ○        yellow: turn done, your turn.
+#
+# The final assistant text comes from the payload's `last_assistant_message`
+# field when present, else from the last text block of the JSONL transcript at
+# `.transcript_path` (older builds). Any parse failure falls through to idle, so
+# a finished tab is never wrongly stuck red. No-op outside tmux (agent-state is).
+
+dir=$(dirname "$0")
+payload=$(cat)
+
+# Background work still attached → session auto-resumes; show running, not "your
+# turn". (// [] covers builds predating background_tasks.)
+if [ "$(printf '%s' "$payload" | jq -r '(.background_tasks // []) | length')" -gt 0 ]; then
+    "$dir/agent-state" running
+    exit 0
+fi
+
+# Final assistant message: prefer the payload field, fall back to the transcript
+# (one record per content block, so the closing text is the last text-bearing
+# assistant record).
+msg=$(printf '%s' "$payload" | jq -r '.last_assistant_message // empty')
+if [ -z "$msg" ]; then
+    tp=$(printf '%s' "$payload" | jq -r '.transcript_path // empty')
+    if [ -n "$tp" ] && [ -f "$tp" ]; then
+        msg=$(jq -rs '
+            map(select(.type == "assistant" and (.message.content | type) == "array"))
+            | map(.message.content | map(select(.type == "text") | .text) | join("\n"))
+            | map(select(. != ""))
+            | last // ""
+        ' "$tp" 2>/dev/null)
+    fi
+fi
+
+# Heuristic: does the last non-blank line end with "?" (trailing whitespace
+# ignored)? A genuine waiting turn ends on the question; a report ends on a
+# statement. Kept deliberately simple — no attempt to handle "?)"-style closers,
+# which don't occur at the end of a real prompt to the user.
+last=$(printf '%s' "$msg" | awk 'NF {l = $0} END {print l}' | sed 's/[[:space:]]*$//')
+case "$last" in
+    *\?) "$dir/agent-state" needs-input ;;
+    *)   "$dir/agent-state" idle ;;
+esac
+
+exit 0
