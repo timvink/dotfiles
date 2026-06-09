@@ -10,18 +10,18 @@
 #                                                     read as "your turn". Also
 #                                                     clears any stale state left
 #                                                     on a reused tmux window.
-#   Stop                             → "idle"        yellow ○ when the turn is
-#                                                     fully done, OR "running"
-#                                                     blue ● when it ended with
-#                                                     in-flight background work
-#                                                     (a run_in_background shell,
-#                                                     subagent, …) that will
-#                                                     auto-resume the agent — a
-#                                                     bare idle ○ there wrongly
-#                                                     reads as "your turn". Keyed
-#                                                     off the Stop payload's
-#                                                     background_tasks array
-#                                                     (Claude Code >= 2.1.145).
+#   Stop                             → delegated to `agent-stop-state`, which
+#                                                     reads the Stop payload and
+#                                                     picks: "running" ● if the
+#                                                     turn ended with in-flight
+#                                                     background work that will
+#                                                     auto-resume the agent;
+#                                                     "needs-input" red ● if the
+#                                                     final message ends with a
+#                                                     question (turn ended asking
+#                                                     the user something — see
+#                                                     ~/.claude/CLAUDE.md); else
+#                                                     "idle" ○.
 #   UserPromptSubmit / PreToolUse /
 #   PostToolUse                      → "running"     blue ●  (Claude is working)
 #   Notification[permission_prompt]  → "needs-input" red ●   (blocked on an
@@ -90,15 +90,15 @@ prompt_hook=$(jq -n --arg cmd "$prompt_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
 
-# Stop: the turn ended. Default to idle ○, but if Claude yielded with in-flight
-# background work still attached to the session (a run_in_background shell, a
-# subagent, a monitor, …) it will auto-resume when that work completes, so the
-# tab is NOT awaiting input — keep it on the running ● dot. The Stop payload
-# carries these as the background_tasks array (Claude Code >= 2.1.145; absent on
-# older builds, hence the `// []` guard → idle). session_crons (future scheduled
-# wakeups) are deliberately ignored: the agent really is idle until they fire.
-# $HOME stays literal so /bin/sh expands it when Claude Code runs the hook.
-stop_cmd='if [ "$(jq -r "(.background_tasks // []) | length")" -gt 0 ]; then $HOME/.local/bin/agent-state running; else $HOME/.local/bin/agent-state idle; fi'
+# Stop: the turn ended — delegated to `agent-stop-state` because the decision now
+# needs the payload read twice (background_tasks AND the final message text), and
+# a single jq can only consume stdin once. That script picks running ● (in-flight
+# background work will auto-resume the agent), needs-input red ● (final message
+# ends with a question — the agent ended its turn asking the user something, the
+# one waiting-on-user case Claude Code exposes no native signal for), or idle ○
+# otherwise. $HOME stays literal so /bin/sh expands it when Claude Code runs the
+# hook; the script reads the payload from stdin itself.
+stop_cmd='$HOME/.local/bin/agent-stop-state'
 stop_hook=$(jq -n --arg cmd "$stop_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')

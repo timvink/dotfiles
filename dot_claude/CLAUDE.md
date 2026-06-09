@@ -20,6 +20,22 @@ Define success criteria. Loop until verified.
 Don't follow steps. Define success and iterate.
 Strong success criteria let you loop independently.
 
+## End-of-turn input signal
+A tmux hook flips my tab indicator to red ("your input needed") instead of yellow
+("done") when your final message ends with a question. So phrase your turn ending
+to match what you actually need:
+- When you end a turn genuinely waiting on me — you asked something or presented a
+  choice and can't sensibly proceed until I answer — make the **last line a
+  question ending in "?"**.
+- When you're just reporting completed work, or offering an optional next step you
+  don't need answered, **end on a statement, not a question**, so the tab reads as
+  done.
+
+This only governs the final line. Don't contort your writing — but don't tack a
+reflexive "Want me to…?" onto a turn that's really finished, and don't end a
+genuine hand-back-to-me on a flat statement. Tool-collected input (AskUserQuestion,
+ExitPlanMode, permission prompts) already signals separately — no question needed.
+
 ## Machine setup via chezmoi
 Dotfiles and machine configuration are managed with chezmoi. Any change to the
 machine setup — shell config, `~/.gitconfig`, `~/.claude/`, installed-tool config,
