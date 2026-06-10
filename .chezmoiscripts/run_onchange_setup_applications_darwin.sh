@@ -66,6 +66,12 @@ defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true
 # Show hidden files by default
 defaults write com.apple.Finder AppleShowAllFiles true
 
+# Open new Finder windows in ~/Downloads instead of "Recents".
+# PfLo = "Other" location; NewWindowTargetPath points it at the folder.
+defaults write com.apple.finder NewWindowTarget -string "PfLo"
+defaults write com.apple.finder NewWindowTargetPath -string "file://${HOME}/Downloads/"
+killall Finder 2>/dev/null || true
+
 # Disable window animations and Get Info animations
 defaults write -g NSAutomaticWindowAnimationsEnabled -bool false
 
