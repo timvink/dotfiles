@@ -1,8 +1,9 @@
 -- Override the snacks.nvim file explorer (LazyVim's default, opened with <leader>e).
 -- By default `y` copies the *absolute* path linewise (trailing newline). Here:
---   y  -> copy path relative to the explorer root
---   Y  -> copy absolute path
--- Both copy to the system clipboard charwise (no trailing newline) and
+--   y     -> copy path relative to the explorer root
+--   Y     -> copy absolute path
+--   <c-v> -> save a clipboard image into the directory under the cursor
+-- Yanks copy to the system clipboard charwise (no trailing newline) and
 -- support multi-select in visual mode.
 
 -- Yank selected (or hovered) paths to the clipboard, charwise.
@@ -28,6 +29,44 @@ local function yank(picker, relative)
   Snacks.notify.info("Yanked " .. #files .. " " .. kind .. " path(s)")
 end
 
+-- Save a clipboard image (e.g. a screenshot) as a file in the directory under
+-- the cursor. Reuses img-clip's clipboard backends (pngpaste on macOS,
+-- xclip/wl-paste on Linux) without its markdown-markup insertion, and mirrors
+-- the prompt + tree-refresh flow of snacks' own explorer_add action.
+local function paste_image(picker)
+  local clipboard = require("img-clip.clipboard")
+  if not clipboard.get_clip_cmd() then
+    return Snacks.notify.error("No clipboard command found. See :checkhealth img-clip.")
+  end
+  if not clipboard.content_is_image() then
+    return Snacks.notify.warn("Clipboard does not contain an image")
+  end
+  local dir = picker:dir()
+  Snacks.input({
+    prompt = "Save clipboard image as",
+    default = os.date("%Y-%m-%d-%H%M%S") .. ".png",
+  }, function(name)
+    if not name or name:find("^%s*$") then
+      return
+    end
+    if not name:match("%.%w+$") then
+      name = name .. ".png"
+    end
+    local path = vim.fs.normalize(dir .. "/" .. name)
+    if (vim.uv or vim.loop).fs_stat(path) then
+      return Snacks.notify.error("File already exists: " .. path)
+    end
+    if not clipboard.save_image(path) then
+      return Snacks.notify.error("Could not save clipboard image")
+    end
+    local Tree = require("snacks.explorer.tree")
+    Tree:refresh(dir)
+    Tree:open(dir)
+    require("snacks.explorer.actions").update(picker, { target = path })
+    Snacks.notify.info("Saved " .. name)
+  end)
+end
+
 return {
   "folke/snacks.nvim",
   opts = {
@@ -44,6 +83,7 @@ return {
         explorer_yank_abs = function(picker)
           yank(picker, false)
         end,
+        explorer_paste_image = paste_image,
       },
       sources = {
         explorer = {
@@ -54,6 +94,7 @@ return {
               keys = {
                 ["y"] = { "explorer_yank_relative", mode = { "n", "x" } },
                 ["Y"] = { "explorer_yank_abs", mode = { "n", "x" } },
+                ["<c-v>"] = "explorer_paste_image",
               },
             },
           },
