@@ -112,7 +112,10 @@ alias venv='source .venv/bin/activate'
 # immediately, so the chip clears even though the container stays up. See
 # dot_local/bin/executable_server-state.
 make() {
-    case "$1" in serve|docs) ;; *) command make "$@"; return ;; esac
+    # Glob, not exact: catches serve_test, serve-prod, etc. — any serve*/docs*
+    # variant. server-port-watch is name-agnostic (it diffs listening ports), so
+    # this gate is the only thing coupled to the target name.
+    case "$1" in serve*|docs*) ;; *) command make "$@"; return ;; esac
     server-state running
     ( server-port-watch & )
     trap 'server-state off' INT TERM
