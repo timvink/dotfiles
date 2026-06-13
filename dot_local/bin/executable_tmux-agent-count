@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# tmux-agent-count — how many agents are RUNNING (working) right now across the
+# whole tmux server, for the right side of the status bar (dot_tmux.conf), shown
+# just left of the session-dots chip, next to the hostname. An "agent" here is a
+# window whose @agent_state is "running" (the blue ● state set by the
+# Claude/Codex lifecycle hooks); this counts those windows server-wide.
+#
+# Emits a blue tmux FORMAT-styled number, or NOTHING when the count is 0 — so the
+# bar shows a figure only while something is actually working, and the slot
+# vanishes when nothing is. Same signal as tmux-session-dots / the alt+f finder,
+# but a raw count of running windows rather than a per-session roll-up. Run async
+# by tmux on status-interval, like tmux-git-branch / tmux-session-dots, so it
+# never stalls the bar.
+#
+# Emits tmux FORMAT (#[fg=...]), NOT raw ANSI: tmux re-expands #[...] in #()
+# output on the status bar. bg is left untouched so the number sits on whatever
+# bar bg is current (the hostname's @status_bg, before the dots chip's #313244).
+set -uo pipefail
+
+# One pass over every window's @agent_state; count the ones that are "running".
+# grep -c prints 0 and exits 1 on no match, which `|| true` absorbs under set -e
+# (harmless here without -e, but kept for clarity / future-proofing).
+n=$(tmux list-windows -a -F "#{@agent_state}" 2>/dev/null | grep -c '^running$' || true)
+
+[ "${n:-0}" -gt 0 ] && printf '#[fg=#89b4fa]%s#[default]' "$n"

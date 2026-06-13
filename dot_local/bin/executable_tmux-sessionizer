@@ -127,24 +127,35 @@ printf '%s\n' "$open_names" | while IFS= read -r s; do
   printf '%s  %s\tsession\t%s\n' "$_dot" "$s" "$s"
 done > "$sess_file"
 
-# Projects under ~/workspace not already open as a session. Pure-bash, no per-dir
-# forks: an earlier version ran basename + grep per directory and that loop alone
-# cost ~90ms (it dominated startup). Here the glob lists dirs alphabetically (and
-# skips dotdirs like .claude for free, since pathname expansion ignores leading
-# dots), parameter expansion does the basename, and a newline-delimited substring
-# match tests open-ness.
-if [ -d "$WORKSPACE" ]; then
-  open_nl=$'\n'"$open_names"$'\n'              # \n<name>\n … \n for the match;
-                                               # wrap directly — $() would strip
-                                               # the trailing \n off the last name
-  for d in "$WORKSPACE"/*/; do
-    [ -d "$d" ] || continue                    # no-match glob stays literal
-    d=${d%/}; base=${d##*/}                     # strip trailing / then dirname
-    name=${base//[.:]/_}
-    case "$open_nl" in *$'\n'"$name"$'\n'*) continue ;; esac
-    printf '  %s\tdir\t%s\n' "$base" "$d"
-  done
-fi > "$proj_file"
+# Projects to offer: every dir under ~/workspace, plus the chezmoi dotfiles repo
+# (which lives outside that root but I jump to it often). A project already open
+# as a session is skipped. Pure-bash, no per-dir forks: an earlier version ran
+# basename + grep per directory and that loop alone cost ~90ms (it dominated
+# startup). Here the glob lists dirs alphabetically (and skips dotdirs like
+# .claude for free, since pathname expansion ignores leading dots), parameter
+# expansion does the basename, and a newline-delimited substring match tests
+# open-ness.
+open_nl=$'\n'"$open_names"$'\n'                 # \n<name>\n … \n for the match;
+                                                # wrap directly — $() would strip
+                                                # the trailing \n off the last name
+# Emit a "<display>\tdir\t<path>" line for project dir $1, unless a session of
+# the same (.:→_ squashed) name is already open.
+emit_project() {
+  d=${1%/}; base=${d##*/}                        # strip trailing / then dirname
+  name=${base//[.:]/_}
+  case "$open_nl" in *$'\n'"$name"$'\n'*) return ;; esac
+  printf '  %s\tdir\t%s\n' "$base" "$d"
+}
+{
+  if [ -d "$WORKSPACE" ]; then
+    for d in "$WORKSPACE"/*/; do
+      [ -d "$d" ] || continue                    # no-match glob stays literal
+      emit_project "$d"
+    done
+  fi
+  # Dotfiles repo (chezmoi source root) — listed only when present on this box.
+  [ -d "$HOME/.local/share/chezmoi" ] && emit_project "$HOME/.local/share/chezmoi"
+} > "$proj_file"
 
 # Interactive picker. --no-sort keeps the two-tier order --rerank hands us;
 # change:reload recomputes it per keystroke; the initial list is the empty-query
