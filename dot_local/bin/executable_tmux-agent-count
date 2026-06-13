@@ -22,4 +22,6 @@ set -uo pipefail
 # (harmless here without -e, but kept for clarity / future-proofing).
 n=$(tmux list-windows -a -F "#{@agent_state}" 2>/dev/null | grep -c '^running$' || true)
 
-[ "${n:-0}" -gt 0 ] && printf '#[fg=#89b4fa]%s#[default]' "$n"
+# Trailing space sits on the bar bg, adding a gap before the dots chip's own
+# leading space — so the number reads as evenly spaced between host and dots.
+[ "${n:-0}" -gt 0 ] && printf '#[fg=#89b4fa]%s#[default] ' "$n"
