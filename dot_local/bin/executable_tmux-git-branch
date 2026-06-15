@@ -6,6 +6,19 @@
 # branch of the tab you're looking at. Worktrees included: each tab can sit on a
 # different branch and the bar tracks whichever is focused.
 #
+# When $1 is a *linked* worktree (not the primary checkout) the branch is
+# followed by a peach "⑂ <name>" marker, where <name> is the worktree's
+# directory basename. This disambiguates e.g. `main` checked out in a worktree
+# from `main` in the primary repo. The marker injects its own #[fg=...] codes;
+# status-right wraps our output in green (#a6e3a1) and tmux re-expands #[...]
+# from #() output, so we switch to peach for the marker and switch back to green
+# after it (see dot_tmux.conf status-right notes).
+#
+# Linked-worktree test: in the primary checkout `--git-dir` == `--git-common-dir`;
+# in a linked worktree --git-dir points under <common>/worktrees/<name> while
+# --git-common-dir still points at the main .git. --path-format=absolute makes
+# the two comparable regardless of $1's depth (git ≥ 2.31).
+#
 # GIT_OPTIONAL_LOCKS=0 keeps a busy index (an agent mid-commit) from blocking
 # the lookup. Run async by tmux on status-interval, so it never stalls the bar.
 dir="$1"
@@ -13,3 +26,12 @@ b=$(GIT_OPTIONAL_LOCKS=0 git -C "$dir" symbolic-ref --short HEAD 2>/dev/null) \
   || b=$(GIT_OPTIONAL_LOCKS=0 git -C "$dir" rev-parse --short HEAD 2>/dev/null) \
   || exit 0
 printf ' %s' "$b"
+
+# Append a worktree marker when $1 is a linked (non-primary) worktree.
+# git prints --git-dir and --git-common-dir on separate lines, so read two.
+{ read -r gd; read -r cd_; } < <(GIT_OPTIONAL_LOCKS=0 git -C "$dir" rev-parse \
+  --path-format=absolute --git-dir --git-common-dir 2>/dev/null)
+if [ -n "$gd" ] && [ "$gd" != "$cd_" ]; then
+  wt=$(basename "$(GIT_OPTIONAL_LOCKS=0 git -C "$dir" rev-parse --show-toplevel 2>/dev/null)")
+  [ -n "$wt" ] && printf ' #[fg=#fab387]⑂ %s#[fg=#a6e3a1]' "$wt"
+fi
