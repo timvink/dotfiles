@@ -93,7 +93,9 @@ servers=$(
 #      The lookbehind needs PCRE, hence perl rather than POSIX `grep -oE`.
 # Then: strip trailing punctuation (.,;:) and an unbalanced ) common in
 # logs/markdown; normalise bare domains to https:// (so `open`/xdg-open treats
-# them as URLs, not local files); dedupe in first-seen order. The a..z key cap
+# them as URLs, not local files); dedupe keeping the first occurrence, then emit
+# in reverse (last-discovered first) so the most recent on-screen URL sits at the
+# top of the menu with hotkey `a`. The a..z key cap
 # (26) is applied in the loop below, AFTER server URLs are filtered out — capping
 # here would let localhost servers eat slots and silently drop on-screen URLs.
 # Only the open menu lists on-screen URLs; kill mode is servers-only.
@@ -112,7 +114,7 @@ if [ "$mode" = open ]; then
             ' \
             | sed -E 's/[.,;:)]+$//' \
             | sed -E '\#^https?://#!s#^#https://#' \
-            | awk '!seen[$0]++'
+            | awk '!seen[$0]++ { a[++n]=$0 } END { for (i = n; i >= 1; i--) print a[i] }'
     )
 else
     urls=""
