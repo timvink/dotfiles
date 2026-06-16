@@ -128,9 +128,9 @@ make() {
 # LLMs
 cc() {
     if [ $# -eq 0 ]; then
-        claude --permission-mode auto
+        claude --dangerously-skip-permissions
     else
-        claude --permission-mode auto -p "$@"
+        claude --dangerously-skip-permissions -p "$@"
     fi
 }
 ccc() {
