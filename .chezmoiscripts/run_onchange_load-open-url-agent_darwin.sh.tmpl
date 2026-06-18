@@ -1,0 +1,19 @@
+#!/bin/bash
+# (Re)load the open-url LaunchAgent whenever it — or the listener it runs —
+# changes. chezmoi reruns a run_onchange_ script only when its rendered content
+# changes, so the two hashes below make that dependency explicit: edit the plist
+# or the listener and this reloads on the next `chezmoi apply`.
+set -euo pipefail
+
+# plist  hash: {{ include "private_Library/LaunchAgents/com.timvink.openurl.plist.tmpl" | sha256sum }}
+# script hash: {{ include "dot_local/bin/executable_open-url-listener" | sha256sum }}
+
+plist="$HOME/Library/LaunchAgents/com.timvink.openurl.plist"
+mkdir -p "$HOME/Library/Logs"
+
+# Legacy unload/load (rather than bootout/bootstrap) — it doesn't need the gui
+# domain target, so it works the same whether run from a Terminal, an SSH
+# session, or chezmoi. unload tolerates "not currently loaded".
+launchctl unload "$plist" 2>/dev/null || true
+launchctl load "$plist"
+echo "=== chezmoi: (re)loaded com.timvink.openurl LaunchAgent ==="

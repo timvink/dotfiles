@@ -7,7 +7,12 @@ Library/Application Support/Code/User/settings.json
 .chezmoiscripts/setup_firefox_darwin.sh
 .chezmoiscripts/setup_packages_darwin.sh
 .chezmoiscripts/setup_finder_copypath_darwin.sh
+.chezmoiscripts/load-open-url-agent_darwin.sh
+.local/bin/open-url-listener
+Library/LaunchAgents/com.timvink.openurl.plist
+.ssh/config
 {{ end }}
 {{ if ne .chezmoi.os "linux" }}
 setup_packages_linux.sh
+.local/bin/xdg-open
 {{ end }}

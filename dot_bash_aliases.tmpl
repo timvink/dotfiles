@@ -209,8 +209,11 @@ zfs_unlock() {
 }
 
 ## Azure
-# SSH into my Azure devbox VM.
-alias devbox='az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink'
+# SSH into my Azure devbox VM. The reverse tunnel (-R) lets the headless box
+# open URLs in this Mac's browser: the box's xdg-open shim sends the URL back
+# down it to the open-url-listener running here. See ~/.local/bin/xdg-open (box)
+# and ~/.local/bin/open-url-listener (this Mac).
+alias devbox='az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink -- -R 2489:127.0.0.1:2489'
 
 {{ if ne .chezmoi.os "windows" }}
 

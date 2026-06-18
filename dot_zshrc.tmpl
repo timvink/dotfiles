@@ -62,6 +62,10 @@ fi
 {{  if eq .chezmoi.osRelease.id "ubuntu" }}
 skip_global_compinit=1
 {{  end }}
+# Headless box: route URL-opening through my xdg-open shim, which forwards the
+# URL to the browser on my host Mac over the SSH reverse tunnel (and falls back
+# to printing a clickable link). Overrides cloud-init's /etc/profile.d default.
+export BROWSER="$HOME/.local/bin/xdg-open"
 {{ end }}
 
 # fzf — fuzzy finder key bindings + completion.
