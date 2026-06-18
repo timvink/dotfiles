@@ -43,6 +43,11 @@ setopt sharehistory        # Share history across sessions
 # Update path for claude code
 export PATH="$HOME/.local/bin:$PATH"
 
+# uv malware scanning: on `uv add` / `uv sync`, check the locked resolution
+# against OSV malware (MAL) advisories and abort before any malicious code runs.
+# Opt-in for now, so enable it everywhere. https://astral.sh/blog/uv-audit
+export UV_MALWARE_CHECK=1
+
 {{ if eq .chezmoi.os "darwin" }}
 if [ -n "${HOMEBREW_PREFIX:-}" ]; then
     zsh_fast_syntax="$HOMEBREW_PREFIX/opt/zsh-fast-syntax-highlighting/share/zsh-fast-syntax-highlighting/fast-syntax-highlighting.plugin.zsh"
