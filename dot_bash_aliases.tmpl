@@ -208,6 +208,10 @@ zfs_unlock() {
     return $rc
 }
 
+## Azure
+# SSH into my Azure devbox VM.
+alias devbox='az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink'
+
 {{ if ne .chezmoi.os "windows" }}
 
 # Use eza, a better colorized ls
