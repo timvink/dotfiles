@@ -112,6 +112,33 @@ if ! command -v uv >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/uv" ]; then
     pipx install uv
 fi
 
+# fastfetch — neofetch-style system info (config in ~/.config/fastfetch).
+# In Ubuntu's universe repo from 24.04 on; older releases lack it, so fall back
+# to the upstream prebuilt .deb. Release assets are named by kernel arch
+# (amd64 / aarch64), which differs from dpkg's arm64 — map it.
+if ! command -v fastfetch >/dev/null 2>&1; then
+    if [ "$NEED_UPDATE" -eq 0 ]; then
+        sudo apt-get update -y
+        NEED_UPDATE=1
+    fi
+    if apt-cache show fastfetch >/dev/null 2>&1; then
+        sudo apt-get install -y fastfetch
+    else
+        case "$(dpkg --print-architecture)" in
+            amd64) ff_arch=amd64 ;;
+            arm64) ff_arch=aarch64 ;;
+            *) echo "Unsupported arch for fastfetch prebuilt .deb; skipping." >&2; ff_arch="" ;;
+        esac
+        if [ -n "$ff_arch" ]; then
+            tmp=$(mktemp -d)
+            curl -fsSL -o "$tmp/fastfetch.deb" \
+                "https://github.com/fastfetch-cli/fastfetch/releases/latest/download/fastfetch-linux-${ff_arch}.deb"
+            sudo apt-get install -y "$tmp/fastfetch.deb"
+            rm -rf "$tmp"
+        fi
+    fi
+fi
+
 # NOTE on xterm-ghostty terminfo:
 # Ghostty is newer than Ubuntu 24.04's ncurses-term package, so the terminfo
 # entry isn't available via apt, and ghostty does not ship a .terminfo source

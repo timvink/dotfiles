@@ -41,6 +41,7 @@ PACKAGES=(
   neovim
   fd # A simple, fast and user-friendly alternative to 'find'
   btop # Better than htop
+  fastfetch # neofetch-style system info; config in ~/.config/fastfetch
   ripgrep # required for lazyvim fuzzy file search
   fzf # fuzzy finder: ctrl-r history, ctrl-t files, **<tab> completion
   gh # GitHub CLI (used by claude skills, PRs, gh api)
