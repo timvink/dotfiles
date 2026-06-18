@@ -1,0 +1,43 @@
+#!/usr/bin/perl
+# open-url-listener — a tiny loopback TCP server that opens URLs in this Mac's
+# default browser on behalf of a headless remote box (devbox / homelab).
+#
+# Why this exists: a headless box has no browser and can't reach my Mac
+# directly, and SSH has no built-in "open this on the client" channel. So my
+# `devbox` alias / ssh config carry a reverse tunnel (-R 2489:127.0.0.1:2489)
+# and the box's `xdg-open` shim sends the (already rewritten) URL down it to
+# here. We `open` it on the Mac and reply "OK", so the box knows it worked and
+# can otherwise fall back to printing a clickable link.
+#
+# Managed by chezmoi (macOS only); kept running by the com.timvink.openurl
+# LaunchAgent. See docs/development/dev-environment.md in the infra repo.
+#
+# Security: binds 127.0.0.1 only, so the only way in is the authenticated SSH
+# reverse tunnel; accepts a single clean http(s) URL (printable ASCII, no
+# whitespace); and execs `open` in list form, so a hostile string can never be
+# interpreted as a shell command.
+
+use strict;
+use warnings;
+use IO::Socket::INET;
+
+my $PORT = 2489;
+
+my $srv = IO::Socket::INET->new(
+    LocalAddr => '127.0.0.1',
+    LocalPort => $PORT,
+    Proto     => 'tcp',
+    Listen    => 5,
+    ReuseAddr => 1,
+) or die "open-url-listener: cannot listen on 127.0.0.1:$PORT: $!\n";
+
+while (my $client = $srv->accept) {
+    my $line = <$client>;
+    if (defined $line) {
+        $line =~ s/\s+\z//;   # strip the trailing newline (and any trailing ws)
+        if ($line =~ m{\Ahttps?://[\x21-\x7e]+\z} && length($line) <= 2048) {
+            print {$client} "OK\n" if system('/usr/bin/open', '--', $line) == 0;
+        }
+    }
+    close $client;
+}

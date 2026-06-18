@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Keeps open-url-listener running so URLs from a headless dev box open in this
+     Mac's browser. Managed by chezmoi; (re)loaded by the run_onchange loader. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.openurl</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/perl</string>
+        <string>{{ .chezmoi.homeDir }}/.local/bin/open-url-listener</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/openurl.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/openurl.log</string>
+</dict>
+</plist>

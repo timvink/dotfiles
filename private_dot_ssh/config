@@ -1,0 +1,13 @@
+Host github.com
+  AddKeysToAgent yes
+  IdentityFile ~/.ssh/id_ed25519
+
+Host homelab
+    HostName 192.168.68.200
+    User timvink
+    IdentityFile ~/.ssh/id_ed25519
+    # Reverse tunnel so the headless homelab can open URLs in this Mac's browser:
+    # its xdg-open shim sends the URL back down this to open-url-listener here.
+    # (Harmless on non-dev `ssh homelab` sessions — at worst a "remote port
+    # forwarding failed" notice if the port's already in use by another session.)
+    RemoteForward 2489 127.0.0.1:2489

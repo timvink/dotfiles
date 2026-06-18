@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+# xdg-open — on a headless dev box, "open" a URL in the browser on my *host* Mac
+# instead of failing (there's no browser here). This shadows the real xdg-open
+# because ~/.local/bin is first on PATH, and $BROWSER points here too, so
+# `make serve --open`, the tmux url-open menu, `az` sign-in links, etc. all route
+# through it.
+#
+# How it works:
+#   1. Rewrite localhost / 127.0.0.1 -> the name my Mac reaches this box by
+#      (devbox / homelab), so the URL resolves on the host (devbox via SOCKS/PAC,
+#      homelab via LAN DNS).
+#   2. Hand that URL to open-url-listener on my Mac over the SSH reverse tunnel
+#      (-R 2489:127.0.0.1:2489, set up by the `devbox` alias / ssh config). The
+#      Mac runs `open` and replies "OK".
+#   3. If the tunnel or listener isn't there, fall back to *printing* the
+#      rewritten URL — ghostty makes it clickable, so cmd-click still works.
+#
+# Managed by chezmoi (Linux only). The host side lives in the same dotfiles repo
+# (~/.local/bin/open-url-listener); see docs/development/dev-environment.md.
+set -u
+
+[ "$#" -eq 0 ] && exit 0
+url=$1
+
+# "The name my host reaches this box by." Override per-box with $REMOTE_ALIAS;
+# otherwise derive it from the hostname. Add new boxes to the case below (or just
+# export REMOTE_ALIAS in that box's shell).
+alias_host=${REMOTE_ALIAS:-}
+if [ -z "$alias_host" ]; then
+    case "$(hostname -s 2>/dev/null || hostname)" in
+        vm-devbox-*) alias_host=devbox ;;
+        homelab)     alias_host=homelab ;;
+    esac
+fi
+
+# Rewrite localhost/127.0.0.1 -> alias_host (only when we know the alias).
+shown=$url
+if [ -n "$alias_host" ]; then
+    shown=$(printf '%s' "$url" \
+        | sed -E "s#(https?://)(localhost|127\.0\.0\.1)#\1${alias_host}#g")
+fi
+
+host_port=2489
+
+# Hand the URL to the Mac listener via the reverse tunnel. Succeeds only if
+# (a) the tunnel is up — else bash's /dev/tcp connect is refused — and (b) the
+# listener answers "OK". read -t bounds the wait so a half-open tunnel (up, but
+# listener down) can't hang us; it just times out and we fall back to printing.
+open_on_host() {
+    local u=$1 reply
+    # The brace group scopes the 2>/dev/null to just this connect, so a refused
+    # connection (tunnel down) is silent and doesn't permanently clobber stderr.
+    # fd 3 still opens in *this* shell (braces aren't a subshell), so the
+    # printf/read below can use it.
+    { exec 3<>"/dev/tcp/127.0.0.1/${host_port}"; } 2>/dev/null || return 1
+    printf '%s\n' "$u" >&3 2>/dev/null || { exec 3>&-; return 1; }
+    IFS= read -r -t 3 reply <&3
+    exec 3>&-
+    [ "$reply" = "OK" ]
+}
+
+# Only auto-open when we have a real alias to rewrite to; otherwise we'd be
+# telling the Mac to open a bare localhost URL pointing at *itself*.
+if [ -n "$alias_host" ] && open_on_host "$shown"; then
+    exit 0
+fi
+
+# Fallback: print the (rewritten) URL; the terminal renders it clickable.
+printf '\n  🔗 open in your host browser:\n     %s\n\n' "$shown"
