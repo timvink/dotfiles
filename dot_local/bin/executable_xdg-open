@@ -28,8 +28,8 @@ url=$1
 alias_host=${REMOTE_ALIAS:-}
 if [ -z "$alias_host" ]; then
     case "$(hostname -s 2>/dev/null || hostname)" in
-        vm-devbox-*) alias_host=devbox ;;
-        homelab)     alias_host=homelab ;;
+        devbox-*|vm-devbox-*) alias_host=devbox ;;
+        homelab)              alias_host=homelab ;;
     esac
 fi
 
