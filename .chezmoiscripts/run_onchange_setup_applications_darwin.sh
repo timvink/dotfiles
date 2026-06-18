@@ -38,6 +38,11 @@ CASKS=(
     whatsapp
 )
 
+# Trust the netbird tap so brew loads its (third-party) cask/formula
+# definitions without an interactive prompt. Required for the netbird-ui
+# cask below, and stops later `brew` runs from refusing to load the tap.
+brew trust netbirdio/tap
+
 echo "Installing cask apps..."
 for cask in "${CASKS[@]}"; do
     cask_name="${cask##*/}"  # strip tap prefix (e.g. steipete/tap/codexbar -> codexbar)
