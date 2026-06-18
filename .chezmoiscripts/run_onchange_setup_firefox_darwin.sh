@@ -53,10 +53,22 @@ user_pref("signon.rememberSignons", false);
 user_pref("signon.autofillForms", false);
 '
 
+# Route my headless dev boxes (devbox / homelab) through their per-box SSH SOCKS
+# proxy, so http://devbox:<port> loads here. socks_remote_dns is essential: the
+# *box* resolves the hostname to its own loopback. The PAC and the proxy ports
+# live in ~/.config/proxy.pac and the devbox alias / homelab ssh config.
+# Built separately (double-quoted) so $HOME expands into the file:// URL.
+PROXY_PREFS="
+// --- dev box SOCKS routing (managed by chezmoi) ---
+user_pref(\"network.proxy.type\", 2);
+user_pref(\"network.proxy.autoconfig_url\", \"file://$HOME/.config/proxy.pac\");
+user_pref(\"network.proxy.socks_remote_dns\", true);
+"
+
 # Deploy user.js to all default-release profiles
 for profile_dir in "$FIREFOX_PROFILES_DIR"/*.default-release; do
     if [ -d "$profile_dir" ]; then
         echo "Writing Firefox user.js to: $profile_dir"
-        printf '%s' "$USER_JS_CONTENT" > "$profile_dir/user.js"
+        printf '%s%s' "$USER_JS_CONTENT" "$PROXY_PREFS" > "$profile_dir/user.js"
     fi
 done
