@@ -172,6 +172,41 @@ source .venv/bin/activate
 uv run <command>
 ```
 
+## Dependency safety
+
+When working in a uv **project** (a `pyproject.toml` is present), enforce two
+safeguards.
+
+### Dependency cooldown
+
+Check that the project configures a dependency cooldown. uv expresses this with
+`exclude-newer` in the `[tool.uv]` table of `pyproject.toml`, which holds back
+releases newer than the window — so a freshly published malicious or broken
+version isn't pulled in before it's caught:
+
+```toml
+[tool.uv]
+exclude-newer = "1 week"
+```
+
+If no cooldown is configured, add `exclude-newer = "1 week"` and tell the user
+you did so. Leave an existing stricter cooldown (e.g. `"2 weeks"`) untouched.
+Docs: https://docs.astral.sh/uv/concepts/resolution/#dependency-cooldowns
+
+### Audit on every dependency change
+
+After any change to dependencies (`uv add`, `uv remove`, bumping a constraint,
+`uv lock --upgrade`), run:
+
+```bash
+uv audit
+```
+
+`uv audit` scans the locked dependencies for known vulnerabilities and adverse
+statuses (e.g. deprecation). Fix anything it reports by upgrading the affected
+dependency — e.g. `uv lock --upgrade-package <name>` or raising its constraint
+in `pyproject.toml` — then re-run `uv audit` until it's clean.
+
 ## Documentation
 
 For detailed information, read the official documentation:
