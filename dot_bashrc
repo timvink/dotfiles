@@ -19,6 +19,9 @@ if [ -f ~/.bash_env ]; then
     source ~/.bash_env
 fi
 
+# Update path for claude code
+export PATH="$HOME/.local/bin:$PATH"
+
 ## Pretty prompts, https://starship.rs/
 if command -v starship >/dev/null 2>&1; then
     eval "$(starship init bash)"
