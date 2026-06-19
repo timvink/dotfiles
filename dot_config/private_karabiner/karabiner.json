@@ -14,6 +14,20 @@
                 },
                 "rules": [
                     {
+                        "description": "Ghostty + devbox session: ⌘V uploads a clipboard image to the box's /tmp and types its path; plain-text pastes pass through. See ~/.local/bin/devbox-paste.",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "conditions": [
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["^com\\.mitchellh\\.ghostty$"] },
+                                    { "type": "variable_if", "name": "devbox_connected", "value": 1 }
+                                ],
+                                "from": { "key_code": "v", "modifiers": { "mandatory": ["command"], "optional": ["caps_lock"] } },
+                                "to": [{ "shell_command": "$HOME/.local/bin/devbox-paste" }]
+                            }
+                        ]
+                    },
+                    {
                         "description": "Caps Lock: Tap for Escape, Hold for Hyper Key (MacBook Keyboard Only)",
                         "manipulators": [
                             {
