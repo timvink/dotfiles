@@ -43,3 +43,16 @@
 [credential "https://dev.azure.com"]
 	useHttpPath = true
 {{- end }}
+
+{{ if eq .chezmoi.os "linux" -}}
+# Linux (remote VMs): authenticate GitHub HTTPS via the gh CLI, which holds the
+# OAuth token (`gh auth login`). Equivalent to `gh auth setup-git`, but kept in
+# source so `chezmoi apply` doesn't clobber it. PATH-resolved `gh` so it works
+# regardless of install location. The empty first helper resets inherited ones.
+[credential "https://github.com"]
+	helper =
+	helper = !gh auth git-credential
+[credential "https://gist.github.com"]
+	helper =
+	helper = !gh auth git-credential
+{{- end }}
