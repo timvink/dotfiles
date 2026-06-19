@@ -165,12 +165,14 @@ ccw() {
 }
 # Codex, auto-run but sandboxed (the cc → claude analogue: co → codex).
 # `-a never` never prompts for approval (the "yolo" feel); `--sandbox
-# workspace-write` still confines writes to the workspace and blocks the rest
-# of the system. Deliberately NOT `--yolo` (= --dangerously-bypass-approvals-
-# and-sandbox): that bypasses the sandbox entirely, which contradicts
+# workspace-write` still confines writes to the workspace + /tmp and blocks the
+# rest of the system. Deliberately NOT `--yolo` (= --dangerously-bypass-
+# approvals-and-sandbox): that bypasses the sandbox entirely, which contradicts
+# workspace-write. `network_access=true` re-enables the internet for commands
+# codex runs (pip/npm install, curl, git pull) — off by default in
 # workspace-write. A plain alias suffices — codex takes a positional prompt
 # natively, so `co`, `co "<prompt>"` and `co exec "<prompt>"` all just work.
-alias co='codex --ask-for-approval never --sandbox workspace-write'
+alias co='codex --ask-for-approval never --sandbox workspace-write -c sandbox_workspace_write.network_access=true'
 
 ## Home server
 # SSH into the homelab and drop into the timvink-homelab repo.
