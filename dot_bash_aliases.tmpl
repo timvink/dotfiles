@@ -163,6 +163,14 @@ ccw() {
     fi
     claude --dangerously-skip-permissions --worktree "$@"
 }
+# Codex, auto-run but sandboxed (the cc → claude analogue: co → codex).
+# `-a never` never prompts for approval (the "yolo" feel); `--sandbox
+# workspace-write` still confines writes to the workspace and blocks the rest
+# of the system. Deliberately NOT `--yolo` (= --dangerously-bypass-approvals-
+# and-sandbox): that bypasses the sandbox entirely, which contradicts
+# workspace-write. A plain alias suffices — codex takes a positional prompt
+# natively, so `co`, `co "<prompt>"` and `co exec "<prompt>"` all just work.
+alias co='codex --ask-for-approval never --sandbox workspace-write'
 
 ## Home server
 # SSH into the homelab and drop into the timvink-homelab repo.
@@ -215,8 +223,21 @@ zfs_unlock() {
 #            resolves `devbox` to its own loopback).
 #   -R 2489  reverse tunnel → the box's xdg-open shim sends URLs back to the
 #            open-url-listener here so links open in this Mac's browser.
-# See ~/.local/bin/xdg-open (box) and ~/.local/bin/open-url-listener (this Mac).
-alias devbox='az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink -- -D 1080 -R 2489:127.0.0.1:2489'
+# A third option rides it too: -o ControlMaster lets `devbox-paste` reuse this
+# connection to stream a clipboard image into the box's /tmp on ⌘V. `devbox` is a
+# function (not an alias) so it can also set a Karabiner flag for the session's
+# duration; while set, ⌘V in Ghostty does that smart image-paste (clipboard image
+# → uploaded → /tmp path typed), and plain-text pastes still paste normally.
+# See ~/.local/bin/xdg-open (box), and ~/.local/bin/open-url-listener +
+# ~/.local/bin/devbox-paste (this Mac).
+devbox() {
+  local kc='/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli'
+  [ -x "$kc" ] && "$kc" --set-variables '{"devbox_connected":1}' >/dev/null 2>&1
+  az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink -- \
+    -D 1080 -R 2489:127.0.0.1:2489 \
+    -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m
+  [ -x "$kc" ] && "$kc" --set-variables '{"devbox_connected":0}' >/dev/null 2>&1
+}
 
 {{ if ne .chezmoi.os "windows" }}
 

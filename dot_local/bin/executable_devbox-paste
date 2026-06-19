@@ -1,0 +1,60 @@
+#!/bin/sh
+# devbox-paste — smart ⌘V for the Azure devbox, invoked by Karabiner when ⌘V is
+# pressed in Ghostty during a devbox session (see the `devbox` function in
+# ~/.bash_aliases and the matching rule in ~/.config/karabiner/karabiner.json).
+#
+# Why this exists: pasting an IMAGE into a program running over SSH can't work
+# the normal way — the program reads the *box's* clipboard (headless X11,
+# unreachable), and a terminal ⌘V only sends text keystrokes, never image bytes.
+# So when the Mac clipboard holds an image we stream it as a file into the box's
+# /tmp over the SAME ssh connection (reused via ControlMaster, no re-auth) and
+# type the resulting path. Codex, neovim and Claude Code all accept an image by
+# path, so handing them the path is all they need. Plain-text pastes (and any
+# paste when no devbox session is up) are passed straight through as a normal ⌘V.
+#
+# Managed by chezmoi (macOS only). See docs/development/dev-environment.md in the
+# nwf-ai-platform-infra repo.
+#
+# Security: the upload rides the authenticated SSH ControlMaster socket created
+# by `devbox`; nothing new is opened. We only ever write to /tmp on the box, and
+# the remote filename is a fixed timestamp+pid pattern (never clipboard-derived),
+# so a hostile clipboard can't influence the remote command.
+
+export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
+SOCK="$HOME/.ssh/cm-devbox.sock"
+
+# Normal paste of whatever's on the clipboard. osascript posts a synthetic ⌘V at
+# the CGEvent layer, which is downstream of Karabiner's HID grab — so it reaches
+# the app directly and does NOT re-trigger this rule (no paste loop).
+paste_now() {
+  osascript -e 'tell application "System Events" to keystroke "v" using command down'
+}
+
+# 1s debounce — belt-and-suspenders against any paste loop.
+LOCK="/tmp/.devbox-paste.lock"
+if [ -f "$LOCK" ] && [ "$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || echo 0) ))" -lt 1 ]; then
+  exit 0
+fi
+: > "$LOCK"
+
+# Grab a clipboard image into a local temp. No image on the clipboard → pngpaste
+# fails → it's an ordinary (text) paste.
+img="/tmp/devbox-clip.$$.png"
+if ! pngpaste "$img" 2>/dev/null; then
+  rm -f "$img"; paste_now; exit 0
+fi
+
+# Image, but no live devbox connection to ferry it over → ordinary paste.
+if [ ! -S "$SOCK" ] || ! ssh -S "$SOCK" -O check devbox >/dev/null 2>&1; then
+  rm -f "$img"; paste_now; exit 0
+fi
+
+# Stream it into the box's /tmp over the existing connection, then type the path.
+# On any failure, fall back to a normal paste so a ⌘V is never silently lost.
+remote="/tmp/clip-$(date +%Y%m%d-%H%M%S)-$$.png"
+if ssh -S "$SOCK" devbox "umask 077; cat > '$remote'" < "$img" 2>/dev/null; then
+  osascript -e "tell application \"System Events\" to keystroke \"$remote \""
+else
+  paste_now
+fi
+rm -f "$img"
