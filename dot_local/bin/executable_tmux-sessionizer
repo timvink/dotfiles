@@ -127,8 +127,9 @@ printf '%s\n' "$open_names" | while IFS= read -r s; do
   printf '%s  %s\tsession\t%s\n' "$_dot" "$s" "$s"
 done > "$sess_file"
 
-# Projects to offer: every dir under ~/workspace, plus the chezmoi dotfiles repo
-# (which lives outside that root but I jump to it often). A project already open
+# Projects to offer: every dir under ~/workspace, plus a few fixed repos outside
+# that root that I jump to often (the chezmoi dotfiles repo, the homelab repo),
+# each listed only when present on this box. A project already open
 # as a session is skipped. Pure-bash, no per-dir forks: an earlier version ran
 # basename + grep per directory and that loop alone cost ~90ms (it dominated
 # startup). Here the glob lists dirs alphabetically (and skips dotdirs like
@@ -155,6 +156,8 @@ emit_project() {
   fi
   # Dotfiles repo (chezmoi source root) — listed only when present on this box.
   [ -d "$HOME/.local/share/chezmoi" ] && emit_project "$HOME/.local/share/chezmoi"
+  # Homelab repo (lives on the storage mount) — listed only when present.
+  [ -d "/media/storage/private/timvink-homelab" ] && emit_project "/media/storage/private/timvink-homelab"
 } > "$proj_file"
 
 # Interactive picker. --no-sort keeps the two-tier order --rerank hands us;
