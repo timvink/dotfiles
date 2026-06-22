@@ -61,6 +61,11 @@ if [ "${1:-}" = "--rerank" ]; then
 fi
 
 WORKSPACE="$HOME/workspace"
+# On the homelab, projects live on the encrypted ZFS dataset and ~/workspace is
+# a symlink to it; scan it directly too so the list survives even without that
+# symlink. The realpath guard in the projects block skips it when it IS the same
+# physical dir as ~/workspace (the symlink case) so nothing lists twice.
+PRIVATE_WORKSPACE="/media/storage/private/workspace"
 TAB=$'\t'   # field delimiter for the tmux -F tables below; '|' is legal in a
             # session name (and would mis-split), a tab effectively never is.
 
@@ -151,6 +156,17 @@ emit_project() {
   if [ -d "$WORKSPACE" ]; then
     for d in "$WORKSPACE"/*/; do
       [ -d "$d" ] || continue                    # no-match glob stays literal
+      emit_project "$d"
+    done
+  fi
+  # Encrypted homelab workspace — only when it exists AND isn't the same physical
+  # dir as ~/workspace (which symlinks here on the homelab; the guard stops every
+  # project listing twice). [ -d ] short-circuits before readlink on boxes
+  # without this path (e.g. macOS), so the macOS-`readlink` quirk never bites.
+  if [ -d "$PRIVATE_WORKSPACE" ] \
+     && [ "$(readlink -f "$PRIVATE_WORKSPACE")" != "$(readlink -f "$WORKSPACE")" ]; then
+    for d in "$PRIVATE_WORKSPACE"/*/; do
+      [ -d "$d" ] || continue
       emit_project "$d"
     done
   fi

@@ -8,8 +8,15 @@
 	email = vinktim@proton.me
 	signingkey = 629C45DA26A97B48
 
-# Conditional config
+# Conditional config — work identity for repos under ~/workspace/work/.
+# On the homelab ~/workspace is a symlink onto the encrypted ZFS dataset
+# (/media/storage/private/workspace); git matches gitdir: against the repo's
+# *resolved* real path, so the symlinked pattern below never fires there —
+# hence the second block on the real path. Whichever matches on a given box
+# wins; the other is simply inert.
 [includeIf "gitdir:~/workspace/work/"]
+    path = ~/.gitconfig-work
+[includeIf "gitdir:/media/storage/private/workspace/work/"]
     path = ~/.gitconfig-work
 
 [push]
