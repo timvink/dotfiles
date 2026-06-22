@@ -28,6 +28,7 @@ CASKS=(
     font-hack-nerd-font
     font-3270-nerd-font
     font-caskaydia-mono-nerd-font
+    font-jetbrains-mono-nerd-font
     firefox
     steipete/tap/codexbar
     handy
