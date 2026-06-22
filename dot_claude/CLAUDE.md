@@ -20,6 +20,12 @@ Define success criteria. Loop until verified.
 Don't follow steps. Define success and iterate.
 Strong success criteria let you loop independently.
 
+## HTML artifacts & scratch files
+When I ask for an HTML artifact — a standalone file just for me to open and look
+at, not part of a project — create it under a temp dir (`/tmp`), never the home
+or project directory. Same for other one-off preview/report files. They're
+disposable; don't clutter tracked or working trees with them. Tell me the path.
+
 ## End-of-turn input signal
 A tmux hook reads your final line: ending in "?" flips my tab to red ("input
 needed"), else yellow ("done"). End with "?" only when you genuinely can't proceed
