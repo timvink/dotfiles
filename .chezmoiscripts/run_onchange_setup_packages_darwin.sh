@@ -73,8 +73,6 @@ brew cleanup
 VSCODE_EXTENSIONS=(
   ms-python.python
   joshmu.periscope
-  github.copilot
-  github.copilot-chat
   charliermarsh.ruff
   vscodevim.vim
   redhat.vscode-yaml
@@ -97,9 +95,6 @@ fi
 if ! brew list --cask claude-code >/dev/null 2>&1; then
     brew install --cask claude-code
 fi
-
-# Install agentsview (https://www.agentsview.io/)
-uv tool install agentsview
 
 # Install agy (antigravity CLI)
 if ! command -v agy >/dev/null 2>&1; then

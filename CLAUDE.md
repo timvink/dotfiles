@@ -19,9 +19,8 @@ documented next to the configs that set them.
   scripts that inject only our managed keys/lines and preserve runtime
   state (project trust levels, plugins, marketplace caches). Don't fully
   manage these files — `chezmoi apply` would clobber runtime additions.
-- `chezmoi apply --force` is fine when an installer (Antigravity,
-  agentsview, …) has appended a line to a managed file; the source is
-  authoritative.
+- `chezmoi apply --force` is fine when an installer (Antigravity, …)
+  has appended a line to a managed file; the source is authoritative.
 - Linux package script: `run_onchange_setup_packages_linux.sh` at repo
   root. macOS: `.chezmoiscripts/run_onchange_setup_packages_darwin.sh`.
 
