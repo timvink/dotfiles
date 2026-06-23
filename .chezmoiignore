@@ -1,6 +1,11 @@
 README.md
 CLAUDE.md
 
+# Canonical cross-tool agent config (AGENTS.md + skills/) lives here but is
+# symlinked into ~/.claude and ~/.codex (see agents/README.md), so chezmoi must
+# NOT also copy it to ~/agents.
+agents
+
 {{ if ne .chezmoi.os "darwin" }}
 Library/Application Support/Code/User/settings.json
 .chezmoiscripts/setup_applications_darwin.sh

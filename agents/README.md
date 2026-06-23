@@ -1,0 +1,56 @@
+# agents/ — one source of agent config for Claude Code and Codex
+
+This directory is the single source of truth for cross-tool AI-agent config.
+Everything here is **symlinked** into the per-tool locations, so it's edited once
+and live in both Claude Code and Codex.
+
+```
+agents/
+├── AGENTS.md     # shared global instructions  → ~/.claude/CLAUDE.md  &  ~/.codex/AGENTS.md
+└── skills/       # shared Agent Skills          → ~/.claude/skills/*  &  ~/.codex/skills/*
+```
+
+## Why symlinks?
+
+Each tool only reads its own paths and neither lets you add an extra search path
+in config, so a shared file has to be physically present in each location:
+
+- **Skills**: Claude scans `~/.claude/skills/`, Codex scans `~/.codex/skills/`
+  (its `.system/` is reserved). Same `SKILL.md` format, two dirs.
+- **Instructions**: Codex reads `~/.codex/AGENTS.md` natively. Claude reads
+  `CLAUDE.md`, **not** AGENTS.md — so `~/.claude/CLAUDE.md` is a symlink to this
+  `AGENTS.md` (Claude follows it).
+
+Because the symlinks point straight at this repo, editing a file here is instantly
+live in both tools — there is no applied copy. `agents/` is `.chezmoiignore`d so
+chezmoi never copies it to `~/agents`.
+
+## How the symlinks are created (on `chezmoi apply`)
+
+| Link | Created by |
+| ---- | ---------- |
+| `~/.claude/CLAUDE.md` → `agents/AGENTS.md` | `dot_claude/symlink_CLAUDE.md.tmpl` |
+| `~/.codex/AGENTS.md` → `agents/AGENTS.md` | `dot_codex/symlink_AGENTS.md.tmpl` |
+| `~/.claude/skills/*`, `~/.codex/skills/*` → `agents/skills/*` | [`.chezmoiscripts/run_onchange_after_link-agents-skills.sh.tmpl`](../.chezmoiscripts/run_onchange_after_link-agents-skills.sh.tmpl) |
+
+## AGENTS.md
+
+Shared, behavioural global instructions for every project. Edit `agents/AGENTS.md`
+and `chezmoi apply` (or just edit — the symlinks make it live). Keep it generic;
+anything that applies to **both** tools belongs here.
+
+## skills/
+
+Add `agents/skills/<name>/SKILL.md` (include a `name:` field — Codex expects it),
+then `chezmoi apply`; the link script picks it up. Delete a folder to remove it
+(broken symlinks are pruned). Store skill scripts with their real names and
+modes — git tracks the `+x` bit; do **not** use chezmoi `executable_`/`empty_`
+prefixes here (this dir isn't chezmoi-applied, so they wouldn't be stripped).
+Keep a skill private by adding its folder name to `skills/.gitignore`; it's still
+symlinked, just untracked (and would be lost to `git clean -x`, so back it up).
+
+## Tool-specific config (NOT shared)
+
+- Claude-only rules → `~/.claude/rules/*.md` (`dot_claude/rules/`).
+- Codex-only rules → `~/.codex/rules/`.
+- Claude-only skills → `dot_claude/skills/`; Codex-only → `~/.codex/skills/`.

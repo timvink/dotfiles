@@ -1,0 +1,8 @@
+# Runtime cruft from skill scripts — kept out of the repo working tree.
+__pycache__/
+*.pyc
+.DS_Store
+
+# Private skills: add a skill's folder name below to keep it out of git.
+# chezmoi still symlinks it into ~/.claude/skills and ~/.codex/skills (it ignores
+# source files beginning with "."), so the skill works; it just isn't tracked.
