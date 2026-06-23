@@ -1,0 +1,66 @@
+#!/usr/bin/env python3
+# chezmoi modify_ script for ~/.codex/config.toml.
+#
+# Codex owns this file at runtime — it rewrites [projects.*] (trust prompts),
+# [tui.*] (NUX counters) and [hooks.*] (trusted hashes) as you use it. So we
+# can't manage it as a static file (chezmoi would clobber that state on every
+# apply). Instead we PIN the portable settings below and PASS THROUGH Codex's
+# runtime sections verbatim.
+#
+# Why pin `model`: Codex's model-migration logic rewrote `model` to the bare
+# "gpt-5.4" after gpt-5.3-codex was removed, but the Azure deployment is named
+# "gpt-5.4-codex" — the mismatch caused 404 "deployment does not exist". Pinning
+# the deployment name here stops that from recurring. Dead [profiles.global] /
+# [notice.model_migrations] 5.3 references are dropped.
+#
+# chezmoi feeds the current target file on stdin; we emit the desired file.
+import sys, re
+
+OWNED = '''# Interactive defaults. Pointed at the shared dev-tools Azure OpenAI
+# deployment (EU-resident, Responses API). The key comes from the
+# AZURE_OPENAI_API_KEY env var, set by /etc/profile.d/codex.sh.
+# Managed by chezmoi (dot_codex/modify_config.toml) — edit the source there,
+# not this file. The settings below are pinned; Codex's runtime sections
+# ([projects.*], [tui.*], [hooks.*]) are preserved as-is.
+model = "gpt-5.4-codex"
+model_provider = "azure"
+model_reasoning_effort = "medium"
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+
+[model_providers.azure]
+name = "Azure OpenAI"
+base_url = "https://aif-nwf-devtools.openai.azure.com/openai/v1"
+env_key = "AZURE_OPENAI_API_KEY"
+wire_api = "responses"
+'''
+
+PASS_GROUPS = {"projects", "tui", "hooks"}   # runtime state Codex manages
+
+def group_of(header):
+    m = re.match(r'\[+\s*"?([^".\]]+)', header)
+    return m.group(1) if m else None
+
+src = sys.stdin.read()
+
+# Split into blocks at column-0 table headers ("[..."). The first block is the
+# top-level preamble (keys before any table); we re-author it via OWNED.
+blocks, cur = [], []
+for ln in src.splitlines(keepends=True):
+    if ln.startswith('['):
+        if cur:
+            blocks.append(cur)
+        cur = [ln]
+    else:
+        cur.append(ln)
+if cur:
+    blocks.append(cur)
+
+out = [OWNED.rstrip() + "\n"]
+for b in blocks:
+    if not b[0].startswith('['):
+        continue  # preamble — re-authored above
+    if group_of(b[0]) in PASS_GROUPS:
+        out.append("\n" + "".join(b).rstrip() + "\n")
+
+sys.stdout.write("".join(out))
