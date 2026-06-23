@@ -1,0 +1,49 @@
+#!/bin/sh
+# protonvpn — bring the Proton VPN WireGuard tunnel up or down (full-tunnel).
+#
+# Why this exists: spotdl / yt-dlp downloads in the yoto-sync project get
+# blocked by YouTube Music from this machine's home IP. Routing through Proton
+# VPN's free WireGuard servers gives a clean exit IP. macOS has no official
+# Proton CLI, so we drive the standard wg-quick tooling against a config that
+# chezmoi renders to ~/.config/wireguard/protonvpn.conf — the secret WireGuard
+# private key is injected at `chezmoi apply` time from rbw (entry
+# "protonvpn-wireguard"); only the non-secret server details (endpoint, server
+# public key, assigned address) are tracked in the dotfiles repo.
+#
+# wg-quick needs root to create the network interface, hence sudo (it prompts
+# for your password). Typical use — connect, sync, disconnect:
+#
+#   protonvpn up && make -C ~/workspace/yoto sync ; protonvpn down
+#
+# Usage: protonvpn {up|down|status|ip}
+#   up      connect the tunnel (all traffic routes through Proton)
+#   down    disconnect
+#   status  show the WireGuard interface (sudo wg show)
+#   ip      print the current public IP (to confirm up/down took effect)
+
+set -eu
+
+CONF="$HOME/.config/wireguard/protonvpn.conf"
+
+case "${1:-}" in
+  up)
+    [ -f "$CONF" ] || {
+      echo "protonvpn: $CONF missing — run 'chezmoi apply' (needs rbw unlocked)" >&2
+      exit 1
+    }
+    sudo wg-quick up "$CONF"
+    ;;
+  down)
+    sudo wg-quick down "$CONF"
+    ;;
+  status)
+    sudo wg show
+    ;;
+  ip)
+    curl -fsS https://api.ipify.org && echo
+    ;;
+  *)
+    echo "usage: protonvpn {up|down|status|ip}" >&2
+    exit 1
+    ;;
+esac

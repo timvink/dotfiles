@@ -8,6 +8,7 @@ agents
 
 {{ if ne .chezmoi.os "darwin" }}
 Library/Application Support/Code/User/settings.json
+Library/Application Support/rbw/config.json
 .chezmoiscripts/setup_applications_darwin.sh
 .chezmoiscripts/setup_firefox_darwin.sh
 .chezmoiscripts/setup_packages_darwin.sh
@@ -20,4 +21,5 @@ Library/LaunchAgents/com.timvink.openurl.plist
 {{ if ne .chezmoi.os "linux" }}
 setup_packages_linux.sh
 .local/bin/xdg-open
+.config/rbw/config.json
 {{ end }}

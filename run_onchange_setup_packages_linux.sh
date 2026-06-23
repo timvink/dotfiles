@@ -206,4 +206,11 @@ if ! command -v rbw >/dev/null 2>&1; then
     fi
     cargo install rbw
 fi
+
+# wireguard-tools — wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn`
+# CLI). Linux has in-kernel WireGuard, so no userspace backend is needed. If
+# `wg-quick up` later complains about resolvconf for the DNS line, install
+# openresolv or drop the `DNS =` line from ~/.config/wireguard/protonvpn.conf.
+install_if_missing wg wireguard-tools
+
 echo "=== chezmoi: linux CLI tools ready ==="
