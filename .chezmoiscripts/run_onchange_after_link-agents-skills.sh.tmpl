@@ -1,0 +1,63 @@
+#!/bin/sh
+# Make my generic "Agent Skills" available to every agent CLI from ONE source.
+#
+# Claude Code and Codex share the same SKILL.md format (YAML frontmatter +
+# progressive-disclosure folder) but each only scans its OWN dir
+# (~/.claude/skills, ~/.codex/skills) and neither exposes a config knob for an
+# extra search path. So the canonical skills live once in this repo under
+# agents/skills/ and this script symlinks each into both tools. Editing a skill
+# in the repo is instantly live in both -- there is no separate applied copy.
+# See agents/README.md for the full rationale.
+#
+# Safe by construction: it only ever creates/removes symlinks that point back
+# into a known agents-skills source (and prunes broken ones). Real/native skills
+# and Codex's reserved .system/ dir are never touched.
+#
+# Cross-platform (macOS + Linux), idempotent. chezmoi reruns it whenever the set
+# of skills below changes:
+#   {{ range (glob (joinPath .chezmoi.sourceDir "agents/skills/*")) }}{{ base . }} {{ end }}
+
+set -eu
+
+# Canonical source = this chezmoi repo's agents/skills/. The absolute path is
+# baked in at apply time, so it is correct on every machine.
+src="{{ .chezmoi.sourceDir }}/agents/skills"
+[ -d "$src" ] || exit 0
+
+# Stale locations from earlier designs, cleaned up on the next apply:
+#   - an applied copy under ~/.local/share/agent-skills
+#   - skills that lived at <repo>/agents-skills before the move into agents/
+legacy_copy="$HOME/.local/share/agent-skills"
+legacy_repo="{{ .chezmoi.sourceDir }}/agents-skills"
+if [ -d "$legacy_copy" ] && [ "$legacy_copy" != "$src" ]; then
+	rm -rf "$legacy_copy"
+fi
+
+for tool_dir in "$HOME/.claude/skills" "$HOME/.codex/skills"; do
+	mkdir -p "$tool_dir"
+
+	# 1. Link every skill (directories only) into this tool's skills dir.
+	for skill in "$src"/*/; do
+		[ -d "$skill" ] || continue          # no skills yet: glob stayed literal
+		want="${skill%/}"
+		target="$tool_dir/$(basename "$skill")"
+		if [ -L "$target" ] && [ "$(readlink "$target")" = "$want" ]; then
+			continue                         # already correct, leave it
+		fi
+		rm -rf "$target"                     # replace a stale real dir / wrong link
+		ln -s "$want" "$target"
+	done
+
+	# 2. Prune our own stale symlinks: broken ones, or ones still pointing into
+	#    a known source after their skill was removed. Only touches links into the
+	#    current or legacy agent-skills paths -- never real dirs (.system, native
+	#    skills) or symlinks the user created to somewhere else.
+	for link in "$tool_dir"/*; do
+		[ -L "$link" ] || continue
+		dest=$(readlink "$link")
+		case "$dest" in
+			"$src"/*|"$legacy_copy"/*|"$legacy_repo"/*)
+				[ -e "$link" ] || rm -f "$link" ;;
+		esac
+	done
+done

@@ -1,4 +1,5 @@
 ---
+name: vault
 description:
   Retrieve secrets (passwords, API keys, tokens, logins, TOTP codes) from a
   Bitwarden/Vaultwarden vault via the `rbw` CLI. Use whenever a task needs a
