@@ -51,6 +51,10 @@ symlinked, just untracked (and would be lost to `git clean -x`, so back it up).
 
 ## Tool-specific config (NOT shared)
 
-- Claude-only rules → `~/.claude/rules/*.md` (`dot_claude/rules/`).
-- Codex-only rules → `~/.codex/rules/`.
+- **Shared prose rules** (anything Codex must also follow) go in `AGENTS.md`
+  above — it's Codex's only prose-instruction channel.
+- Claude-only or path-scoped rules → `~/.claude/rules/*.md` (`dot_claude/rules/`);
+  Claude auto-loads them and supports `paths:` frontmatter for file-scoped rules.
+- Codex has **no** prose-rules dir. `~/.codex/rules/` is a command-approval store
+  (Starlark `.rules`, like Claude's `settings.json` permissions), not instructions.
 - Claude-only skills → `dot_claude/skills/`; Codex-only → `~/.codex/skills/`.

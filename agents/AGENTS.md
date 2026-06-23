@@ -1,6 +1,9 @@
 <!-- Shared global agent instructions. Symlinked from this repo's agents/AGENTS.md
-     to ~/.claude/CLAUDE.md (Claude Code) and ~/.codex/AGENTS.md (Codex). Edit
-     here. Tool-specific rules live in ~/.claude/rules/ and ~/.codex/rules/. -->
+     to ~/.claude/CLAUDE.md (Claude Code) and ~/.codex/AGENTS.md (Codex). Edit here.
+     This is the ONLY prose-instruction channel Codex reads, so anything BOTH tools
+     must follow belongs here. Claude-only or path-scoped rules can go in
+     ~/.claude/rules/ instead (Codex has no prose-rules dir; its ~/.codex/rules/ is
+     a command-approval store, not instructions). -->
 
 These rules apply to every task in this project unless explicitly overridden.
 Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
@@ -48,6 +51,19 @@ Run `chezmoi cd` to enter the repo (source root: `~/.local/share/chezmoi`).
 Use `chezmoi source-path <file>` to find a file's source, edit that source
 (e.g. `dot_gitconfig.tmpl`), then `chezmoi apply` to update the live file. When
 committing, stage only the files you changed — the repo may hold unrelated WIP.
+
+## .env files are vault-backed
+Secrets in a `.env` are mirrored into my password vault. Before reading or
+using any secret from a `.env` (or `.env.local`, etc.), gate on the backup being
+current — run the `vault` skill's helper (symlinked into both tools; the path
+below resolves the same from Claude or Codex):
+`~/.local/share/chezmoi/agents/skills/vault/env-vault-sync.sh check <path-to-.env>`
+- exit 0 → proceed.
+- exit 3 (drift) → tell me which keys drifted and offer to run `… update <path>`.
+- exit 2 (locked) → ask me to `rbw unlock`, then re-check.
+- exit 4 (no backup yet) → offer to seed it with `… update <path>`.
+Never skip the check silently, and never run `rbw login`/`rbw unlock` yourself
+(those take my master password via pinentry). See the `vault` skill for details.
 
 ## Git worktrees
 When working in a git worktree (e.g. started with `claude --worktree`) the
