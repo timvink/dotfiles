@@ -40,5 +40,8 @@ paths and neither has a config knob for an extra search path:
 
 Symlinks point straight at the repo, so an edit is instantly live in both tools —
 no applied copy. `agents/` is `.chezmoiignore`d so chezmoi doesn't also copy it
-to `~/agents`. Tool-specific rules go in `dot_claude/rules/` and `~/.codex/rules/`.
-Full rationale and the add/remove/private-skill workflow are in `agents/README.md`.
+to `~/agents`. Rules that both tools must follow go in `agents/AGENTS.md` (Codex's
+only prose channel); Claude-only/path-scoped rules go in `dot_claude/rules/`. Codex
+has no prose-rules dir — its `~/.codex/rules/` is command-approval (Starlark), not
+instructions. Full rationale and the add/remove/private-skill workflow are in
+`agents/README.md`.
