@@ -1,0 +1,19 @@
+# ProtonVPN WireGuard tunnel — server NL-FREE#213 (free plan).
+#
+# Rendered by chezmoi to ~/.config/wireguard/protonvpn.conf (0600). Everything
+# here except the key is non-secret and tracked in the dotfiles repo, so this
+# config travels to any machine via git. The PrivateKey is injected from rbw
+# (entry "protonvpn-wireguard") at `chezmoi apply` time — so a new machine needs
+# only: rbw unlocked + `chezmoi apply`, then `protonvpn up`. No per-machine
+# .conf download. To switch servers/country, regenerate one config in the Proton
+# dashboard, update the rbw key + the fields below, and it propagates everywhere.
+[Interface]
+PrivateKey = {{ (rbw "protonvpn-wireguard").data.password }}
+Address = 10.2.0.2/32
+DNS = 10.2.0.1
+
+[Peer]
+PublicKey = fjGyXUBvDoMmGuTTb8y8oSiE5lweN1K3ILQ+nShE9AA=
+AllowedIPs = 0.0.0.0/0, ::/0
+Endpoint = 185.184.192.216:51820
+PersistentKeepalive = 25

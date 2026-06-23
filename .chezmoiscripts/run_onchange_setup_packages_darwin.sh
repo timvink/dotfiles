@@ -57,11 +57,13 @@ PACKAGES=(
   visidata
   gnupg
   pinentry-mac
-  rbw # Bitwarden/Vaultwarden CLI; config in ~/.config/rbw (managed by chezmoi)
+  rbw # Bitwarden/Vaultwarden CLI; config managed by chezmoi (Library/Application Support/rbw on macOS, ~/.config/rbw on Linux)
   supabase/tap/supabase
   scw
   watch
   pngpaste # clipboard image -> PNG, used by img-clip.nvim in neovim
+  wireguard-tools # wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn` CLI)
+  wireguard-go # userspace WireGuard backend (macOS has no kernel module)
 )
 brew install ${PACKAGES[@]}
 
