@@ -174,20 +174,33 @@ ccw() {
 # natively, so `co`, `co "<prompt>"` and `co exec "<prompt>"` all just work.
 alias co='codex --ask-for-approval never --sandbox workspace-write -c sandbox_workspace_write.network_access=true'
 
+# Toggle the Karabiner variable that switches Ghostty's ⌘V into smart image-paste
+# (clipboard image → uploaded to the remote box's /tmp → its path typed) for the
+# duration of a remote SSH session; plain-text pastes still paste normally. Pass 1
+# on connect, 0 on disconnect. The -x guard makes this a no-op off macOS (e.g. when
+# ~/.bash_aliases is sourced on a Linux box) or without Karabiner installed. Both
+# devbox() and homelab() also reset it via a signal trap, so an abruptly-killed
+# session (terminal window closed → SIGHUP) can't leave the flag stuck at 1 and
+# hijack ⌘V image-paste in local Ghostty windows. See ~/.local/bin/ssh-image-paste.
+_remote_ssh_flag() {
+  local kc='/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli'
+  [ -x "$kc" ] && "$kc" --set-variables "{\"remote_ssh_connected\":$1}" >/dev/null 2>&1
+}
+
 ## Home server
 # SSH into the homelab and drop into the timvink-homelab repo. A function, not an
-# alias, so — like devbox() below — it can flag a Karabiner session variable for
-# the duration of the connection: while set, ⌘V in Ghostty does the smart image
-# paste (clipboard image → uploaded to the box's /tmp → its path typed), and
-# plain-text pastes still paste normally. The upload rides the reusable
-# ControlMaster socket set up in ~/.ssh/config's `Host homelab` block. The -x
-# guard makes the karabiner_cli calls no-ops off macOS (e.g. when ~/.bash_aliases
-# is sourced on the homelab itself). See ~/.local/bin/ssh-image-paste.
+# alias, so — like devbox() below — it can flag the Karabiner image-paste session
+# (see _remote_ssh_flag) for the duration of the connection. The upload rides the
+# reusable ControlMaster socket set up in ~/.ssh/config's `Host homelab` block.
 homelab() {
-  local kc='/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli'
-  [ -x "$kc" ] && "$kc" --set-variables '{"remote_ssh_connected":1}' >/dev/null 2>&1
+  _remote_ssh_flag 1
+  # Reset even if the session dies abruptly (terminal closed → SIGHUP, or killed)
+  # and skips the normal reset below; the handler clears itself so the trap never
+  # leaks into the interactive shell. INT/TERM/HUP behave the same in bash and zsh.
+  trap '_remote_ssh_flag 0; trap - INT TERM HUP' INT TERM HUP
   ssh -t homelab "cd /media/storage/private/timvink-homelab/ && exec \$SHELL -l"
-  [ -x "$kc" ] && "$kc" --set-variables '{"remote_ssh_connected":0}' >/dev/null 2>&1
+  trap - INT TERM HUP
+  _remote_ssh_flag 0
 }
 
 # Unlock the encrypted ZFS dataset on the homelab after a reboot and
@@ -239,19 +252,21 @@ zfs_unlock() {
 #            open-url-listener here so links open in this Mac's browser.
 # A third option rides it too: -o ControlMaster lets `ssh-image-paste` reuse this
 # connection to stream a clipboard image into the box's /tmp on ⌘V. `devbox` is a
-# function (not an alias) so it can also set a Karabiner flag for the session's
-# duration; while set, ⌘V in Ghostty does that smart image-paste (clipboard image
-# → uploaded → /tmp path typed), and plain-text pastes still paste normally. The
-# same flag (remote_ssh_connected) is shared with the homelab() session above.
-# See ~/.local/bin/xdg-open (box), and ~/.local/bin/open-url-listener +
+# function (not an alias) so it can also flag the Karabiner image-paste session
+# (see _remote_ssh_flag) for the session's duration; the same flag is shared with
+# homelab() above. See ~/.local/bin/xdg-open (box), and ~/.local/bin/open-url-listener +
 # ~/.local/bin/ssh-image-paste (this Mac).
 devbox() {
-  local kc='/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli'
-  [ -x "$kc" ] && "$kc" --set-variables '{"remote_ssh_connected":1}' >/dev/null 2>&1
+  _remote_ssh_flag 1
+  # Reset even if the session dies abruptly (terminal closed → SIGHUP, or killed)
+  # and skips the normal reset below; the handler clears itself so the trap never
+  # leaks into the interactive shell. INT/TERM/HUP behave the same in bash and zsh.
+  trap '_remote_ssh_flag 0; trap - INT TERM HUP' INT TERM HUP
   az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink -- \
     -D 1080 -R 2489:127.0.0.1:2489 \
     -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m
-  [ -x "$kc" ] && "$kc" --set-variables '{"remote_ssh_connected":0}' >/dev/null 2>&1
+  trap - INT TERM HUP
+  _remote_ssh_flag 0
 }
 
 {{ if ne .chezmoi.os "windows" }}
