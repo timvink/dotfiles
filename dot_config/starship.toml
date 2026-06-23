@@ -3,6 +3,12 @@
 [python]
 disabled = true
 
+# gcloud shows "on ☁️ <account>" persistently (regardless of directory) whenever
+# a gcloud account is active. It's part of starship's default $all format; disable
+# it so the prompt only reflects the current shell/dir/repo context.
+[gcloud]
+disabled = true
+
 [custom.git_worktree]
 command = 'echo "🌲"'
 when = ''' test "$(git rev-parse --git-common-dir 2>/dev/null)" != "$(git rev-parse --git-dir 2>/dev/null)" '''
