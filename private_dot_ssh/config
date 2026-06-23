@@ -14,3 +14,10 @@ Host homelab
     # SOCKS proxy → view any dev server as http://homelab:<port> (its own port,
     # routed by ~/.config/proxy.pac). Needs homelab to resolve `homelab` -> loopback.
     DynamicForward 1081
+    # Reusable authenticated connection. `ssh-image-paste` rides this same socket
+    # to stream a clipboard image into the box's /tmp on ⌘V (no re-auth); 30m
+    # persistence keeps it warm between pastes. The devbox session sets the
+    # equivalent -o flags inline in its launcher (it has no Host block here).
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-homelab.sock
+    ControlPersist 30m
