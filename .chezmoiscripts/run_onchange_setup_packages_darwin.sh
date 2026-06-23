@@ -57,6 +57,7 @@ PACKAGES=(
   visidata
   gnupg
   pinentry-mac
+  rbw # Bitwarden/Vaultwarden CLI; config in ~/.config/rbw (managed by chezmoi)
   supabase/tap/supabase
   scw
   watch
