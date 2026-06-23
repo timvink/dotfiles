@@ -9,6 +9,11 @@ fi
 # append to ~/.bash_profile and ~/.bashrc directly.
 export PATH="$HOME/.local/bin:$PATH"
 
+# ~/.cargo/bin holds cargo-installed tools (rbw, rbw-agent). Managed here rather
+# than via rustup's appended `. ~/.cargo/env`, since chezmoi owns this file and
+# would otherwise clobber that line on the next apply.
+[ -d "$HOME/.cargo/bin" ] && export PATH="$HOME/.cargo/bin:$PATH"
+
 # Source my aliases
 if [ -f ~/.bash_aliases ]; then
     source ~/.bash_aliases

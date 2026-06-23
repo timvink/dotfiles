@@ -1,0 +1,24 @@
+{{/*
+  rbw — Bitwarden/Vaultwarden CLI config. Managed by chezmoi (declarative).
+  This file holds NO secrets: just which server + account to talk to and how the
+  agent behaves. The master password is only ever typed into the `pinentry`
+  program below; the decrypted vault lives only in rbw-agent's memory while
+  unlocked. Device registration + the encrypted vault cache live in
+  ~/.local/share/rbw/ and are machine-local — never tracked here.
+
+  IMPORTANT: change settings by editing this template + `chezmoi apply`, NOT via
+  `rbw config set` (which would rewrite the file and drift from the source).
+
+  - base_url       : the vault server URL (may only resolve on the home network).
+  - lock_timeout   : seconds the agent keeps the key after last use. Longer on a
+                     stationary machine for convenience; shorter on a portable one.
+  - pinentry       : prompt program. pinentry-mac on macOS, pinentry-curses (TTY)
+                     otherwise.
+*/ -}}
+{
+  "email": "vinktim@proton.me",
+  "base_url": "https://vault.home.timvink.nl",
+  "lock_timeout": {{ if eq .chezmoi.hostname "homelab" }}36000{{ else }}3600{{ end }},
+  "sync_interval": 3600,
+  "pinentry": "{{ if eq .chezmoi.os "darwin" }}pinentry-mac{{ else }}pinentry-curses{{ end }}"
+}

@@ -185,4 +185,25 @@ fi
 if ! command -v agy >/dev/null 2>&1; then
     curl -fsSL https://antigravity.google/cli/install.sh | bash
 fi
+
+# pinentry-curses — TTY pass-phrase prompt used by rbw on this headless box.
+install_if_missing pinentry-curses pinentry-curses
+
+# rbw — unofficial Bitwarden/Vaultwarden CLI with an ssh-agent-style daemon
+# (rbw-agent) that holds the decrypted vault key in memory so scripts don't
+# re-prompt. Not packaged in Ubuntu apt, so build it from crates.io. Needs a
+# Rust toolchain + a C compiler; install rustup for the user (NOT root) if cargo
+# is missing — matches the upstream-installer pattern used above (agy, uv).
+# Config lives in ~/.config/rbw/config.json (managed by chezmoi); the encrypted
+# vault cache + device registration stay machine-local under ~/.local/share/rbw.
+if ! command -v rbw >/dev/null 2>&1; then
+    install_if_missing cc build-essential
+    install_if_missing pkg-config pkg-config
+    if ! command -v cargo >/dev/null 2>&1; then
+        [ -f "$HOME/.cargo/env" ] || \
+            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y
+        . "$HOME/.cargo/env"
+    fi
+    cargo install rbw
+fi
 echo "=== chezmoi: linux CLI tools ready ==="

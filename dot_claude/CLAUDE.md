@@ -45,6 +45,18 @@ Use `chezmoi source-path <file>` to find a file's source, edit that source
 (e.g. `dot_gitconfig.tmpl`), then `chezmoi apply` to update the live file. When
 committing, stage only the files you changed — the repo may hold unrelated WIP.
 
+## .env files are vault-backed
+Secrets in a `.env` are mirrored into my password vault. Before reading or
+using any secret from a `.env` (or `.env.local`, etc.), gate on the backup being
+current — run the `vault` skill's helper:
+`~/.claude/skills/vault/env-vault-sync.sh check <path-to-.env>`
+- exit 0 → proceed.
+- exit 3 (drift) → tell me which keys drifted and offer to run `… update <path>`.
+- exit 2 (locked) → ask me to `rbw unlock`, then re-check.
+- exit 4 (no backup yet) → offer to seed it with `… update <path>`.
+Never skip the check silently, and never run `rbw login`/`rbw unlock` yourself
+(those take my master password via pinentry). See the `vault` skill for details.
+
 ## Git worktrees
 When working in a git worktree (e.g. started with `claude --worktree`) the
 checkout is fresh: gitignored files are absent and dependencies aren't
