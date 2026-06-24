@@ -74,6 +74,15 @@ install_if_missing fzf fzf
 # X11 only; if a VM ever runs Wayland, swap to wl-clipboard.
 install_if_missing xclip xclip
 
+# imagemagick — `magick` CLI that snacks.image shells out to for in-buffer
+# .png/.jpg previews. NOTE: only ImageMagick 7 ships the unified `magick`
+# binary; Ubuntu <= 24.04 / Debian <= bookworm package IM6 (binary `convert`,
+# no `magick`), so this probe stays unsatisfied and snacks.image won't render
+# there. IM7 lands in `imagemagick` on Ubuntu 24.10+ / Debian trixie. Image
+# preview over SSH also needs allow-passthrough in the *remote* tmux + a
+# graphics-capable outer terminal; treat it as best-effort on the VMs.
+install_if_missing magick imagemagick
+
 # eza — not in default Ubuntu repos; use the official gierens apt repo
 if ! command -v eza >/dev/null 2>&1; then
     sudo mkdir -p /etc/apt/keyrings
