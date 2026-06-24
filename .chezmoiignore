@@ -6,6 +6,15 @@ CLAUDE.md
 # NOT also copy it to ~/agents.
 agents
 
+# Vault-backed files render only where the machine can reach the home vault
+# (rbw). Gated by `vaultAccess` (prompted in .chezmoi.toml.tmpl); machines off
+# the mesh — work devbox, throwaway VMs — leave it false, so `chezmoi apply`
+# never calls `rbw get` and never prompts to unlock. `dig` defaults it to false
+# on a machine whose config predates the flag, so they're safe before re-init.
+{{ if not (dig "vaultAccess" false .) }}
+.config/wireguard/protonvpn.conf
+{{ end }}
+
 {{ if ne .chezmoi.os "darwin" }}
 Library/Application Support/Code/User/settings.json
 Library/Application Support/rbw/config.json
