@@ -34,5 +34,13 @@ keybind = alt+arrow_right=csi:1;3C
 # regardless of extended-keys. (Symmetric Alt+Up → start of line is `text:\x01`.)
 keybind = alt+arrow_down=text:\x05
 
+# Shift+Enter → newline (insert, don't submit). Send a bare LF (0x0a) — the exact
+# byte Ctrl+J produces — instead of letting Shift+Enter ride the CSI-u extended
+# key (ESC[13;2u). Codex's TUI (0.142) has a regression where it ignores that
+# CSI-u sequence but still treats a literal LF as a newline; Claude Code documents
+# Ctrl+J (= bare LF) as a newline key too, so this satisfies both. LF passes
+# through tmux untouched, so no dependency on extended-keys for this one.
+keybind = shift+enter=text:\n
+
 # Wait for https://github.com/ghostty-org/ghostty/issues/2504
 # keybind = alt+g=write_scrollback_file:copy
