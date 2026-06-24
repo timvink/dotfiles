@@ -173,6 +173,29 @@ ccw() {
 # workspace-write. A plain alias suffices — codex takes a positional prompt
 # natively, so `co`, `co "<prompt>"` and `co exec "<prompt>"` all just work.
 alias co='codex --ask-for-approval never --sandbox workspace-write -c sandbox_workspace_write.network_access=true'
+# Claude Code via Azure AI Foundry (Opus 4.8, Sweden Central) instead of the
+# Anthropic subscription — routes inference + billing through the platform's
+# `aif-nwf-claude` Foundry account, authenticating with your `az login` token
+# (Entra ID, no API key). Opt-in: plain `cc` still uses the Anthropic plan.
+# Needs `az login` in the warmtefonds tenant first; the account is defined in
+# nwf-ai-platform-infra (infra/global/platform.bicep). opus-only account, so all
+# three model aliases point at the one deployment — that way background tasks
+# (title gen, etc.) don't 404 on a missing Sonnet/Haiku. Subshell keeps the
+# Foundry env out of the parent shell.
+cca() {
+    (
+        export CLAUDE_CODE_USE_FOUNDRY=1
+        export ANTHROPIC_FOUNDRY_RESOURCE=aif-nwf-claude
+        export ANTHROPIC_DEFAULT_OPUS_MODEL=claude-opus-4-8
+        export ANTHROPIC_DEFAULT_SONNET_MODEL=claude-opus-4-8
+        export ANTHROPIC_DEFAULT_HAIKU_MODEL=claude-opus-4-8
+        if [ $# -eq 0 ]; then
+            claude --dangerously-skip-permissions --model opus
+        else
+            claude --dangerously-skip-permissions --model opus -p "$@"
+        fi
+    )
+}
 
 # Toggle the Karabiner variable that switches Ghostty's ⌘V into smart image-paste
 # (clipboard image → uploaded to the remote box's /tmp → its path typed) for the
