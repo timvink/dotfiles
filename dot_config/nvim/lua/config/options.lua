@@ -31,19 +31,44 @@ vim.opt.spelllang = { "en", "nl" }
 --     re-assert it inside a VeryLazy autocmd, vim.schedule-d so it lands after
 --     LazyVim's own VeryLazy handler regardless of autocmd registration order.
 --
--- Paste is left reading the unnamed register: an OSC 52 *read* round-trips a
--- terminal query that tmux/Ghostty often won't answer, which would hang `p`. So
--- `+`/`*` paste returns what nvim last yanked, and pasting host-clipboard text
--- *into* nvim stays a normal terminal paste (⌘V).
+-- Paste must NOT do an OSC 52 *read*: that round-trips a terminal query tmux/
+-- Ghostty often won't answer, hanging `p`. Two paste sources instead:
+--
+--  * Inside tmux: read `tmux show-buffer`. `set-clipboard on` funnels every
+--    OSC 52 yank — from *any* nvim on this tmux server — into a tmux paste
+--    buffer, so this lets `p` in one nvim pull what was yanked in a different
+--    session/pane. (Without it, paste read each nvim's *local* unnamed register,
+--    so a yank in session A was invisible to a paste in session B — you'd get
+--    B's stale register content instead.)
+--  * No tmux: fall back to nvim's own unnamed register (the last local yank).
+--
+-- Either way, pasting *host*-clipboard text (copied in a Mac app) into nvim
+-- stays a normal terminal paste (⌘V) — neither source sees the Mac clipboard.
 if vim.env.SSH_CONNECTION then
   local osc52 = require("vim.ui.clipboard.osc52")
   local from_reg = function()
     return { vim.fn.split(vim.fn.getreg(""), "\n"), vim.fn.getregtype("") }
   end
+  local paste = from_reg
+  if vim.env.TMUX then
+    paste = function()
+      local text = vim.fn.system({ "tmux", "show-buffer" })
+      if vim.v.shell_error ~= 0 then
+        return from_reg()
+      end
+      -- A trailing newline marks a linewise yank; strip it and report "V" so
+      -- `p` lands the text on its own line(s) rather than mid-line.
+      local regtype = "v"
+      if text:sub(-1) == "\n" then
+        regtype, text = "V", text:sub(1, -2)
+      end
+      return { vim.split(text, "\n", { plain = true }), regtype }
+    end
+  end
   vim.g.clipboard = {
     name = "OSC 52",
     copy = { ["+"] = osc52.copy("+"), ["*"] = osc52.copy("*") },
-    paste = { ["+"] = from_reg, ["*"] = from_reg },
+    paste = { ["+"] = paste, ["*"] = paste },
   }
   vim.api.nvim_create_autocmd("User", {
     pattern = "VeryLazy",
