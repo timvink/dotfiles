@@ -65,6 +65,9 @@ below resolves the same from Claude or Codex):
 Never skip the check silently, and never run `rbw login`/`rbw unlock` yourself
 (those take my master password via pinentry). See the `vault` skill for details.
 
+## Infrastructure as code
+Always use IaC. Changes to my personal setup are managed through chezmoi, you can find the repo using `chezmoi cd`.
+
 ## Git worktrees
 When working in a git worktree (e.g. started with `claude --worktree`) the
 checkout is fresh: gitignored files are absent and dependencies aren't
