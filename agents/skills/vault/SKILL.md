@@ -71,7 +71,11 @@ Avoid echoing a secret into output when you can; minimise exposure regardless.
 `.env` files are mirrored into the vault so the secrets survive total loss of the
 machine (the vault syncs to the user's other devices). The helper
 `env-vault-sync.sh` (next to this file) manages it; the whole `.env` is stored in
-the notes of an rbw item named `env-backup:<absolute-path>`.
+the notes of an rbw item named `env-backup:<repo-name>/<path-relative-to-repo-root>`
+(e.g. `env-backup:timvink-homelab/.env`). Keying on the repo name rather than the
+absolute path means the same repo's `.env` maps to the same vault entry on every
+machine and checkout (macOS, Linux, a git worktree); outside a git repo it falls
+back to `env-backup:<dir-name>/<file>`.
 
 **This is a linter gate: before using any secret from a `.env`, verify the vault
 copy is current.**

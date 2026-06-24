@@ -4,8 +4,11 @@
 # A "linter" gate for .env files: before any secret in a .env is used, `check`
 # confirms the vault holds a current copy; `update` (re)writes that copy. The
 # whole .env lives in the NOTES of a Login-type rbw item named
-# "env-backup:<abs-path>", so rbw can both read and write it. See the `vault`
-# skill (SKILL.md alongside this script).
+# "env-backup:<repo-name>/<path-relative-to-repo-root>" (e.g.
+# "env-backup:timvink-homelab/.env"), so the SAME repo's .env maps to the SAME
+# entry on every machine/checkout (macOS vs Linux vs a git worktree all differ
+# in absolute path). Outside a git repo it falls back to "<dir-name>/<file>".
+# See the `vault` skill (SKILL.md alongside this script).
 #
 # Usage:
 #   env-vault-sync.sh check  <path/to/.env>
@@ -38,9 +41,24 @@ rbw=$(command -v rbw || true)
 done
 [ -n "$rbw" ] || die "rbw not found (looked on PATH, ~/.cargo/bin, Homebrew)"
 
-# Stable item name, independent of the caller's cwd.
+# Stable item name, independent of WHERE the repo is checked out. The .env's
+# content is the secret; the name only has to match across machines so the
+# backup round-trips. Key on "<repo-name>/<path-relative-to-repo-root>" rather
+# than the absolute path (which differs on macOS vs the homelab vs a worktree).
 abs="$(cd "$(dirname "$envpath")" && pwd -P)/$(basename "$envpath")"
-item="env-backup:$abs"
+dir="$(dirname "$abs")"
+if root=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null); then
+  # Normalize linked worktrees to the MAIN worktree's directory name (git lists
+  # the main worktree first), so a worktree checkout shares the primary clone's
+  # backup entry instead of spawning a near-duplicate.
+  main=$(git -C "$dir" worktree list --porcelain 2>/dev/null | sed -n 's/^worktree //p;q')
+  key="$(basename "${main:-$root}")/${abs#"$root"/}"
+else
+  # Not in a git repo — fall back to "<parent-dir-name>/<filename>", still
+  # independent of the tree's location.
+  key="$(basename "$dir")/$(basename "$abs")"
+fi
+item="env-backup:$key"
 
 require_unlocked() {
   "$rbw" unlocked >/dev/null 2>&1 || { echo "vault locked — run: rbw unlock" >&2; exit 2; }
@@ -82,7 +100,7 @@ case "$cmd" in
     buf="$tmpd/buf"; writer="$tmpd/writer"
     # Line 1 becomes rbw's "password" field (a self-documenting marker); the rest
     # becomes the notes — i.e. the verbatim .env.
-    { printf '%s\n' "env-backup ($abs) — managed by env-vault-sync.sh; edit the real .env, then: update"
+    { printf '%s\n' "env-backup [$key] ($abs) — managed by env-vault-sync.sh; edit the real .env, then: update"
       cat "$envpath"; } > "$buf"
     # rbw opens $VISUAL/$EDITOR with the entry's tempfile as $1; this writer just
     # drops our prepared buffer into it (non-interactive).
