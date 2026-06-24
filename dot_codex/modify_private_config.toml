@@ -37,6 +37,14 @@ wire_api = "responses"
 
 PASS_GROUPS = {"projects", "tui", "hooks"}   # runtime state Codex manages
 
+# Managed TUI status line. `context-used` shows the % of the context window
+# consumed, so I can see when to /compact; the rest mirrors my Claude Code
+# status line (dir · branch · model+reasoning) for cross-tool consistency.
+# Codex owns the other [tui.*] sub-tables (NUX counters) and may store its own
+# keys in a bare [tui] table — we inject ONLY this key and preserve the rest.
+# Item ids: codex's status-line setup menu / `tui.status_line` config reference.
+STATUS_LINE = 'status_line = ["current-dir", "git-branch", "model-with-reasoning", "context-used"]'
+
 def group_of(header):
     m = re.match(r'\[+\s*"?([^".\]]+)', header)
     return m.group(1) if m else None
@@ -57,10 +65,26 @@ if cur:
     blocks.append(cur)
 
 out = [OWNED.rstrip() + "\n"]
+tui_bare_seen = False
 for b in blocks:
     if not b[0].startswith('['):
         continue  # preamble — re-authored above
-    if group_of(b[0]) in PASS_GROUPS:
+    if group_of(b[0]) not in PASS_GROUPS:
+        continue
+    if b[0].strip() == '[tui]':
+        # Bare [tui] table: drop any stale status_line, keep every other
+        # runtime key Codex stores here, then append our managed status_line.
+        body = [ln for ln in b[1:] if not re.match(r'\s*status_line\s*=', ln)]
+        block = ("[tui]\n" + "".join(body)).rstrip()
+        out.append("\n" + block + "\n" + STATUS_LINE + "\n")
+        tui_bare_seen = True
+    else:
         out.append("\n" + "".join(b).rstrip() + "\n")
+
+# No bare [tui] table in the input → synthesize one for our status_line.
+# (Valid TOML even with [tui.*] sub-tables present: a super-table may be
+# defined out-of-order after its sub-tables.)
+if not tui_bare_seen:
+    out.append("\n[tui]\n" + STATUS_LINE + "\n")
 
 sys.stdout.write("".join(out))
