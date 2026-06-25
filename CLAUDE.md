@@ -47,3 +47,21 @@ only prose channel); Claude-only/path-scoped rules go in `dot_claude/rules/`. Co
 has no prose-rules dir — its `~/.codex/rules/` is command-approval (Starlark), not
 instructions. Full rationale and the add/remove/private-skill workflow are in
 `agents/README.md`.
+
+## Per-tab agent dot + status line (tmux)
+
+A coloured dot per tmux tab shows each agent's state (blue ● working, red ●
+needs input, yellow ○ your turn), driven by the `@agent_state` window option that
+`window-status-format` reads (`dot_tmux.conf`). It's set by `~/.local/bin/agent-state`:
+
+- **Claude Code / Codex** drive it from lifecycle hooks (`dot_claude/modify_settings.json`,
+  `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`).
+- **Antigravity (`agy`)** has no permission/notification hook event, so the dot
+  is driven from its **status line** instead (`dot_gemini/antigravity-cli/executable_statusline.sh`),
+  the one payload that exposes `agent_state`, `tool_confirmation_pending` (blocked
+  on a tool approval), background tasks AND context % together. That script renders
+  the ctx% status line *and* sets `@agent_state` as a side effect. `title.sh` sets
+  the window title (inert in tmux — `allow-rename off` — useful outside it). Both
+  are wired into `~/.gemini/antigravity-cli/settings.json` by
+  `modify_private_settings.json`. agy ≥ 1.0.8 is required (statusline/title/hooks);
+  the package script installs latest, older installs need `agy update`.
