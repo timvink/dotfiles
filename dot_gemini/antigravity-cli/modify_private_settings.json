@@ -1,0 +1,31 @@
+#!/bin/sh
+# chezmoi modify_ script for ~/.gemini/antigravity-cli/settings.json.
+#
+# agy owns this file at runtime (it rewrites colorScheme, trustedWorkspaces, …),
+# so we can't manage it as a static file — chezmoi apply would clobber that state.
+# Instead we inject ONLY our two managed keys and pass everything else through:
+#
+#   .statusLine → our Catppuccin status line (dir · branch · model · ctx%). It also
+#                 drives the per-tab tmux @agent_state dot. See executable_statusline.sh.
+#   .title      → our terminal window-title script. See executable_title.sh.
+#
+# Both blocks are {command, enabled} (the key is statusLine, camelCase — a
+# lowercase "statusline" is silently ignored). The command path is absolute,
+# baked at apply time, and run via bash so it doesn't depend on the +x bit or on
+# agy doing ~ expansion.
+#
+# stdin = current target content, stdout = new content. Idempotent — it overwrites
+# only the two keys we manage and preserves every key agy stores at runtime.
+set -eu
+
+input=$(cat)
+[ -z "$input" ] && input='{}'
+
+status_cmd="bash $HOME/.gemini/antigravity-cli/statusline.sh"
+title_cmd="bash $HOME/.gemini/antigravity-cli/title.sh"
+
+printf '%s' "$input" | jq \
+    --arg s "$status_cmd" \
+    --arg t "$title_cmd" \
+    '.statusLine = { "command": $s, "enabled": true }
+   | .title      = { "command": $t, "enabled": true }'
