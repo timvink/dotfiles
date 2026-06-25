@@ -1,4 +1,8 @@
+# This repo's own docs and project agent-instructions, not dotfiles for $HOME.
+# AGENTS.md is the canonical file (read by Codex/Antigravity/etc.); CLAUDE.md is
+# a symlink to it because Claude Code reads CLAUDE.md, not AGENTS.md. Ignore both.
 README.md
+AGENTS.md
 CLAUDE.md
 
 # Canonical cross-tool agent config (AGENTS.md + skills/) lives here but is
