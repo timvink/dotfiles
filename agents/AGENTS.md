@@ -56,8 +56,8 @@ committing, stage only the files you changed — the repo may hold unrelated WIP
 ## .env files are vault-backed
 Secrets in a `.env` are mirrored into my password vault. Before reading or
 using any secret from a `.env` (or `.env.local`, etc.), gate on the backup being
-current — run the `vault` skill's helper (symlinked into both tools; the path
-below resolves the same from Claude or Codex):
+current — run the `vault` skill's helper (symlinked into all my agent tools; the
+path below resolves the same everywhere):
 `~/.local/share/chezmoi/agents/skills/vault/env-vault-sync.sh check <path-to-.env>`
 - exit 0 → proceed.
 - exit 3 (drift) → tell me which keys drifted and offer to run `… update <path>`.
