@@ -16,6 +16,16 @@ keybind = super+shift+k=previous_tab
 # The right Option key still types special characters (#, accents, …).
 macos-option-as-alt = left
 
+# SSH integration — let remote hosts recognise Ghostty. On first connect the
+# ssh wrapper installs the `xterm-ghostty` terminfo on the remote (cached after;
+# needs `tic` there) and sets TERM=xterm-ghostty; ssh-env also forwards
+# TERM_PROGRAM/COLORTERM as a fallback (needs the remote sshd's AcceptEnv).
+# Without this a devbox sees a generic TERM, so neovim's snacks.image can't tell
+# it's talking to Ghostty and refuses the Kitty graphics protocol ("terminal
+# does not support…"). snacks reads tmux's #{client_termname}, now xterm-ghostty.
+# These toggles are additive on top of Ghostty's defaults (cursor/title/path).
+shell-integration-features = ssh-env,ssh-terminfo
+
 # Free up ESC f / ESC b for use as Alt+f / Alt+b bindings. Ghostty's DEFAULT
 # maps Alt+Left/Right to esc:b / esc:f (readline word-motion) — the exact same
 # bytes a plain Alt+b / Alt+f produce, so tmux can't tell Alt+Right from Alt+f
