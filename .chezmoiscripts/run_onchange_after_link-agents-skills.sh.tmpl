@@ -1,13 +1,16 @@
 #!/bin/sh
 # Make my generic "Agent Skills" available to every agent CLI from ONE source.
 #
-# Claude Code and Codex share the same SKILL.md format (YAML frontmatter +
-# progressive-disclosure folder) but each only scans its OWN dir
-# (~/.claude/skills, ~/.codex/skills) and neither exposes a config knob for an
-# extra search path. So the canonical skills live once in this repo under
-# agents/skills/ and this script symlinks each into both tools. Editing a skill
-# in the repo is instantly live in both -- there is no separate applied copy.
-# See agents/README.md for the full rationale.
+# Claude Code, Codex and Antigravity (the agy CLI / Gemini) all share the same
+# SKILL.md format (YAML frontmatter + progressive-disclosure folder) but each only
+# scans its OWN global dir and none exposes a config knob for an extra search path:
+#   Claude Code   ~/.claude/skills
+#   Codex         ~/.codex/skills
+#   Antigravity   ~/.gemini/config/skills   (global skills, per antigravity.google/docs/skills)
+# So the canonical skills live once in this repo under agents/skills/ and this
+# script symlinks each into every tool. Editing a skill in the repo is instantly
+# live in all of them -- there is no separate applied copy. See agents/README.md
+# for the full rationale.
 #
 # Safe by construction: it only ever creates/removes symlinks that point back
 # into a known agents-skills source (and prunes broken ones). Real/native skills
@@ -33,7 +36,7 @@ if [ -d "$legacy_copy" ] && [ "$legacy_copy" != "$src" ]; then
 	rm -rf "$legacy_copy"
 fi
 
-for tool_dir in "$HOME/.claude/skills" "$HOME/.codex/skills"; do
+for tool_dir in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/config/skills"; do
 	mkdir -p "$tool_dir"
 
 	# 1. Link every skill (directories only) into this tool's skills dir.

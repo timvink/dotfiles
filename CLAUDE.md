@@ -24,20 +24,23 @@ documented next to the configs that set them.
 - Linux package script: `run_onchange_setup_packages_linux.sh` at repo
   root. macOS: `.chezmoiscripts/run_onchange_setup_packages_darwin.sh`.
 
-## Shared agent config (Claude + Codex)
+## Shared agent config (Claude + Codex + Antigravity)
 
 Cross-tool agent config lives in ONE place at the repo root: `agents/`, holding
 `AGENTS.md` (shared global instructions) and `skills/` (shared Agent Skills).
 Everything there is symlinked into each tool, since each only scans its own
-paths and neither has a config knob for an extra search path:
+paths and none has a config knob for an extra search path:
 
 - `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` → `agents/AGENTS.md`, via
   `dot_claude/symlink_CLAUDE.md.tmpl` and `dot_codex/symlink_AGENTS.md.tmpl`
   (Claude doesn't read AGENTS.md natively, so its CLAUDE.md is the symlink).
-- `~/.claude/skills/*` and `~/.codex/skills/*` → `agents/skills/*`, via
+  Antigravity is **not** wired to `AGENTS.md` — it keeps its own shorter
+  `~/.gemini/GEMINI.md` (`dot_gemini/GEMINI.md`); only skills are shared with it.
+- `~/.claude/skills/*`, `~/.codex/skills/*` and `~/.gemini/config/skills/*`
+  (Antigravity's global skills dir) → `agents/skills/*`, via
   `run_onchange_after_link-agents-skills.sh.tmpl`.
 
-Symlinks point straight at the repo, so an edit is instantly live in both tools —
+Symlinks point straight at the repo, so an edit is instantly live in every tool —
 no applied copy. `agents/` is `.chezmoiignore`d so chezmoi doesn't also copy it
 to `~/agents`. Rules that both tools must follow go in `agents/AGENTS.md` (Codex's
 only prose channel); Claude-only/path-scoped rules go in `dot_claude/rules/`. Codex
