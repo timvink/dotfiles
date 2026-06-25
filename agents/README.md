@@ -6,7 +6,7 @@ and live everywhere.
 
 ```
 agents/
-├── AGENTS.md     # shared instructions  → ~/.claude/CLAUDE.md  &  ~/.codex/AGENTS.md   (not Antigravity — see below)
+├── AGENTS.md     # shared instructions  → ~/.claude/CLAUDE.md  &  ~/.codex/AGENTS.md  &  ~/.gemini/GEMINI.md
 └── skills/       # shared Agent Skills  → ~/.claude/skills/*  &  ~/.codex/skills/*  &  ~/.gemini/config/skills/*
 ```
 
@@ -21,9 +21,9 @@ in config, so a shared file has to be physically present in each location:
   YAML frontmatter), three dirs.
 - **Instructions**: Codex reads `~/.codex/AGENTS.md` natively. Claude reads
   `CLAUDE.md`, **not** AGENTS.md — so `~/.claude/CLAUDE.md` is a symlink to this
-  `AGENTS.md` (Claude follows it). Antigravity is **not** wired to `AGENTS.md`:
-  it keeps its own (shorter) `~/.gemini/GEMINI.md` (`dot_gemini/GEMINI.md`).
-  Only skills are shared with it.
+  `AGENTS.md` (Claude follows it). Antigravity (the `agy` CLI / Gemini) reads
+  `~/.gemini/GEMINI.md`, which is likewise a symlink to this `AGENTS.md`. All three
+  tools share one instruction file.
 
 Because the symlinks point straight at this repo, editing a file here is instantly
 live in every tool — there is no applied copy. `agents/` is `.chezmoiignore`d so
@@ -35,13 +35,14 @@ chezmoi never copies it to `~/agents`.
 | ---- | ---------- |
 | `~/.claude/CLAUDE.md` → `agents/AGENTS.md` | `dot_claude/symlink_CLAUDE.md.tmpl` |
 | `~/.codex/AGENTS.md` → `agents/AGENTS.md` | `dot_codex/symlink_AGENTS.md.tmpl` |
+| `~/.gemini/GEMINI.md` → `agents/AGENTS.md` | `dot_gemini/symlink_GEMINI.md.tmpl` |
 | `~/.claude/skills/*`, `~/.codex/skills/*`, `~/.gemini/config/skills/*` → `agents/skills/*` | [`.chezmoiscripts/run_onchange_after_link-agents-skills.sh.tmpl`](../.chezmoiscripts/run_onchange_after_link-agents-skills.sh.tmpl) |
 
 ## AGENTS.md
 
 Shared, behavioural global instructions for every project. Edit `agents/AGENTS.md`
 and `chezmoi apply` (or just edit — the symlinks make it live). Keep it generic;
-anything that applies to **both** tools belongs here.
+anything that applies to **all three** tools belongs here.
 
 ## skills/
 
