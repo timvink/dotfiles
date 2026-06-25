@@ -1,9 +1,10 @@
 <!-- Shared global agent instructions. Symlinked from this repo's agents/AGENTS.md
-     to ~/.claude/CLAUDE.md (Claude Code) and ~/.codex/AGENTS.md (Codex). Edit here.
-     This is the ONLY prose-instruction channel Codex reads, so anything BOTH tools
-     must follow belongs here. Claude-only or path-scoped rules can go in
-     ~/.claude/rules/ instead (Codex has no prose-rules dir; its ~/.codex/rules/ is
-     a command-approval store, not instructions). -->
+     to ~/.claude/CLAUDE.md (Claude Code), ~/.codex/AGENTS.md (Codex) and
+     ~/.gemini/GEMINI.md (Antigravity / the agy CLI). Edit here. This is the ONLY
+     prose-instruction channel Codex reads, so anything ALL tools must follow
+     belongs here. Claude-only or path-scoped rules can go in ~/.claude/rules/
+     instead (Codex has no prose-rules dir; its ~/.codex/rules/ is a
+     command-approval store, not instructions). -->
 
 These rules apply to every task in this project unless explicitly overridden.
 Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
@@ -77,3 +78,9 @@ installed. Before starting project work, confirm the repo provides both:
 - a `setup` target in the `Makefile` that prepares the environment (install
   deps, build venvs, seed config); run it with `make setup`.
 If either is missing, stop and ask the user to add it before continuing.
+
+
+## Other
+
+- Always use Context7 MCP when you need library/API documentation
+

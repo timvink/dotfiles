@@ -31,11 +31,11 @@ Cross-tool agent config lives in ONE place at the repo root: `agents/`, holding
 Everything there is symlinked into each tool, since each only scans its own
 paths and none has a config knob for an extra search path:
 
-- `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md` → `agents/AGENTS.md`, via
-  `dot_claude/symlink_CLAUDE.md.tmpl` and `dot_codex/symlink_AGENTS.md.tmpl`
-  (Claude doesn't read AGENTS.md natively, so its CLAUDE.md is the symlink).
-  Antigravity is **not** wired to `AGENTS.md` — it keeps its own shorter
-  `~/.gemini/GEMINI.md` (`dot_gemini/GEMINI.md`); only skills are shared with it.
+- `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md`
+  (Antigravity / agy) → `agents/AGENTS.md`, via `dot_claude/symlink_CLAUDE.md.tmpl`,
+  `dot_codex/symlink_AGENTS.md.tmpl` and `dot_gemini/symlink_GEMINI.md.tmpl`
+  (Claude doesn't read AGENTS.md natively, so its CLAUDE.md is the symlink; same
+  for Gemini's GEMINI.md). One instruction file, all three tools.
 - `~/.claude/skills/*`, `~/.codex/skills/*` and `~/.gemini/config/skills/*`
   (Antigravity's global skills dir) → `agents/skills/*`, via
   `run_onchange_after_link-agents-skills.sh.tmpl`.
