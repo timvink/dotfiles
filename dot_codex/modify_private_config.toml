@@ -33,6 +33,38 @@ name = "Azure OpenAI"
 base_url = "https://aif-nwf-devtools.openai.azure.com/openai/v1"
 env_key = "AZURE_OPENAI_API_KEY"
 wire_api = "responses"
+
+# MCP servers — mirrors the Claude Code set (~/.claude.json). Codex detects the
+# streamable-HTTP transport from the `url` key alone; no extra flags needed.
+# This file holds only server definitions — OAuth tokens live in Codex's own
+# auth store (not here), so they survive `chezmoi apply`. For each hosted server
+# below, authenticate once with `codex mcp login <name>`.
+#
+# context7 uses its dedicated OAuth endpoint (/mcp/oauth, not /mcp), per
+# https://context7.com/docs/howto/oauth — keyless, so no API key in this repo.
+[mcp_servers.context7]
+url = "https://mcp.context7.com/mcp/oauth"
+
+[mcp_servers.todoist]
+url = "https://ai.todoist.net/mcp"
+
+[mcp_servers.notion]
+url = "https://mcp.notion.com/mcp"
+
+[mcp_servers.cloudflare]
+url = "https://mcp.cloudflare.com/mcp"
+
+[mcp_servers.gethumandesign]
+url = "https://api.gethumandesign.com/mcp"
+
+[mcp_servers.activecampaign]
+url = "https://stilstaanbijjezelf1.activehosted.com/api/agents/mcp/http"
+
+# Local stdio server (Albert Heijn). macOS-only binary path; on a Linux box this
+# entry just won't launch — mirrors the Claude setup, which hardcodes the same path.
+[mcp_servers.ah]
+command = "/Users/timvink/.local/bin/ah-mcp"
+args = ["--transport", "stdio"]
 '''
 
 PASS_GROUPS = {"projects", "tui", "hooks"}   # runtime state Codex manages
