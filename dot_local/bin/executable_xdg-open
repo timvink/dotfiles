@@ -6,9 +6,15 @@
 # through it.
 #
 # How it works:
+#   0. If the argument is a local *file* (e.g. `o` on report.html in nvim's file
+#      explorer, which calls xdg-open with a path, not a URL): serve its
+#      directory over a throwaway loopback HTTP server and rewrite the argument
+#      to http://localhost:8765/<file>. Relative CSS/JS/images resolve because
+#      the whole directory is served. From here it's just a URL, so:
 #   1. Rewrite localhost / 127.0.0.1 -> the name my Mac reaches this box by
-#      (devbox / homelab), so the URL resolves on the host (devbox via SOCKS/PAC,
-#      homelab via LAN DNS).
+#      (devbox / homelab). proxy.pac routes that host through the box's SOCKS
+#      proxy with remote DNS, which resolves the name to the box's own loopback —
+#      so a 127.0.0.1-bound server is reachable, just like a `make serve` port.
 #   2. Hand that URL to open-url-listener on my Mac over the SSH reverse tunnel
 #      (-R 2489:127.0.0.1:2489, set up by the `devbox` alias / ssh config). The
 #      Mac runs `open` and replies "OK".
@@ -21,6 +27,60 @@ set -u
 
 [ "$#" -eq 0 ] && exit 0
 url=$1
+
+# Local file -> serve it, so the host browser has a URL to fetch. `o` in nvim's
+# file explorer (and any `xdg-open ./report.html`) hands us a *filesystem path*,
+# which is meaningless on the Mac. Spin up a throwaway HTTP server rooted at the
+# file's directory — so relative CSS/JS/images resolve — bound to loopback, then
+# rewrite $url to http://localhost:PORT/<file>; the URL handling below carries it
+# the rest of the way (localhost -> alias, then proxy.pac/SOCKS back to this same
+# loopback server). 127.0.0.1 bind = no LAN exposure.
+serve_port=8765
+case "$url" in
+    http://* | https://*) : ;;  # already a URL — nothing to serve
+    *)
+        if [ -f "$url" ]; then
+            if ! command -v python3 >/dev/null 2>&1; then
+                printf 'xdg-open: python3 not found, cannot serve %s\n' "$url" >&2
+                exit 1
+            fi
+            abs=$(realpath -- "$url" 2>/dev/null) || abs=$url
+            dir=$(dirname -- "$abs")
+            base=$(basename -- "$abs")
+
+            # One server at a time on $serve_port. Kill our previous one (matched
+            # by cmdline so a recycled PID is never an innocent victim) and wait
+            # for it to release the socket before rebinding the new docroot.
+            pidfile="${XDG_RUNTIME_DIR:-/tmp}/html-open-$(id -u).pid"
+            if [ -f "$pidfile" ]; then
+                old=$(cat "$pidfile" 2>/dev/null)
+                if [ -n "${old:-}" ] && [ -r "/proc/$old/cmdline" ] \
+                    && tr '\0' ' ' < "/proc/$old/cmdline" | grep -q 'http\.server'; then
+                    kill "$old" 2>/dev/null
+                    for _ in $(seq 1 20); do
+                        kill -0 "$old" 2>/dev/null || break
+                        sleep 0.05
+                    done
+                fi
+            fi
+
+            nohup python3 -m http.server "$serve_port" \
+                --bind 127.0.0.1 --directory "$dir" >/dev/null 2>&1 &
+            echo "$!" > "$pidfile"
+            disown 2>/dev/null || true
+
+            # Wait briefly for the bind so the Mac's first request doesn't race it.
+            for _ in $(seq 1 20); do
+                { exec 3<>"/dev/tcp/127.0.0.1/${serve_port}"; } 2>/dev/null \
+                    && { exec 3>&-; break; }
+                sleep 0.1
+            done
+
+            enc=$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$base")
+            url="http://localhost:${serve_port}/${enc}"
+        fi
+        ;;
+esac
 
 # "The name my host reaches this box by." Override per-box with $REMOTE_ALIAS;
 # otherwise derive it from the hostname. Add new boxes to the case below (or just
