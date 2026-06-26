@@ -74,14 +74,53 @@ install_if_missing fzf fzf
 # X11 only; if a VM ever runs Wayland, swap to wl-clipboard.
 install_if_missing xclip xclip
 
-# imagemagick — `magick` CLI that snacks.image shells out to for in-buffer
-# .png/.jpg previews. NOTE: only ImageMagick 7 ships the unified `magick`
-# binary; Ubuntu <= 24.04 / Debian <= bookworm package IM6 (binary `convert`,
-# no `magick`), so this probe stays unsatisfied and snacks.image won't render
-# there. IM7 lands in `imagemagick` on Ubuntu 24.10+ / Debian trixie. Image
-# preview over SSH also needs allow-passthrough in the *remote* tmux + a
-# graphics-capable outer terminal; treat it as best-effort on the VMs.
-install_if_missing magick imagemagick
+# imagemagick (IM7 `magick`) — snacks.image shells out to the unified `magick`
+# binary for in-buffer .png/.jpg previews. Only ImageMagick 7 ships it; Ubuntu
+# <= 24.04 / Debian <= bookworm package IM6 (binary `convert`, no `magick`), so
+# apt can't deliver it there. Take apt's `magick` only when it's actually IM7,
+# else drop ImageMagick's official portable binary into ~/.local/opt and symlink
+# it (same vendoring pattern as nvim/diff-so-fancy below; extracted rather than
+# run in place so it works headless without FUSE). Inline preview over SSH also
+# needs the xterm-ghostty terminfo (run_onchange_setup_ghostty_terminfo.sh) and a
+# graphics-capable outer terminal.
+if ! command -v magick >/dev/null 2>&1; then
+    if [ "$NEED_UPDATE" -eq 0 ]; then
+        sudo apt-get update -y
+        NEED_UPDATE=1
+    fi
+    # apt ships IM7 only on Ubuntu 24.10+ / Debian trixie (version epoch 8:7.x);
+    # install from apt only there, so older releases fall through to the binary.
+    if apt-cache show imagemagick 2>/dev/null | grep -q '^Version: 8:7'; then
+        sudo apt-get install -y imagemagick
+    fi
+fi
+if ! command -v magick >/dev/null 2>&1; then
+    # Only an x86_64 portable binary is published upstream; other arches fall
+    # back to no preview (best-effort on the VMs).
+    case "$(uname -m)" in
+        x86_64) im_url="https://imagemagick.org/archive/binaries/magick" ;;
+        *) im_url=""; echo "imagemagick: no portable binary for $(uname -m); image preview disabled." >&2 ;;
+    esac
+    if [ -n "$im_url" ]; then
+        mkdir -p "$HOME/.local/opt" "$HOME/.local/bin"
+        tmp=$(mktemp -d)
+        if curl -fsSL -o "$tmp/magick.appimage" "$im_url"; then
+            chmod +x "$tmp/magick.appimage"
+            # Extract (no FUSE needed) and symlink AppRun, which sets up the
+            # bundled libs and dispatches to magick when invoked as `magick`.
+            if ( cd "$tmp" && ./magick.appimage --appimage-extract >/dev/null 2>&1 ); then
+                rm -rf "$HOME/.local/opt/imagemagick"
+                mv "$tmp/squashfs-root" "$HOME/.local/opt/imagemagick"
+                ln -sf "$HOME/.local/opt/imagemagick/AppRun" "$HOME/.local/bin/magick"
+            else
+                echo "imagemagick: AppImage extract failed; image preview disabled." >&2
+            fi
+        else
+            echo "imagemagick: download failed ($im_url); image preview disabled." >&2
+        fi
+        rm -rf "$tmp"
+    fi
+fi
 
 # eza — not in default Ubuntu repos; use the official gierens apt repo
 if ! command -v eza >/dev/null 2>&1; then
@@ -181,13 +220,12 @@ if ! command -v diff-so-fancy >/dev/null 2>&1 \
     rm -rf "$tmp"
 fi
 
-# NOTE on xterm-ghostty terminfo:
-# Ghostty is newer than Ubuntu 24.04's ncurses-term package, so the terminfo
-# entry isn't available via apt, and ghostty does not ship a .terminfo source
-# file in its repo (it's generated from Zig at build time). The canonical fix
-# is to run this once from a machine that *has* ghostty installed (e.g. your
-# Mac): `infocmp -x xterm-ghostty | ssh <host> tic -x -`. Until then, the
-# TERM fallback in dot_bashrc keeps commands like `clear` working.
+# xterm-ghostty terminfo is installed separately by
+# run_onchange_setup_ghostty_terminfo.sh, from a vendored `infocmp -x
+# xterm-ghostty`, so snacks.image can detect Ghostty over SSH even on the
+# az-ssh'd devbox where Ghostty's own ssh-terminfo integration never runs (it
+# only wraps the shell's `ssh`, not `az ssh`). The TERM fallback in dot_bashrc
+# covers the gap before that script first applies.
 
 
 # agy — antigravity CLI
