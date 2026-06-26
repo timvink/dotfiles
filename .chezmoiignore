@@ -33,6 +33,7 @@ Library/LaunchAgents/com.timvink.openurl.plist
 {{ end }}
 {{ if ne .chezmoi.os "linux" }}
 setup_packages_linux.sh
+setup_ghostty_terminfo.sh
 .local/bin/xdg-open
 .config/rbw/config.json
 {{ end }}

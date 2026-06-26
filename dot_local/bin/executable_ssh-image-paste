@@ -69,7 +69,7 @@ fi
 # Stream it into the box's /tmp over the existing connection, then type the path.
 # On any failure, fall back to a normal paste so a ⌘V is never silently lost.
 remote="/tmp/clip-$(date +%Y%m%d-%H%M%S)-$$.png"
-if ssh -S "$sock" "$host" "umask 077; cat > '$remote'" < "$img" 2>/dev/null; then
+if ssh -o ConnectTimeout=5 -o BatchMode=yes -S "$sock" "$host" "umask 077; cat > '$remote'" < "$img" 2>/dev/null; then
   osascript -e "tell application \"System Events\" to keystroke \"$remote \""
 else
   paste_now
