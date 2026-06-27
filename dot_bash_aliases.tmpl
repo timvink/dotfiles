@@ -66,8 +66,10 @@ export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
 # tmux — get me into my persistent dev server. If any session is running, attach
 # to the most-recently-used one (every other session/tab is one prefix+w or
 # prefix+s away). Only when the server is completely empty — all sessions and
-# tabs closed — bootstrap a fresh 'chezmoi' workspace: cc in tab 1, nvim in tab 2,
-# both rooted in the chezmoi source dir.
+# tabs closed — bootstrap a fresh 'chezmoi' workspace: this machine's primary
+# coding agent in tab 1, nvim in tab 2, both rooted in the chezmoi source dir.
+# Tab 1 launches cc or co per the `codingAgent` chezmoi var (set at init); tmux
+# automatic-rename then names the tab "claude" or "codex" off the running process.
 #
 # Deliberately NOT tied to a session named 'main': `tmux new -A -s main` hardcodes
 # that name, so renaming or killing your top session strands you on a fresh empty
@@ -79,9 +81,10 @@ export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
 # Never start tmux with plain `tmux` — that runs `new-session` and spawns a new
 # numbered session every time, orphaning your running work. Always use `t`.
 #
-# cc/nvim go through send-keys into an interactive shell: cc is a shell function,
-# not on PATH; nvim so that quitting it drops you at a working shell, not a dead
-# pane. Per-project workspaces live in prefix+f (the fuzzy project finder).
+# The agent launcher (cc/co) and nvim go through send-keys into an interactive
+# shell: cc is a shell function and co an alias, neither on PATH; nvim so that
+# quitting it drops you at a working shell, not a dead pane. Per-project
+# workspaces live in prefix+f (the fuzzy project finder).
 t() {
     [ -n "$TMUX" ] && return                     # already inside tmux
     if tmux ls >/dev/null 2>&1; then             # server up → resume where I left off
@@ -89,7 +92,7 @@ t() {
     else                                         # server empty → bootstrap chezmoi
         local dir="$HOME/.local/share/chezmoi"
         tmux new-session -d -s chezmoi -c "$dir"
-        tmux send-keys  -t chezmoi cc Enter
+        tmux send-keys  -t chezmoi {{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }} Enter
         tmux new-window -t chezmoi -c "$dir"
         tmux send-keys  -t chezmoi nvim Enter
         tmux select-window -t chezmoi:1
@@ -163,16 +166,16 @@ ccw() {
     fi
     claude --dangerously-skip-permissions --worktree "$@"
 }
-# Codex, auto-run but sandboxed (the cc → claude analogue: co → codex).
-# `-a never` never prompts for approval (the "yolo" feel); `--sandbox
-# workspace-write` still confines writes to the workspace + /tmp and blocks the
-# rest of the system. Deliberately NOT `--yolo` (= --dangerously-bypass-
-# approvals-and-sandbox): that bypasses the sandbox entirely, which contradicts
-# workspace-write. `network_access=true` re-enables the internet for commands
-# codex runs (pip/npm install, curl, git pull) — off by default in
-# workspace-write. A plain alias suffices — codex takes a positional prompt
-# natively, so `co`, `co "<prompt>"` and `co exec "<prompt>"` all just work.
-alias co='codex --ask-for-approval never --sandbox workspace-write -c sandbox_workspace_write.network_access=true'
+# Codex, fully auto-run (the cc → claude analogue: co → codex). `--yolo` (=
+# --dangerously-bypass-approvals-and-sandbox) never prompts and drops the
+# sandbox entirely. The earlier `-a never --sandbox workspace-write` setup was
+# meant to keep writes confined, but the sandbox got in the way more than it
+# helped — codex constantly tripped over blocked writes/network and needed
+# escalations, so it's not worth it. Mirrors `cc`'s --dangerously-skip-
+# permissions: trust the agent, lean on git to undo. A plain alias suffices —
+# codex takes a positional prompt natively, so `co`, `co "<prompt>"` and
+# `co exec "<prompt>"` all just work.
+alias co='codex --yolo'
 # Claude Code via Azure AI Foundry (Opus 4.8, Sweden Central) instead of the
 # Anthropic subscription — routes inference + billing through the platform's
 # `aif-nwf-claude` Foundry account, authenticating with your `az login` token
