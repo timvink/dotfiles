@@ -3,8 +3,9 @@
 ## MCP servers
 
 ```bash
-# writes to ~/.claude.json
-claude mcp add --transport http notion https://mcp.notion.com/mcp
+# writes to ~/.claude.json. -s user makes notion global (every project);
+# authenticate in-session on first use (OAuth) or with `claude mcp login notion`.
+claude mcp add --transport http notion https://mcp.notion.com/mcp -s user
 claude mcp add --transport http activecampaign https://stilstaanbijjezelf1.activehosted.com/api/agents/mcp/http
 
 # context7 via OAuth (keyless) — note the dedicated /mcp/oauth endpoint, and
