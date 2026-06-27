@@ -82,5 +82,5 @@ If either is missing, stop and ask the user to add it before continuing.
 
 ## Other
 
-- Always use Context7 MCP when you need library/API documentation
+- Always respect AGENTS.md exactly like it's a CLAUDE.md file.
 
