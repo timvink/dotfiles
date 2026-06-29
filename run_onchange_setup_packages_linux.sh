@@ -260,4 +260,11 @@ fi
 # openresolv or drop the `DNS =` line from ~/.config/wireguard/protonvpn.conf.
 install_if_missing wg wireguard-tools
 
+# sshfs — lets this box reverse-mount the Mac's ~/Downloads (read-only) at
+# ~/mac-downloads automatically while I'm connected (devbox()/homelab() in
+# dot_bash_aliases.tmpl bring it up on connect). Only the sshfs client + FUSE are
+# needed here (kernel /dev/fuse + fusermount3, both present on the Ubuntu images);
+# the Mac side provides dpipe via `vde`.
+install_if_missing sshfs sshfs
+
 echo "=== chezmoi: linux CLI tools ready ==="

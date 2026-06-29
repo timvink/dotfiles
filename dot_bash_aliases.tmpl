@@ -220,11 +220,20 @@ _remote_ssh_flag() {
 # reusable ControlMaster socket set up in ~/.ssh/config's `Host homelab` block.
 homelab() {
   _remote_ssh_flag 1
-  # Reset even if the session dies abruptly (terminal closed → SIGHUP, or killed)
-  # and skips the normal reset below; the handler clears itself so the trap never
-  # leaks into the interactive shell. INT/TERM/HUP behave the same in bash and zsh.
-  trap '_remote_ssh_flag 0; trap - INT TERM HUP' INT TERM HUP
+  # Auto-mount ~/Downloads (read-only) at homelab:~/mac-downloads for this session
+  # (see the reverse-mount helpers below); the backgrounded waiter brings it up once
+  # the master is live, and it's torn down on exit. $_mnt is that waiter, killed in
+  # case it's still polling when we leave.
+  _revmount_bg homelab homelab &
+  local _mnt=$!
+  # Reset the flag and unmount even if the session dies abruptly (terminal closed →
+  # SIGHUP, or killed) and skips the normal cleanup below; the handler clears itself
+  # so the trap never leaks into the interactive shell. INT/TERM/HUP behave the same
+  # in bash and zsh.
+  trap "_remote_ssh_flag 0; kill $_mnt 2>/dev/null; _revumount homelab homelab; trap - INT TERM HUP" INT TERM HUP
   ssh -t homelab "cd /media/storage/private/timvink-homelab/ && exec \$SHELL -l"
+  kill "$_mnt" 2>/dev/null
+  _revumount homelab homelab
   trap - INT TERM HUP
   _remote_ssh_flag 0
 }
@@ -284,10 +293,17 @@ zfs_unlock() {
 # ~/.local/bin/ssh-image-paste (this Mac).
 devbox() {
   _remote_ssh_flag 1
-  # Reset even if the session dies abruptly (terminal closed → SIGHUP, or killed)
-  # and skips the normal reset below; the handler clears itself so the trap never
-  # leaks into the interactive shell. INT/TERM/HUP behave the same in bash and zsh.
-  trap '_remote_ssh_flag 0; trap - INT TERM HUP' INT TERM HUP
+  # Auto-mount ~/Downloads (read-only) at devbox:~/mac-downloads for this session
+  # (see the reverse-mount helpers below). The devbox waiter resolves User+host from
+  # the live connection (the IP isn't known up-front), mounts once the master is up,
+  # and is torn down on exit. $_mnt is that waiter, killed if still polling on exit.
+  _revmount_bg_devbox &
+  local _mnt=$!
+  # Reset the flag and unmount even if the session dies abruptly (terminal closed →
+  # SIGHUP, or killed) and skips the normal cleanup below; the handler clears itself
+  # so the trap never leaks into the interactive shell. INT/TERM/HUP behave the same
+  # in bash and zsh.
+  trap "_remote_ssh_flag 0; kill $_mnt 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
   # --only-show-errors silences the ssh extension's unconditional "upgrade to
   # az ssh >=2.0.4" breaking-change banner (hardcoded in azext_ssh, fires on
   # every `az ssh vm` regardless of installed version) without hiding real
@@ -295,8 +311,116 @@ devbox() {
   az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
     -D 1080 -R 2489:127.0.0.1:2489 \
     -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m
+  kill "$_mnt" 2>/dev/null
+  _revumount_devbox
   trap - INT TERM HUP
   _remote_ssh_flag 0
+}
+
+## Reverse ~/Downloads mounts
+# devbox() and homelab() above auto-mount this Mac's ~/Downloads (read-only) onto the
+# box as ~/mac-downloads for the life of the session, so from a remote shell you can
+# just `cp ~/mac-downloads/foo.xlsx .` — no separate command to run or remember. It's
+# a *reverse* sshfs: the FUSE mount lives on the Linux box (it has /dev/fuse +
+# fusermount3); sshfs there runs in slave mode (-o slave), speaking SFTP over
+# stdin/stdout instead of dialing out. On this side, `dpipe` (from the `vde` brew)
+# wires the box's sshfs to our built-in /usr/libexec/sftp-server, so nothing new has
+# to listen on the Mac — it all rides the SSH ControlMaster the connect function
+# already set up. Read-only by design: pulling files out, never into it. Needs sshfs
+# on each box (run_onchange_setup_packages_linux.sh) and vde on the Mac
+# (.chezmoiscripts/…_darwin.sh).
+#
+# Resolve "<user> <host>" for the live devbox connection without hardcoding the
+# VM's public IP (it changes across deallocations): parse it off the `ssh <ip> -l
+# <user> …` child that az spawned, and cache it. Once an interactive session
+# exits, ControlPersist retitles that process to "[mux]" and the args vanish, so
+# in the persist window we fall back to the cache (trusted only while the master
+# socket still exists). Empty if there's no usable connection at all.
+_devbox_conn() {
+  local cache="$HOME/.ssh/cm-devbox.conn" conn
+  conn="$(ps -Ao args 2>/dev/null | grep -F 'cm-devbox.sock' | awk '
+    {u="";h="";for(i=1;i<=NF;i++){if($i=="-l")u=$(i+1);if($i=="ssh")h=$(i+1)}
+     if(u!=""&&h!=""){print u" "h; exit}}')"
+  if [ -n "$conn" ]; then
+    printf '%s\n' "$conn" > "$cache"
+    printf '%s\n' "$conn"
+  elif [ -S "$HOME/.ssh/cm-devbox.sock" ] && [ -f "$cache" ]; then
+    cat "$cache"
+  fi
+}
+
+# Bring up the bridge once. $1=tag (names the pidfile); rest = ssh destination args
+# (OPTIONS FIRST, host last — ssh stops parsing options at the destination). No-op if
+# dpipe is absent (e.g. when this file is sourced on a Linux box) or the bridge is
+# already up. The remote sh expands ~ and $(id …) on the box; "$macdl" (the Mac's
+# Downloads path) is spliced in literally for the slave-mode sshfs to serve.
+_revmount() {
+  local tag="$1"; shift
+  local pidfile="$HOME/.ssh/revmount-$tag.pid" macdl="$HOME/Downloads"
+  command -v dpipe >/dev/null 2>&1 || return 0
+  [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile" 2>/dev/null)" 2>/dev/null && return 0
+  dpipe /usr/libexec/sftp-server = \
+    ssh -o RequestTTY=no -o BatchMode=yes "$@" \
+      'mkdir -p ~/mac-downloads && exec sshfs :'"$macdl"' ~/mac-downloads -o slave,ro,reconnect,uid=$(id -u),gid=$(id -g)' &
+  echo $! > "$pidfile"
+}
+
+# Background waiter: poll (~30s) until the master named by the ssh dest is up, then
+# mount. Launch with a trailing & from the connect function. $1=tag; rest = ssh dest.
+_revmount_bg() {
+  command -v dpipe >/dev/null 2>&1 || return 0
+  local tag="$1"; shift
+  local i
+  for i in $(seq 1 60); do
+    if ssh -O check "$@" 2>/dev/null; then _revmount "$tag" "$@"; return 0; fi
+    sleep 0.5
+  done
+}
+
+# devbox variant: its dest (User + host) isn't known until az brings the session up,
+# so resolve it from _devbox_conn on each poll. Launch backgrounded with a trailing &.
+_revmount_bg_devbox() {
+  command -v dpipe >/dev/null 2>&1 || return 0
+  local conn user host i
+  for i in $(seq 1 60); do
+    conn="$(_devbox_conn)"
+    if [ -n "$conn" ]; then
+      read -r user host <<< "$conn"
+      if ssh -O check -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o User="$user" "$host" 2>/dev/null; then
+        _revmount devbox -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o User="$user" "$host"
+        return 0
+      fi
+    fi
+    sleep 0.5
+  done
+}
+
+# Tear down tag's bridge: unmount on the box (best effort — killing the local bridge
+# also EOFs the box's sshfs so it self-unmounts) then drop the local processes.
+# $1=tag; rest = ssh dest args (may be empty if the box is no longer reachable).
+_revumount() {
+  local tag="$1"; shift
+  local pidfile="$HOME/.ssh/revmount-$tag.pid" pid
+  [ $# -gt 0 ] && ssh -o BatchMode=yes "$@" \
+    'fusermount3 -u ~/mac-downloads 2>/dev/null || fusermount -u ~/mac-downloads 2>/dev/null' 2>/dev/null || true
+  if [ -f "$pidfile" ]; then
+    pid="$(cat "$pidfile" 2>/dev/null)"
+    [ -n "$pid" ] && { kill "$pid" 2>/dev/null; pkill -P "$pid" 2>/dev/null; }
+    rm -f "$pidfile"
+  fi
+}
+
+# devbox teardown: resolve the dest while we still can (the socket persists ~30m after
+# exit), else just kill the local bridge.
+_revumount_devbox() {
+  local conn user host
+  conn="$(_devbox_conn)"
+  if [ -n "$conn" ]; then
+    read -r user host <<< "$conn"
+    _revumount devbox -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o User="$user" "$host"
+  else
+    _revumount devbox
+  fi
 }
 
 {{ if ne .chezmoi.os "windows" }}
