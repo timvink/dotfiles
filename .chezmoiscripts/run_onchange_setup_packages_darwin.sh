@@ -65,6 +65,7 @@ PACKAGES=(
   imagemagick # `magick` CLI; snacks.image uses it to render .png/.jpg previews in nvim
   wireguard-tools # wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn` CLI)
   wireguard-go # userspace WireGuard backend (macOS has no kernel module)
+  vde # provides `dpipe`, used by devmount() to reverse-mount ~/Downloads onto the devbox via sshfs
 )
 brew install ${PACKAGES[@]}
 
