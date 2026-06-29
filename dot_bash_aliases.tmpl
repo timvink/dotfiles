@@ -308,8 +308,16 @@ devbox() {
   # az ssh >=2.0.4" breaking-change banner (hardcoded in azext_ssh, fires on
   # every `az ssh vm` regardless of installed version) without hiding real
   # az errors like auth failures or a missing VM.
+  #
+  # LogLevel=FATAL stops the SSH client from scribbling "channel N: open failed:
+  # connect failed: Connection refused" over the interactive TUI. Those come from
+  # the -D 1080 SOCKS forward when a browser tab still points at a devbox:<port>
+  # dev server that has since stopped (proxy.pac routes it through here, the box
+  # refuses, and this master process — which also runs the shell — logs it onto the
+  # same terminal). FATAL drops those error-level lines but still surfaces fatal
+  # failures, so a refused connection / changed host key is never silently swallowed.
   az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
-    -D 1080 -R 2489:127.0.0.1:2489 \
+    -D 1080 -R 2489:127.0.0.1:2489 -o LogLevel=FATAL \
     -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m
   kill "$_mnt" 2>/dev/null
   _revumount_devbox
