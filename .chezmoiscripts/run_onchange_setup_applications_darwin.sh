@@ -81,6 +81,20 @@ killall Finder 2>/dev/null || true
 # Disable window animations and Get Info animations
 defaults write -g NSAutomaticWindowAnimationsEnabled -bool false
 
+# Menu bar: pack more status icons into the bar.
+# macOS has no "max icons" knob — when the focused app needs room for its menu
+# titles it just hides the right-most menu-bar extras. The only native lever
+# that lets MORE icons fit is shrinking the per-icon spacing/padding (each
+# defaults to ~16pt). Lower = tighter = more icons fit before macOS hides them.
+# These two keys only take effect when written to the *per-host* global domain
+# (ByHost), hence -currentHost. Raise toward 16 to loosen; ~6 is about as tight
+# as stays comfortable.
+defaults -currentHost write -globalDomain NSStatusItemSpacing -int 8
+defaults -currentHost write -globalDomain NSStatusItemSelectionPadding -int 6
+# Repaint the menu bar now; a full logout/login guarantees it everywhere.
+killall SystemUIServer 2>/dev/null || true
+killall ControlCenter 2>/dev/null || true
+
 # Install netbird service for VPN Mesh access
 if ! sudo launchctl list | grep -q netbird; then
     sudo netbird service install
