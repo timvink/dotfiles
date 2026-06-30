@@ -34,6 +34,7 @@ Library/LaunchAgents/com.timvink.openurl.plist
 {{ if ne .chezmoi.os "linux" }}
 setup_packages_linux.sh
 setup_ghostty_terminfo.sh
+remove-devbox-browser-cruft_linux.sh
 .local/bin/xdg-open
 .config/rbw/config.json
 {{ end }}
