@@ -326,9 +326,17 @@ devbox() {
   # PTY) and is untouched; any non-matching stderr — real fatal errors, auth failures,
   # host-key changes — still comes through. (homelab uses plain ssh with no injected
   # `-v`, so its `LogLevel FATAL` in ~/.ssh/config genuinely works and needs no filter.)
+  # -o ExitOnForwardFailure=yes: if -R 2489 (or -D 1080) can't bind at connect —
+  # e.g. a prior session's tunnel still holds the port through an overlapping
+  # ControlPersist window — abort loudly instead of silently running tunnel-less
+  # for the whole 30m persist window. Without this, a lost -R 2489 bind kills
+  # prefix+u URL-opening (the box's xdg-open shim can't reach the listener here)
+  # with no signal for half an hour. On failure just re-run devbox; the stale
+  # port clears within seconds.
   az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
     -D 1080 -R 2489:127.0.0.1:2489 \
     -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m \
+    -o ExitOnForwardFailure=yes \
     2> >(grep -E --line-buffered -v 'channel [0-9]+: open failed: connect failed: Connection refused' >&2)
   kill "$_mnt" 2>/dev/null
   _revumount_devbox
