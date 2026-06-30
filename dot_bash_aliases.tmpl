@@ -378,9 +378,15 @@ _revmount() {
   local pidfile="$HOME/.ssh/revmount-$tag.pid" macdl="$HOME/Downloads"
   command -v dpipe >/dev/null 2>&1 || return 0
   [ -f "$pidfile" ] && kill -0 "$(cat "$pidfile" 2>/dev/null)" 2>/dev/null && return 0
+  # Force-clear any stale mountpoint before mounting. An abrupt teardown (laptop sleep,
+  # network drop, `pkill`-ing the master) kills the bridge without unmounting the box's
+  # sshfs, leaving a wedged FUSE mount at ~/mac-downloads. Since it lives inside $HOME,
+  # the next login shell HANGS the moment its prompt/rc stats ~. A lazy unmount (-z)
+  # detaches it even while "busy" so the fresh sshfs re-mounts cleanly; it's a harmless
+  # no-op when nothing is mounted. This makes reconnect self-healing.
   dpipe /usr/libexec/sftp-server = \
     ssh -o RequestTTY=no -o BatchMode=yes "$@" \
-      'mkdir -p ~/mac-downloads && exec sshfs :'"$macdl"' ~/mac-downloads -o slave,ro,reconnect,uid=$(id -u),gid=$(id -g)' &
+      'fusermount3 -uz ~/mac-downloads 2>/dev/null || fusermount -uz ~/mac-downloads 2>/dev/null; mkdir -p ~/mac-downloads && exec sshfs :'"$macdl"' ~/mac-downloads -o slave,ro,reconnect,uid=$(id -u),gid=$(id -g)' &
   echo $! > "$pidfile"
 }
 
@@ -455,6 +461,9 @@ alias cat='bat --paging=never'
 # Use neovim instead of vim
 alias vim='nvim'
 alias n='nvim'
+
+# fastfetch — system info on demand (config in ~/.config/fastfetch)
+alias ff='fastfetch'
 
 {{ end }}
 
