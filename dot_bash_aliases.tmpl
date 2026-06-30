@@ -309,16 +309,27 @@ devbox() {
   # every `az ssh vm` regardless of installed version) without hiding real
   # az errors like auth failures or a missing VM.
   #
-  # LogLevel=FATAL stops the SSH client from scribbling "channel N: open failed:
-  # connect failed: Connection refused" over the interactive TUI. Those come from
-  # the -D 1080 SOCKS forward when a browser tab still points at a devbox:<port>
-  # dev server that has since stopped (proxy.pac routes it through here, the box
-  # refuses, and this master process — which also runs the shell — logs it onto the
-  # same terminal). FATAL drops those error-level lines but still surfaces fatal
-  # failures, so a refused connection / changed host key is never silently swallowed.
+  # The trailing `2> >(grep …)` drops "channel N: open failed: connect failed:
+  # Connection refused" spam from the interactive terminal. It comes from the
+  # -D 1080 SOCKS / -R 2489 forwards when a browser tab still points at a
+  # devbox:<port> dev server that has since stopped (proxy.pac routes it here, the
+  # box refuses, and the master ssh — which also runs the shell — logs it).
+  #
+  # Why grep and not `-o LogLevel=FATAL` (what we tried first): this is an AAD
+  # login, so azext_ssh sets delete_cert and force-injects its OWN `-v` into the ssh
+  # command (ssh_utils.py, to parse the log for auth success and clean up the
+  # ephemeral cert). A command-line `-v` pins LogLevel=DEBUG and unconditionally
+  # beats `-o LogLevel` (which only applies while the level is still unset) — so no
+  # LogLevel we pass can win. az then re-emits ssh's stderr to our terminal, swallowing
+  # only debug1/Authenticated lines and passing the channel errors through; so we
+  # filter those off az's stderr instead. The interactive session rides stdout (the
+  # PTY) and is untouched; any non-matching stderr — real fatal errors, auth failures,
+  # host-key changes — still comes through. (homelab uses plain ssh with no injected
+  # `-v`, so its `LogLevel FATAL` in ~/.ssh/config genuinely works and needs no filter.)
   az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
-    -D 1080 -R 2489:127.0.0.1:2489 -o LogLevel=FATAL \
-    -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m
+    -D 1080 -R 2489:127.0.0.1:2489 \
+    -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m \
+    2> >(grep -E --line-buffered -v 'channel [0-9]+: open failed: connect failed: Connection refused' >&2)
   kill "$_mnt" 2>/dev/null
   _revumount_devbox
   trap - INT TERM HUP
