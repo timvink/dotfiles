@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# downloadfile — copy a file (or directory) from this box to the Mac's ~/Downloads.
+#
+# Mechanism: a plain `cp` into ~/mac-downloads, the reverse sshfs mount that the
+# Mac's devbox()/homelab() shell function sets up read-write for the life of the
+# SSH session (see dot_bash_aliases.tmpl, "Reverse ~/Downloads mounts"). sshfs
+# streams the write back to the Mac over the existing SSH ControlMaster — no new
+# connection and no extra auth. Only meaningful on the box; on the Mac itself the
+# mount doesn't exist and it errors out.
+#
+#   downloadfile report.pdf                # → this Mac's ~/Downloads/report.pdf
+#   downloadfile ~/out/*.csv               # multiple paths ok
+#   :!downloadfile %   (from Neovim)       # current buffer's file; or :Download
+set -euo pipefail
+
+mnt="$HOME/mac-downloads"
+
+die() { printf 'downloadfile: %s\n' "$1" >&2; exit 1; }
+
+[ "$#" -ge 1 ] || die "usage: downloadfile <path> [<path>...]"
+
+# Guard: require a *live* mountpoint. After an abrupt session teardown (laptop
+# sleep, network drop) ~/mac-downloads can linger as an empty *local* dir; copying
+# into that would silently land the file on the box, not the Mac. Fail loud instead.
+if command -v mountpoint >/dev/null 2>&1; then
+  mountpoint -q "$mnt" \
+    || die "$mnt isn't mounted — reconnect with devbox/homelab (or wait for the mount to come up)"
+else
+  [ -d "$mnt" ] || die "$mnt not found — reconnect with devbox/homelab first"
+fi
+
+status=0
+for src in "$@"; do
+  if [ ! -e "$src" ]; then
+    printf 'downloadfile: no such path: %s\n' "$src" >&2
+    status=1
+    continue
+  fi
+  if cp -r -- "$src" "$mnt/"; then
+    printf '→ Mac ~/Downloads/%s\n' "$(basename -- "$src")"
+  else
+    printf 'downloadfile: failed to copy %s\n' "$src" >&2
+    status=1
+  fi
+done
+exit "$status"

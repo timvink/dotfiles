@@ -220,7 +220,7 @@ _remote_ssh_flag() {
 # reusable ControlMaster socket set up in ~/.ssh/config's `Host homelab` block.
 homelab() {
   _remote_ssh_flag 1
-  # Auto-mount ~/Downloads (read-only) at homelab:~/mac-downloads for this session
+  # Auto-mount ~/Downloads (read-write) at homelab:~/mac-downloads for this session
   # (see the reverse-mount helpers below); the backgrounded waiter brings it up once
   # the master is live, and it's torn down on exit. $_mnt is that waiter, killed in
   # case it's still polling when we leave.
@@ -293,7 +293,7 @@ zfs_unlock() {
 # ~/.local/bin/ssh-image-paste (this Mac).
 devbox() {
   _remote_ssh_flag 1
-  # Auto-mount ~/Downloads (read-only) at devbox:~/mac-downloads for this session
+  # Auto-mount ~/Downloads (read-write) at devbox:~/mac-downloads for this session
   # (see the reverse-mount helpers below). The devbox waiter resolves User+host from
   # the live connection (the IP isn't known up-front), mounts once the master is up,
   # and is torn down on exit. $_mnt is that waiter, killed if still polling on exit.
@@ -345,16 +345,18 @@ devbox() {
 }
 
 ## Reverse ~/Downloads mounts
-# devbox() and homelab() above auto-mount this Mac's ~/Downloads (read-only) onto the
-# box as ~/mac-downloads for the life of the session, so from a remote shell you can
-# just `cp ~/mac-downloads/foo.xlsx .` — no separate command to run or remember. It's
-# a *reverse* sshfs: the FUSE mount lives on the Linux box (it has /dev/fuse +
-# fusermount3); sshfs there runs in slave mode (-o slave), speaking SFTP over
-# stdin/stdout instead of dialing out. On this side, `dpipe` (from the `vde` brew)
-# wires the box's sshfs to our built-in /usr/libexec/sftp-server, so nothing new has
-# to listen on the Mac — it all rides the SSH ControlMaster the connect function
-# already set up. Read-only by design: pulling files out, never into it. Needs sshfs
-# on each box (run_onchange_setup_packages_linux.sh) and vde on the Mac
+# devbox() and homelab() above auto-mount this Mac's ~/Downloads onto the box as
+# ~/mac-downloads for the life of the session, so from a remote shell you can just
+# `cp ~/mac-downloads/foo.xlsx .` to pull a Mac file onto the box — no separate
+# command to run or remember. It's a *reverse* sshfs: the FUSE mount lives on the
+# Linux box (it has /dev/fuse + fusermount3); sshfs there runs in slave mode
+# (-o slave), speaking SFTP over stdin/stdout instead of dialing out. On this side,
+# `dpipe` (from the `vde` brew) wires the box's sshfs to our built-in
+# /usr/libexec/sftp-server, so nothing new has to listen on the Mac — it all rides
+# the SSH ControlMaster the connect function already set up. Mounted read-write so
+# it also works the other way: `downloadfile <path>` on the box (~/.local/bin) copies
+# a file INTO ~/mac-downloads and it lands in this Mac's ~/Downloads. Needs sshfs on
+# each box (run_onchange_setup_packages_linux.sh) and vde on the Mac
 # (.chezmoiscripts/…_darwin.sh).
 #
 # Resolve "<user> <host>" for the live devbox connection without hardcoding the
@@ -394,7 +396,7 @@ _revmount() {
   # no-op when nothing is mounted. This makes reconnect self-healing.
   dpipe /usr/libexec/sftp-server = \
     ssh -o RequestTTY=no -o BatchMode=yes "$@" \
-      'fusermount3 -uz ~/mac-downloads 2>/dev/null || fusermount -uz ~/mac-downloads 2>/dev/null; mkdir -p ~/mac-downloads && exec sshfs :'"$macdl"' ~/mac-downloads -o slave,ro,reconnect,uid=$(id -u),gid=$(id -g)' &
+      'fusermount3 -uz ~/mac-downloads 2>/dev/null || fusermount -uz ~/mac-downloads 2>/dev/null; mkdir -p ~/mac-downloads && exec sshfs :'"$macdl"' ~/mac-downloads -o slave,reconnect,uid=$(id -u),gid=$(id -g)' &
   echo $! > "$pidfile"
 }
 

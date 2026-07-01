@@ -30,3 +30,22 @@ vim.keymap.set("n", "<Up>", "<Up>zz")
 -- Keep cursor in the middle when searching next/previous
 vim.keymap.set("n", "n", "nzzzv")
 vim.keymap.set("n", "N", "Nzzzv")
+
+-- ':Download [path]' — copy a file to the Mac's ~/Downloads when working on the
+-- devbox/homelab over SSH. No arg = the current buffer's file. Runs the
+-- ~/.local/bin/downloadfile script, which writes into the reverse ~/mac-downloads
+-- sshfs mount (see dot_bash_aliases.tmpl "Reverse ~/Downloads mounts").
+vim.api.nvim_create_user_command("Download", function(opts)
+  local path = opts.args ~= "" and vim.fn.expand(opts.args) or vim.fn.expand("%:p")
+  if path == "" then
+    vim.notify("Download: no file (open a buffer or pass a path)", vim.log.levels.ERROR)
+    return
+  end
+  vim.system({ "downloadfile", path }, { text = true }, function(res)
+    vim.schedule(function()
+      local msg = vim.trim((res.stdout or "") .. (res.stderr or ""))
+      vim.notify(msg ~= "" and msg or "downloadfile done",
+        res.code == 0 and vim.log.levels.INFO or vim.log.levels.ERROR)
+    end)
+  end)
+end, { nargs = "?", complete = "file", desc = "Copy file to Mac ~/Downloads (devbox reverse mount)" })
