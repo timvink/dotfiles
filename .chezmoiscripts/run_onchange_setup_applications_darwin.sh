@@ -43,6 +43,9 @@ CASKS=(
 # definitions without an interactive prompt. Required for the netbird-ui
 # cask below, and stops later `brew` runs from refusing to load the tap.
 brew trust netbirdio/tap
+# Same for the codexbar cask (steipete's tap) in CASKS above — once tap-trust
+# becomes mandatory, a fresh `brew install --cask` would otherwise refuse it.
+brew trust --cask steipete/tap/codexbar
 
 echo "Installing cask apps..."
 for cask in "${CASKS[@]}"; do
