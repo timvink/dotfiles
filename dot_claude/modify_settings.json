@@ -10,6 +10,16 @@
 #                                                     read as "your turn". Also
 #                                                     clears any stale state left
 #                                                     on a reused tmux window.
+#   SessionEnd                       → "none"        the agent exited (quit, /clear,
+#                                                     logout, prompt-input exit) —
+#                                                     clear the dot so a finished tab
+#                                                     dropped back to a bare shell
+#                                                     doesn't keep a stale dot. (The
+#                                                     zsh precmd reaper in
+#                                                     dot_zshrc.tmpl is the backstop
+#                                                     for Codex — which has no
+#                                                     SessionEnd — and for hard
+#                                                     crashes, which fire no hook.)
 #   Stop                             → delegated to `agent-stop-state`, which
 #                                                     reads the Stop payload and
 #                                                     picks: "running" ● if the
@@ -22,8 +32,18 @@
 #                                                     the user something — see
 #                                                     ~/.claude/CLAUDE.md); else
 #                                                     "idle" ○.
-#   UserPromptSubmit / PreToolUse /
-#   PostToolUse                      → "running"     blue ●  (Claude is working)
+#   UserPromptSubmit / PostToolUse   → "running"     blue ●  (Claude is working)
+#   PreToolUse                       → "running"     blue ● — EXCEPT the two tools
+#                                                     that block mid-turn waiting on
+#                                                     the user: AskUserQuestion and
+#                                                     ExitPlanMode (plan approval),
+#                                                     which go "needs-input" red ●.
+#                                                     Claude fires no Notification for
+#                                                     these and no further hook runs
+#                                                     while it waits, so without this
+#                                                     branch the dot would sit blue as
+#                                                     if working. PostToolUse restores
+#                                                     running once the user answers.
 #   Notification[permission_prompt]  → "needs-input" red ●   (blocked on an
 #                                                     approval). The idle_prompt
 #                                                     nudge is deliberately NOT
@@ -42,9 +62,9 @@ input=$(cat)
 
 mk_hook() {
     # build a one-element hooks array invoking `agent-state <arg>` with an empty
-    # matcher. The events these drive (SessionStart / Stop / Pre|PostToolUse)
-    # aren't filtered by tool name, so the matcher is always "". $HOME is left
-    # literal so /bin/sh expands it when Claude Code runs the hook.
+    # matcher. The events these drive (SessionStart / SessionEnd / Stop /
+    # PostToolUse) aren't filtered by tool name, so the matcher is always "".
+    # $HOME is left literal so /bin/sh expands it when Claude Code runs the hook.
     jq -n --arg cmd "\$HOME/.local/bin/agent-state $1" '[
         {
             "matcher": "",
@@ -67,6 +87,19 @@ running_hook=$(mk_hook "running")
 # ""), then gate on notification_type inside the command. $HOME stays literal.
 perm_cmd='if [ "$(jq -r .notification_type)" = permission_prompt ]; then $HOME/.local/bin/agent-state needs-input; fi'
 perm_hook=$(jq -n --arg cmd "$perm_cmd" '[
+    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
+]')
+
+# PreToolUse: normally "running", but AskUserQuestion and ExitPlanMode (plan
+# approval) block mid-turn waiting on the user with NO Notification and no
+# further hook until the user answers — so the generic running dot would sit
+# blue as if Claude were working. Branch on the payload's tool_name (read once
+# from stdin, same as perm_cmd) to send those two red instead; PostToolUse
+# flips back to running the moment the user responds. Matcher stays "" — the
+# tool-name test lives in the command, since matchers only gate which tools
+# fire the hook and we want ALL PreToolUse events to reach this one script.
+pretool_cmd='case "$(jq -r .tool_name)" in AskUserQuestion|ExitPlanMode) $HOME/.local/bin/agent-state needs-input ;; *) $HOME/.local/bin/agent-state running ;; esac'
+pretool_hook=$(jq -n --arg cmd "$pretool_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
 
@@ -115,12 +148,14 @@ printf '%s' "$input" | jq \
     --argjson none    "$none_hook" \
     --argjson running "$running_hook" \
     --argjson prompt  "$prompt_hook" \
+    --argjson pretool "$pretool_hook" \
     --argjson perm    "$perm_hook" \
     --argjson stop    "$stop_hook" \
     --arg     statuscmd "$status_cmd" \
     '.hooks.SessionStart     = $none
+   | .hooks.SessionEnd       = $none
    | .hooks.UserPromptSubmit = $prompt
-   | .hooks.PreToolUse       = $running
+   | .hooks.PreToolUse       = $pretool
    | .hooks.PostToolUse      = $running
    | .hooks.Notification     = $perm
    | .hooks.Stop             = $stop
