@@ -59,6 +59,10 @@ PACKAGES=(
   pinentry-mac
   rbw # Bitwarden/Vaultwarden CLI; config managed by chezmoi (Library/Application Support/rbw on macOS, ~/.config/rbw on Linux)
   supabase/tap/supabase
+  databricks/tap/databricks # Databricks CLI
+  j178/tap/prek # prek: fast pre-commit runner (Rust); see the pre-commit skill
+  resend/cli/resend # Resend email-API CLI
+  stripe/stripe-cli/stripe # Stripe CLI
   scw
   watch
   pngpaste # clipboard image -> PNG, used by img-clip.nvim in neovim
@@ -67,6 +71,13 @@ PACKAGES=(
   wireguard-go # userspace WireGuard backend (macOS has no kernel module)
   vde # provides `dpipe`, used by devmount() to reverse-mount ~/Downloads onto the devbox via sshfs
 )
+# Trust every third-party tapped formula above (the owner/tap/name entries) before
+# installing, so Homebrew's tap-trust check doesn't block a fresh setup once it's
+# mandatory. Idempotent, and auto-covers any tapped formula added to PACKAGES later.
+for pkg in "${PACKAGES[@]}"; do
+  case "$pkg" in */*) brew trust --formula "$pkg" ;; esac
+done
+
 brew install ${PACKAGES[@]}
 
 echo "Cleaning up..."
