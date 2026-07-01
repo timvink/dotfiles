@@ -25,14 +25,23 @@
 state="${1:-}"
 
 if [ -n "${TMUX_PANE:-}" ]; then
+    # Per-pane sentinel: present on disk exactly while this pane's window carries
+    # an @agent_state dot. The zsh precmd reaper (dot_zshrc.tmpl) stat-checks it
+    # to cheaply decide whether to clear a stale dot when the shell prompt
+    # returns — the backstop for exits that fire no clearing hook (Codex has no
+    # SessionEnd; a crash/SIGKILL fires nothing). Keep this path formula byte-for-
+    # byte identical to the reaper's, or the two won't agree on the file.
+    sentinel="${TMPDIR:-/tmp}/agent-dot-${TMUX_PANE#%}"
     win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
     if [ -n "${win:-}" ]; then
         if [ "$state" = none ]; then
             # Unset the option entirely → no dot, and a reused window doesn't
             # carry a stale state from a previous agent session.
             tmux set-option -wt "$win" -u '@agent_state' 2>/dev/null || true
+            rm -f "$sentinel" 2>/dev/null || true
         else
             tmux set-option -wt "$win" '@agent_state' "$state" 2>/dev/null || true
+            : > "$sentinel" 2>/dev/null || true
         fi
     fi
 fi

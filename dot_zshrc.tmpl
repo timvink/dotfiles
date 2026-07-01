@@ -31,6 +31,22 @@ if command -v starship >/dev/null 2>&1; then
     eval "$(starship init zsh)"
 fi
 
+# Reap a stale per-tab agent dot. The agent-state script (driven by Claude/Codex
+# lifecycle hooks) sets a tmux @agent_state dot and drops a per-pane sentinel
+# file while a dot is live. Most exits get cleared by a hook (Claude's SessionEnd
+# / the `e`-exit path), but Codex has no SessionEnd and a crash/SIGKILL fires no
+# hook at all — so the dot would linger until the window is reused. While an
+# agent runs it owns the pane's foreground, so this precmd can't fire; when the
+# zsh prompt returns the agent is provably gone. If the sentinel is present,
+# clear the dot. Gated on the cheap stat first, so agent-free panes fork nothing.
+# The sentinel path MUST match executable_agent-state's formula exactly.
+_agent_dot_reap() {
+    [[ -n $TMUX_PANE && -e ${TMPDIR:-/tmp}/agent-dot-${TMUX_PANE#%} ]] || return
+    agent-state none
+}
+autoload -Uz add-zsh-hook
+add-zsh-hook precmd _agent_dot_reap
+
 export HISTFILE=~/.zsh_history
 export HISTSIZE=5000
 export SAVEHIST=5000
