@@ -21,7 +21,7 @@
 # "Re-rank mode" block below.
 # Type to filter, Enter to jump. An open session is switched to; a not-yet-open
 # project gets a fresh session named after its dir (tmux forbids . and :, so
-# they squash to _) with `cc` (Claude) in the first tab and `nvim .` in a
+# they squash to _) with `{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}` in the first tab and `nvim .` in a
 # second tab (the nvim tab is selected) — the same create-or-switch shape as
 # the `t.` shell function (dot_bash_aliases.tmpl), though this copy also captures
 # the new pane id and routes the switch through go(). NOTE: that . / : → _ squash means two dirs like `a.b` and `a:b` map to
@@ -206,7 +206,7 @@ else
     # has-session) does NOT resolve as a pane — it errors, which under set -e
     # would abort the script before the switch below ever runs.
     pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$target")
-    tmux send-keys -t "$pane" cc Enter
+    tmux send-keys -t "$pane" {{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }} Enter
     # Second tab (window) with nvim; no -d so it becomes the selected window.
     nvim_pane=$(tmux new-window -P -F '#{pane_id}' -t "=$name" -c "$target")
     tmux send-keys -t "$nvim_pane" 'nvim .' Enter
