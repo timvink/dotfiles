@@ -144,6 +144,19 @@ stop_hook=$(jq -n --arg cmd "$stop_cmd" '[
 # would not resolve.
 status_cmd="bash $HOME/.claude/statusline-command.sh"
 
+# Auto-compact earlier than the default. Claude Code normally compacts only at
+# (context window - 13k tokens) — ~99% full on a 1M window, where recall over
+# the middle of the context has long since degraded. Setting the percentage
+# override makes it compact at that share of the window instead:
+#
+#   threshold = min(floor(window * pct / 100), window - 13000)
+#
+# so the value can only *lower* the threshold, never push past the 13k reserve;
+# anything outside 0 < pct <= 100 is ignored and the default applies. Trade-off
+# is more frequent compactions in exchange for staying in the range where the
+# model actually uses what's in context.
+autocompact_pct=65
+
 printf '%s' "$input" | jq \
     --argjson none    "$none_hook" \
     --argjson running "$running_hook" \
@@ -152,6 +165,7 @@ printf '%s' "$input" | jq \
     --argjson perm    "$perm_hook" \
     --argjson stop    "$stop_hook" \
     --arg     statuscmd "$status_cmd" \
+    --arg     autocompactpct "$autocompact_pct" \
     '.hooks.SessionStart     = $none
    | .hooks.SessionEnd       = $none
    | .hooks.UserPromptSubmit = $prompt
@@ -159,4 +173,5 @@ printf '%s' "$input" | jq \
    | .hooks.PostToolUse      = $running
    | .hooks.Notification     = $perm
    | .hooks.Stop             = $stop
-   | .statusLine             = { "type": "command", "command": $statuscmd }'
+   | .statusLine             = { "type": "command", "command": $statuscmd }
+   | .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $autocompactpct'
