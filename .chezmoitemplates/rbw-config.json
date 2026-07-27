@@ -14,15 +14,16 @@
   `rbw config set` (which would rewrite the file and drift from the source).
 
   - base_url       : the vault server URL (may only resolve on the home network).
-  - lock_timeout   : seconds the agent keeps the key after last use. Longer on a
-                     stationary machine for convenience; shorter on a portable one.
+  - lock_timeout   : seconds the agent keeps the key after last use. 24h — the
+                     machines are single-user and the key never leaves rbw-agent
+                     memory, so re-typing the master password daily is enough.
   - pinentry       : prompt program. pinentry-mac on macOS, pinentry-curses (TTY)
                      otherwise.
 */ -}}
 {
   "email": "vinktim@proton.me",
   "base_url": "https://vault.home.timvink.nl",
-  "lock_timeout": {{ if eq .chezmoi.hostname "homelab" }}36000{{ else }}3600{{ end }},
+  "lock_timeout": 86400,
   "sync_interval": 3600,
   "pinentry": "{{ if eq .chezmoi.os "darwin" }}pinentry-mac{{ else }}pinentry-curses{{ end }}"
 }
