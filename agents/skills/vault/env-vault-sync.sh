@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # env-vault-sync.sh — keep a .env file mirrored into the Vaultwarden vault (rbw).
 #
-# A "linter" gate for .env files: before any secret in a .env is used, `check`
-# confirms the vault holds a current copy; `update` (re)writes that copy. The
+# Run `update` after a .env changes to (re)write the vault copy; `check` compares
+# the two without writing. Reading a .env needs no sync — only editing does. The
 # whole .env lives in the NOTES of a Login-type rbw item named
 # "env-backup:<repo-name>/<path-relative-to-repo-root>" (e.g.
 # "env-backup:timvink-homelab/.env"), so the SAME repo's .env maps to the SAME
