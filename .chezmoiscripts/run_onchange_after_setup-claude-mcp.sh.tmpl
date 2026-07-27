@@ -1,0 +1,70 @@
+#!/bin/sh
+# Declare my Claude Code MCP servers so a fresh machine gets the whole set.
+#
+# Claude Code keeps user-scope servers in ~/.claude.json, a file it also fills
+# with runtime state (per-project history, onboarding counters, OAuth material).
+# chezmoi must not own that file, so this script drives the `claude mcp` CLI
+# instead -- the same approach as `modify_` scripts elsewhere in this repo:
+# inject only the keys we manage, leave everything else alone.
+#
+# The list below mirrors [mcp_servers.*] in dot_codex/modify_private_config.toml;
+# keep the two in sync when adding a server.
+#
+# OAuth tokens are NOT stored here -- they live in Claude's own credential store
+# and survive `chezmoi apply`. Each hosted server below needs a one-time
+# `claude mcp login <name>` (or an in-session /mcp auth) per machine.
+#
+# Additive by design: it adds servers that are missing and warns about ones whose
+# URL has drifted, but never removes anything. Servers added ad hoc or by a
+# plugin are left untouched.
+#
+# chezmoi reruns this whenever the server list changes, and once more if claude
+# only appeared on PATH after the last run:
+#   claude: {{ lookPath "claude" }}
+
+set -eu
+
+# A fresh machine installs claude into ~/.local/bin *during* this same apply
+# (see the setup_packages_* scripts), which may not be on PATH in the shell
+# chezmoi inherited.
+PATH="$HOME/.local/bin:$PATH"
+export PATH
+
+if ! command -v claude >/dev/null 2>&1; then
+	echo "setup-claude-mcp: claude not installed, skipping MCP server setup" >&2
+	exit 0
+fi
+
+# add_http <name> <url> -- register a streamable-HTTP server at user scope.
+add_http() {
+	name=$1
+	url=$2
+
+	if ! current=$(claude mcp get "$name" 2>/dev/null); then
+		claude mcp add --transport http "$name" "$url" --scope user
+		return 0
+	fi
+
+	# Already there. Only flag a drifted URL -- replacing it would silently
+	# invalidate the OAuth grant, so that is my call to make, not the script's.
+	if ! printf '%s\n' "$current" | grep -qF "URL: $url"; then
+		echo "setup-claude-mcp: '$name' exists with a different URL than this repo declares." >&2
+		echo "  expected: $url" >&2
+		echo "  fix with: claude mcp remove $name -s user && chezmoi apply --force" >&2
+	fi
+}
+
+add_http context7       https://mcp.context7.com/mcp/oauth
+add_http notion         https://mcp.notion.com/mcp
+add_http todoist        https://ai.todoist.net/mcp
+add_http cloudflare     https://mcp.cloudflare.com/mcp
+add_http gethumandesign https://api.gethumandesign.com/mcp
+add_http activecampaign https://stilstaanbijjezelf1.activehosted.com/api/agents/mcp/http
+add_http atlassian      https://mcp.atlassian.com/v1/mcp/authv2
+
+# Albert Heijn: a local stdio binary, hand-installed and not managed by this
+# repo, so register it only on machines that actually have it.
+ah_bin="$HOME/.local/bin/ah-mcp"
+if [ -x "$ah_bin" ] && ! claude mcp get ah >/dev/null 2>&1; then
+	claude mcp add ah --scope user -- "$ah_bin" --transport stdio
+fi

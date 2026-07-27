@@ -2,15 +2,14 @@
 
 ## MCP servers
 
-```bash
-# writes to ~/.claude.json. -s user makes notion global (every project);
-# authenticate in-session on first use (OAuth) or with `claude mcp login notion`.
-claude mcp add --transport http notion https://mcp.notion.com/mcp -s user
-claude mcp add --transport http activecampaign https://stilstaanbijjezelf1.activehosted.com/api/agents/mcp/http
+Declared in `.chezmoiscripts/run_onchange_after_setup-claude-mcp.sh.tmpl` and
+registered automatically on `chezmoi apply` — add or change a server there, not
+with a one-off `claude mcp add`. The same set is mirrored for Codex in
+`dot_codex/modify_private_config.toml`.
 
-# context7 via OAuth (keyless) — note the dedicated /mcp/oauth endpoint, and
-# user scope so it's available in every project as a single definition.
-# https://context7.com/docs/howto/oauth
-claude mcp add --transport http context7 https://mcp.context7.com/mcp/oauth -s user
-claude mcp login context7
-```
+Definitions only: OAuth tokens live in Claude's own credential store, so each
+hosted server still needs a one-time `claude mcp login <name>` (or an in-session
+`/mcp` auth) per machine.
+
+Note that context7 uses a dedicated OAuth endpoint (`/mcp/oauth`, not `/mcp`)
+per <https://context7.com/docs/howto/oauth> — keyless, so no API key in this repo.

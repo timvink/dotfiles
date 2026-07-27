@@ -34,7 +34,8 @@ base_url = "https://aif-nwf-devtools.openai.azure.com/openai/v1"
 env_key = "AZURE_OPENAI_API_KEY"
 wire_api = "responses"
 
-# MCP servers — mirrors the Claude Code set (~/.claude.json). Codex detects the
+# MCP servers — mirrors the Claude Code set, declared in
+# .chezmoiscripts/run_onchange_after_setup-claude-mcp.sh.tmpl. Codex detects the
 # streamable-HTTP transport from the `url` key alone; no extra flags needed.
 # This file holds only server definitions — OAuth tokens live in Codex's own
 # auth store (not here), so they survive `chezmoi apply`. For each hosted server
@@ -59,6 +60,9 @@ url = "https://api.gethumandesign.com/mcp"
 
 [mcp_servers.activecampaign]
 url = "https://stilstaanbijjezelf1.activehosted.com/api/agents/mcp/http"
+
+[mcp_servers.atlassian]
+url = "https://mcp.atlassian.com/v1/mcp/authv2"
 
 # Local stdio server (Albert Heijn). macOS-only binary path; on a Linux box this
 # entry just won't launch — mirrors the Claude setup, which hardcodes the same path.
