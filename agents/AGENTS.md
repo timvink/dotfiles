@@ -6,33 +6,26 @@
      instead (Codex has no prose-rules dir; its ~/.codex/rules/ is a
      command-approval store, not instructions). -->
 
-These rules apply to every task in this project unless explicitly overridden.
+These rules apply to every task, in every project, unless explicitly overridden.
 Bias: caution over speed on non-trivial work. Use judgment on trivial tasks.
 
 ## Rule 1 — Think Before Coding
-State assumptions explicitly. If uncertain, ask rather than guess.
-Present multiple interpretations when ambiguity exists.
-Push back when a simpler approach exists.
-Stop when confused. Name what's unclear.
+State assumptions explicitly. Push back when a simpler approach exists.
 Fix things from first principles. Find the root cause and fix that, instead of applying a cheap bandaid.
 Always use Context7 MCP when you need library/API documentation.
 
-## Rule 2 — Simplicity First
-Minimum code that solves the problem. Nothing speculative.
-No features beyond what was asked. No abstractions for single-use code.
-Test: would a senior engineer say this is overcomplicated? If yes, simplify.
-Clean up unused code ruthlessly. If a function no longer needs a parameter or a helper is dead, delete it and update the callers instead of letting the junk linger.
-
-## Rule 3 — Goal-Driven Execution
+## Rule 2 — Goal-Driven Execution
 Define success criteria. Loop until verified.
 Don't follow steps. Define success and iterate.
 Strong success criteria let you loop independently.
 
 ## HTML artifacts & scratch files
 When I ask for an HTML artifact — a standalone file just for me to open and look
-at, not part of a project — create it under a temp dir (`/tmp`), never the home
-or project directory. Same for other one-off preview/report files. They're
-disposable; don't clutter tracked or working trees with them. Tell me the path.
+at, not part of a project — write it to the session scratchpad dir your tool
+gives you, else `/tmp`. Never the home or project directory. Same for other
+one-off preview/report files: they're disposable, don't clutter tracked or
+working trees with them. Always tell me the full path — the scratchpad is
+per-session, so I can't guess where it went.
 
 ## End-of-turn input signal
 A tmux hook reads your final line: ending in "?" flips my tab to red ("input
@@ -43,15 +36,12 @@ slowest turns." Litmus: if you'd be fine stopping here, state it. Don't contort 
 writing or tack a reflexive "Want me to…?" onto finished work. Tool prompts
 (AskUserQuestion, ExitPlanMode, permissions) signal separately — no question needed.
 
-## Machine setup via chezmoi
-Dotfiles and machine configuration are managed with chezmoi. Any change to the
-machine setup — shell config, `~/.gitconfig`, `~/.claude/`, installed-tool config,
-etc. — must be made in the chezmoi source repo, never by hand-editing the live
-file (a direct edit is silently overwritten on the next `chezmoi apply`).
-Run `chezmoi cd` to enter the repo (source root: `~/.local/share/chezmoi`).
-Use `chezmoi source-path <file>` to find a file's source, edit that source
-(e.g. `dot_gitconfig.tmpl`), then `chezmoi apply` to update the live file. When
-committing, stage only the files you changed — the repo may hold unrelated WIP.
+## Machine setup is infrastructure-as-code
+Prefer declaring a change in code over running a one-off imperative command.
+My dotfiles and machine configuration — shell config, `~/.gitconfig`,
+`~/.claude/`, installed-tool config, packages — are managed with chezmoi, so
+never hand-edit a live config file: the next `chezmoi apply` silently
+overwrites it. Load the `chezmoi` skill before changing any of this.
 
 ## .env files are vault-backed
 Secrets in a `.env` are mirrored into my password vault. Whenever you **change**
@@ -64,9 +54,6 @@ helper says the vault is locked, tell me; never run `rbw login`/`rbw unlock`
 yourself (those take my master password via pinentry). See the `vault` skill for
 the rest.
 
-## Infrastructure as code
-Always use IaC. Changes to my personal setup are managed through chezmoi, you can find the repo using `chezmoi cd`.
-
 ## Git worktrees
 When working in a git worktree (e.g. started with `claude --worktree`) the
 checkout is fresh: gitignored files are absent and dependencies aren't
@@ -77,8 +64,8 @@ installed. Before starting project work, confirm the repo provides both:
   deps, build venvs, seed config); run it with `make setup`.
 If either is missing, stop and ask the user to add it before continuing.
 
-
-## Other
-
-- Always respect AGENTS.md exactly like it's a CLAUDE.md file.
+## Project-level AGENTS.md
+When a repo ships an `AGENTS.md`, follow it exactly as if it were a `CLAUDE.md`
+— it carries the same authority. (This matters because Claude Code only loads
+`CLAUDE.md` on its own; Codex only loads `AGENTS.md`.)
 
