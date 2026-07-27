@@ -53,7 +53,12 @@ for cask in "${CASKS[@]}"; do
     if brew list --cask "$cask_name" &>/dev/null 2>&1; then
         echo "Already installed, skipping: $cask_name"
     else
-        brew install --cask "$cask"
+        # --adopt takes ownership of an app that is already in /Applications but
+        # was NOT installed by brew (installed by hand, or by the app's own
+        # updater). Without it brew aborts the whole script with "It seems there
+        # is already an App at '/Applications/<X>.app'", which is how a single
+        # hand-installed app blocks every later step of `chezmoi apply`.
+        brew install --cask --adopt "$cask"
     fi
 done
 
@@ -98,8 +103,12 @@ defaults -currentHost write -globalDomain NSStatusItemSelectionPadding -int 6
 killall SystemUIServer 2>/dev/null || true
 killall ControlCenter 2>/dev/null || true
 
-# Install netbird service for VPN Mesh access
-if ! sudo launchctl list | grep -q netbird; then
+# Install netbird service for VPN Mesh access. Guard on the LaunchDaemon plist
+# instead of `sudo launchctl list`: the plist is world-readable, so an already
+# configured machine needs no sudo at all and `chezmoi apply` runs to completion
+# non-interactively. Previously every apply hit sudo here and aborted the script
+# whenever it could not prompt for a password. Only a first-time install asks.
+if [ ! -f /Library/LaunchDaemons/netbird.plist ]; then
     sudo netbird service install
     sudo netbird service start
 fi
