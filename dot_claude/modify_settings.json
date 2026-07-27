@@ -157,6 +157,14 @@ status_cmd="bash $HOME/.claude/statusline-command.sh"
 # model actually uses what's in context.
 autocompact_pct=65
 
+# Default permission mode: "auto" delegates each permission decision to a safety
+# classifier instead of prompting for every action. It must live in the USER
+# settings file (this one) — Claude Code deliberately ignores an "auto" default
+# coming from a project's .claude/settings.json, since that is repo-controllable.
+# Can't lock us out: if auto mode is unavailable at startup (unsupported model,
+# org kill switch) the CLI falls back to "default" with a notice.
+default_permission_mode=auto
+
 printf '%s' "$input" | jq \
     --argjson none    "$none_hook" \
     --argjson running "$running_hook" \
@@ -166,6 +174,7 @@ printf '%s' "$input" | jq \
     --argjson stop    "$stop_hook" \
     --arg     statuscmd "$status_cmd" \
     --arg     autocompactpct "$autocompact_pct" \
+    --arg     defaultmode "$default_permission_mode" \
     '.hooks.SessionStart     = $none
    | .hooks.SessionEnd       = $none
    | .hooks.UserPromptSubmit = $prompt
@@ -174,4 +183,5 @@ printf '%s' "$input" | jq \
    | .hooks.Notification     = $perm
    | .hooks.Stop             = $stop
    | .statusLine             = { "type": "command", "command": $statuscmd }
-   | .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $autocompactpct'
+   | .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $autocompactpct
+   | .permissions.defaultMode = $defaultmode'
