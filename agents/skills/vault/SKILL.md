@@ -77,25 +77,23 @@ absolute path means the same repo's `.env` maps to the same vault entry on every
 machine and checkout (macOS, Linux, a git worktree); outside a git repo it falls
 back to `env-backup:<dir-name>/<file>`.
 
-**This is a linter gate: before using any secret from a `.env`, verify the vault
-copy is current.**
+**The trigger is writing, not reading.** After you add, change or remove a key
+in a `.env`, refresh the vault copy. Reading a secret out of a `.env` needs no
+sync.
 
 ```bash
-~/.claude/skills/vault/env-vault-sync.sh check  <path/to/.env>
-~/.claude/skills/vault/env-vault-sync.sh update <path/to/.env>
+~/.claude/skills/vault/env-vault-sync.sh update <path/to/.env>   # after editing
+~/.claude/skills/vault/env-vault-sync.sh check  <path/to/.env>   # is it current?
 ```
 
-`check` exit codes → what to do:
+`update` rewrites the vault note from the current `.env`. It needs the vault
+unlocked — on exit **2 (locked)**, ask the user to `rbw unlock` and retry; you
+never handle the master password yourself.
 
-- **0** — in sync; proceed.
-- **3 (drift)** — it prints which **key names** drifted (never values). Tell the
-  user, then offer to run `update` (which needs an unlocked vault).
-- **2 (locked)** — ask the user to `rbw unlock`, then re-check.
-- **4 (no backup yet)** — offer to seed it with `update`.
-
-`update` writes the current `.env` into the vault note via rbw — it needs the
-vault unlocked (so the user runs `rbw unlock` first; you never handle the master
-password). Run `update` after the user has rotated or added a secret.
+`check` compares without writing, for when you want to know where things stand:
+**0** in sync, **2** locked, **3** drift (it prints the drifted **key names**,
+never values), **4** no backup yet. Both 3 and 4 are resolved the same way — run
+`update`.
 
 ## Notes
 
