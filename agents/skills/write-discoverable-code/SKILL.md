@@ -93,8 +93,6 @@ rules make code resolvable in one search instead of five.
   meaningful only inside one concept belongs inline, and a file per tiny function
   fragments one answer across several reads. The test runs both ways: a module that
   answers many unrelated questions is holding more than one concept.
-- **Colocate tests** (`foo.test.ts` next to `foo.ts`) so one search finds behavior and its
-  specification together.
 - **Mark dead ends.** `@deprecated` on the old path, with a pointer to the new one.
 
 ## Quick checklist before committing
