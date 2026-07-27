@@ -1,5 +1,12 @@
 #!/bin/sh
 
+# Homebrew 6 turned "ask mode" on by default, so every `brew install` whose plan
+# reaches beyond the named packages blocks on "Do you want to proceed? [y/n]".
+# See the matching comment in run_onchange_setup_applications_darwin.sh for why
+# this is HOMEBREW_NO_ASK and not HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK.
+export HOMEBREW_NO_ASK=1
+export HOMEBREW_NO_ENV_HINTS=1
+
 echo "Setting up environment for macOS..."
 
 # Install Homebrew if not installed
