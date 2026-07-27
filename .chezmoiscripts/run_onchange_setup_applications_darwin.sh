@@ -1,5 +1,20 @@
 #!/bin/sh
 
+# Homebrew 6 turned "ask mode" on by default: `brew install` prints its plan and
+# then blocks on "Do you want to proceed? [y/n]" whenever the plan pulls in
+# dependencies or dependents beyond what was named. That makes an unattended
+# setup script sit there waiting for keystrokes -- once per install call. Brew
+# skips the prompt when there is no TTY, so this only bites when `chezmoi apply`
+# is run from a real terminal, which is the normal case.
+#
+# HOMEBREW_NO_ASK disables ask mode without changing what brew actually does.
+# Deliberately NOT HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK (which brew's own hint
+# suggests): that silences the prompt by *skipping* the dependent upgrades and
+# broken-linkage repairs, leaving the machine subtly stale.
+export HOMEBREW_NO_ASK=1
+# Drop the "Hide these hints with..." advice blocks from the log.
+export HOMEBREW_NO_ENV_HINTS=1
+
 echo "Setting up environment for macOS..."
 
 
