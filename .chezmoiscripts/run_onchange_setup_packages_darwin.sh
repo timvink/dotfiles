@@ -106,9 +106,13 @@ else
     echo "VSCode 'code' CLI not found on PATH; skipping extension install."
 fi
 
-# Install Claude Code
-if ! brew list --cask claude-code >/dev/null 2>&1; then
-    brew install --cask claude-code
+# Install Claude Code (native installer — self-updating, installs to
+# ~/.local/bin/claude). Deliberately NOT the Homebrew cask: the cask tracks the
+# slower `stable` channel and lags the native `latest` one by hours to days, so
+# having both leaves a stale second copy on PATH that can shadow the native
+# install depending on PATH order.
+if ! command -v claude >/dev/null 2>&1; then
+    curl -fsSL https://claude.ai/install.sh | bash
 fi
 
 # Install agy (antigravity CLI)
