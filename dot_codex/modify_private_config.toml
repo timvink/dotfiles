@@ -7,11 +7,17 @@
 # apply). Instead we PIN the portable settings below and PASS THROUGH Codex's
 # runtime sections verbatim.
 #
-# Why pin `model`: Codex's model-migration logic rewrote `model` to the bare
-# "gpt-5.4" after gpt-5.3-codex was removed, but the Azure deployment is named
-# "gpt-5.4-codex" — the mismatch caused 404 "deployment does not exist". Pinning
-# the deployment name here stops that from recurring. Dead [profiles.global] /
-# [notice.model_migrations] 5.3 references are dropped.
+# Why pin `model`: Codex's model-migration logic rewrites `model` to a bare
+# upstream model id (it once rewrote it to "gpt-5.4"), but what Azure wants is
+# the *deployment* name — the mismatch causes 404 "deployment does not exist".
+# Pinning the deployment name here stops that from recurring.
+#
+# Deployments live in the nwf-ai-platform-infra repo (infra/global/platform.bicep
+# on the aif-nwf-devtools account). As of 2026-07-29 they are gpt-5.6-terra-codex
+# (default) and gpt-5.6-sol-codex (the [profiles.sol] below) — both EU-resident
+# DataZoneStandard. terra costs the same per token as the gpt-5.4 it replaced;
+# sol is roughly 2x, hence opt-in. Dead [profiles.global] (the old non-EU
+# gpt-5.3-codex) and [notice.model_migrations] references are dropped.
 #
 # chezmoi feeds the current target file on stdin; we emit the desired file.
 import sys, re
@@ -19,10 +25,12 @@ import sys, re
 OWNED = '''# Interactive defaults. Pointed at the shared dev-tools Azure OpenAI
 # deployment (EU-resident, Responses API). The key comes from the
 # AZURE_OPENAI_API_KEY env var, set by /etc/profile.d/codex.sh.
-# Managed by chezmoi (dot_codex/modify_config.toml) — edit the source there,
-# not this file. The settings below are pinned; Codex's runtime sections
+# Managed by chezmoi (dot_codex/modify_private_config.toml) — edit the source
+# there, not this file. The settings below are pinned; Codex's runtime sections
 # ([projects.*], [tui.*], [hooks.*]) are preserved as-is.
-model = "gpt-5.4-codex"
+#
+# `model` is an Azure *deployment* name, not an upstream model id.
+model = "gpt-5.6-terra-codex"
 model_provider = "azure"
 model_reasoning_effort = "medium"
 approval_policy = "on-request"
@@ -33,6 +41,14 @@ name = "Azure OpenAI"
 base_url = "https://aif-nwf-devtools.openai.azure.com/openai/v1"
 env_key = "AZURE_OPENAI_API_KEY"
 wire_api = "responses"
+
+# Opt-in heavy profile: `codex --profile sol`. GPT-5.6-sol is the heaviest
+# variant of the generation (the default above is terra, the middle one) and
+# costs ~2x per token, so reach for it on hard problems, not by default. Same
+# dev-tools account, same DataZoneStandard SKU — still EU-resident.
+[profiles.sol]
+model = "gpt-5.6-sol-codex"
+model_provider = "azure"
 
 # MCP servers — mirrors the Claude Code set, declared in
 # .chezmoiscripts/run_onchange_after_setup-claude-mcp.sh.tmpl. Codex detects the
