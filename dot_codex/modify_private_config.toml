@@ -77,8 +77,10 @@ url = "https://mcp.notion.com/mcp"
 [mcp_servers.cloudflare]
 url = "https://mcp.cloudflare.com/mcp"
 
-[mcp_servers.gethumandesign]
-url = "https://api.gethumandesign.com/mcp"
+# gethumandesign is deliberately NOT declared here. It ships as an official
+# plugin in OpenAI's directory, so `/plugins` inside Codex installs it and
+# handles its own OAuth. A manual entry would duplicate those tools and sit
+# permanently "Not logged in" in the startup warnings.
 
 [mcp_servers.activecampaign]
 url = "https://stilstaanbijjezelf1.activehosted.com/api/agents/mcp/http"
