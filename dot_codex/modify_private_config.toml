@@ -13,11 +13,11 @@
 # not exist") mid-session. This pin repairs that on the next `chezmoi apply`.
 #
 # As of 2026-07-30 the deployments are named *identically* to their model ids
-# (gpt-5.6-terra, gpt-5.6-sol), so a `/model` switch between them is now a no-op
+# (gpt-5.6-terra, gpt-5.6-sol, gpt-5.6-luna), so a `/model` switch between them is now a no-op
 # rather than a breakage — the pin is a second line of defence, not the only one.
 # They carried a `-codex` suffix until then, a leftover from gpt-5.3-codex; a
 # single `/model` switch was enough to break a live session, so it was dropped.
-# Switching to a model that isn't deployed (gpt-5.6-luna, a future 5.7) still
+# Switching to a model that isn't deployed (for example a future 5.7) still
 # 404s — correctly. Deployments live in the nwf-ai-platform-infra repo
 # (infra/global/platform.bicep, aif-nwf-devtools account); both are EU-resident
 # DataZoneStandard. terra costs the same per token as the gpt-5.4 it replaced;
@@ -55,6 +55,13 @@ wire_api = "responses"
 [profiles.sol]
 model = "gpt-5.6-sol"
 model_provider = "azure"
+
+# Opt-in lighter profile: `codex --profile luna`. Terra remains the interactive
+# default; Luna uses maximum reasoning effort by default.
+[profiles.luna]
+model = "gpt-5.6-luna"
+model_provider = "azure"
+model_reasoning_effort = "max"
 
 # MCP servers — mirrors the Claude Code set, declared in
 # .chezmoiscripts/run_onchange_after_setup-claude-mcp.sh.tmpl. Codex detects the
