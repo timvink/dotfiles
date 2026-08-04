@@ -65,10 +65,23 @@ user_pref(\"network.proxy.autoconfig_url\", \"file://$HOME/.config/proxy.pac\");
 user_pref(\"network.proxy.socks_remote_dns\", true);
 "
 
-# Deploy user.js to all default-release profiles
-for profile_dir in "$FIREFOX_PROFILES_DIR"/*.default-release; do
+# Deploy user.js to all default-release profiles.
+#
+# Two globs, not one: a "Refresh Firefox" (or a profile Firefox recreates after a
+# downgrade/lock conflict) does NOT reuse the <random>.default-release name — it
+# mints <random>.default-release-<epoch_ms> and points profiles.ini at that,
+# leaving the old dir behind. A bare *.default-release then matches only the
+# abandoned profile, so every pref here — including the SOCKS routing that makes
+# http://devbox:<port> resolve — silently stops applying to the profile actually
+# in use. Unmatched globs stay literal in sh; the -d test filters them out.
+found=0
+for profile_dir in "$FIREFOX_PROFILES_DIR"/*.default-release \
+                   "$FIREFOX_PROFILES_DIR"/*.default-release-*; do
     if [ -d "$profile_dir" ]; then
         echo "Writing Firefox user.js to: $profile_dir"
         printf '%s%s' "$USER_JS_CONTENT" "$PROXY_PREFS" > "$profile_dir/user.js"
+        found=1
     fi
 done
+
+[ "$found" = 1 ] || echo "WARNING: no default-release Firefox profile found in $FIREFOX_PROFILES_DIR" >&2
