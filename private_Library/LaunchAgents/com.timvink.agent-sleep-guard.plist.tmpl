@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Polls agent-sleep-guard so the Mac stays awake through a lid close while
+     agents are still working, and sleeps once they're done. StartInterval (not
+     KeepAlive): the script is a one-shot tick that exits immediately, so
+     KeepAlive would respawn it in a tight loop. 30s is a compromise — it is
+     also the worst-case window in which you could close the lid just before the
+     first tick of a new agent run and still get a sleep.
+
+     Managed by chezmoi; (re)loaded by the run_onchange installer, which also
+     puts the root-owned half (sudoers rule + boot-reset daemon) in place. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.agent-sleep-guard</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ .chezmoi.homeDir }}/.local/bin/agent-sleep-guard</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>30</integer>
+    <key>StandardOutPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/agent-sleep-guard.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/agent-sleep-guard.log</string>
+</dict>
+</plist>

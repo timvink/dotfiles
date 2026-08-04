@@ -1,0 +1,96 @@
+#!/bin/bash
+# Install the root-owned half of the agent sleep guard (see
+# ~/.local/bin/agent-sleep-guard for what the whole thing does and why):
+#
+#   1. /etc/sudoers.d/agent-sleep-guard — lets the guard toggle pmset's
+#      disablesleep without a password, scoped to two exact commands.
+#   2. /Library/LaunchDaemons/com.timvink.agent-sleep-guard-reset.plist — clears
+#      disablesleep at every boot, so a guard that dies mid-hold cannot leave the
+#      Mac permanently unable to sleep.
+#   3. (re)loads the user LaunchAgent that runs the guard every 30s.
+#
+# Both root-owned files are guarded so an already-configured machine needs no
+# sudo at all and `chezmoi apply` runs to completion non-interactively — same
+# reasoning as the netbird install in setup_applications_darwin.sh. Only a first
+# install, or a real change to the content below, prompts for a password.
+set -euo pipefail
+
+# Hashes make the dependency explicit: chezmoi reruns a run_onchange_ script only
+# when its own rendered content changes, so touching the guard or its LaunchAgent
+# reloads them on the next `chezmoi apply`.
+# guard hash: {{ include "dot_local/bin/executable_agent-sleep-guard" | sha256sum }}
+# plist hash: {{ include "private_Library/LaunchAgents/com.timvink.agent-sleep-guard.plist.tmpl" | sha256sum }}
+
+user="{{ .chezmoi.username }}"
+home="{{ .chezmoi.homeDir }}"
+state_dir="$home/.local/state/agent-sleep-guard"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$state_dir" "$home/Library/Logs"
+
+### 1. sudoers drop-in ########################################################
+sudoers=/etc/sudoers.d/agent-sleep-guard
+cat > "$tmp/sudoers" <<EOF
+# Managed by chezmoi (.chezmoiscripts/run_onchange_setup-agent-sleep-guard_darwin.sh.tmpl).
+# Lets ~/.local/bin/agent-sleep-guard hold the Mac awake through a lid close
+# while agents are still working. Two exact commands, no wildcard: this grants
+# nothing beyond flipping pmset's disablesleep on and off.
+$user ALL=(root) NOPASSWD: /usr/bin/pmset -a disablesleep 0, /usr/bin/pmset -a disablesleep 1
+EOF
+
+# The installed file is 0440 root:wheel, so it can't be diffed as an ordinary
+# user (the directory is traversable, the file isn't readable). Stamp the hash
+# we installed in a user-readable state file and compare that instead — keeps
+# the common "nothing changed" path free of sudo.
+stamp="$state_dir/sudoers.sha256"
+want_hash=$(shasum -a 256 < "$tmp/sudoers" | awk '{print $1}')
+if [ ! -e "$sudoers" ] || [ "$(cat "$stamp" 2>/dev/null)" != "$want_hash" ]; then
+    # Never install a sudoers file that would break sudo for the whole machine.
+    visudo -cqf "$tmp/sudoers"
+    sudo install -m 0440 -o root -g wheel "$tmp/sudoers" "$sudoers"
+    printf '%s' "$want_hash" > "$stamp"
+    echo "=== chezmoi: installed $sudoers ==="
+fi
+
+### 2. boot-reset LaunchDaemon ################################################
+daemon=/Library/LaunchDaemons/com.timvink.agent-sleep-guard-reset.plist
+cat > "$tmp/daemon.plist" <<'EOF'
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Fail-safe for the agent sleep guard: clear pmset's disablesleep at every
+     boot. If the guard is killed while holding a hold, nothing else would ever
+     release it and the Mac would stop sleeping for good; after the inevitable
+     hard reboot this puts it back to normal. Managed by chezmoi. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.agent-sleep-guard-reset</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/pmset</string>
+        <string>-a</string>
+        <string>disablesleep</string>
+        <string>0</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
+EOF
+
+# /Library/LaunchDaemons is world-readable and this plist is 0644, so an
+# unprivileged cmp is enough to detect drift.
+if ! cmp -s "$tmp/daemon.plist" "$daemon" 2>/dev/null; then
+    sudo install -m 0644 -o root -g wheel "$tmp/daemon.plist" "$daemon"
+    sudo launchctl unload "$daemon" 2>/dev/null || true
+    sudo launchctl load "$daemon"
+    echo "=== chezmoi: installed $daemon ==="
+fi
+
+### 3. user LaunchAgent #######################################################
+# Legacy unload/load (rather than bootout/bootstrap) so it works the same from a
+# terminal, an SSH session, or chezmoi — matching the openurl loader.
+plist="$home/Library/LaunchAgents/com.timvink.agent-sleep-guard.plist"
+launchctl unload "$plist" 2>/dev/null || true
+launchctl load "$plist"
+echo "=== chezmoi: (re)loaded com.timvink.agent-sleep-guard LaunchAgent ==="
