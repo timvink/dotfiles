@@ -27,8 +27,11 @@ Library/Application Support/rbw/config.json
 .chezmoiscripts/setup_packages_darwin.sh
 .chezmoiscripts/setup_finder_copypath_darwin.sh
 .chezmoiscripts/load-open-url-agent_darwin.sh
+.chezmoiscripts/setup-agent-sleep-guard_darwin.sh
 .local/bin/open-url-listener
+.local/bin/agent-sleep-guard
 Library/LaunchAgents/com.timvink.openurl.plist
+Library/LaunchAgents/com.timvink.agent-sleep-guard.plist
 .ssh/config
 {{ end }}
 {{ if ne .chezmoi.os "linux" }}

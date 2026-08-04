@@ -1,0 +1,153 @@
+#!/usr/bin/env bash
+# agent-sleep-guard — keep this Mac awake through a lid close for exactly as long
+# as agents are still working, then let it sleep on its own.
+#
+# The problem: closing the lid is a FORCED sleep, not an idle timeout. Claude
+# Code already spawns `caffeinate -i` while it works, which holds off *idle*
+# sleep with the lid open — but no power assertion survives the clamshell
+# switch. The only knob that does is pmset's `disablesleep` — undocumented
+# (absent from `man pmset`), and read back under a *different* name,
+# `SleepDisabled`; see disablesleep_now below, that asymmetry is a trap. It needs
+# root, so /etc/sudoers.d/agent-sleep-guard whitelists exactly the two
+# invocations below and nothing else.
+#
+# Run every 30s by the com.timvink.agent-sleep-guard LaunchAgent. Each tick:
+# count tmux windows whose @agent_state is "running" (the blue ● set by the
+# Claude/Codex lifecycle hooks — same signal as tmux-agent-count) and hold or
+# release disablesleep to match. It polls continuously rather than reacting to
+# the lid because there is no usable lid-close hook: the hold has to already be
+# in place at the moment the lid shuts.
+#
+# Counts ONLY "running", deliberately. A "needs-input" (red ●) agent is blocked
+# on a question and will never finish on its own, so holding the machine awake
+# for it just cooks the laptop in your bag for nothing.
+#
+# Three guards, because a stuck hold means a hot, flat MacBook:
+#   MAX_HOLD_MIN  caps one continuous hold. On trip it LATCHES off and refuses
+#                 to re-arm until the running count next reaches 0 — otherwise
+#                 the next tick would just re-hold and the cap would be a no-op.
+#   BATT_FLOOR    on battery below this, release regardless. No latch: plug in
+#                 and the hold resumes on the next tick.
+#   boot reset    the com.timvink.agent-sleep-guard-reset LaunchDaemon clears
+#                 disablesleep at every boot, so a crash mid-hold can't leave
+#                 the machine permanently unable to sleep.
+#
+# Logs only on transitions (see set_disablesleep), so the LaunchAgent's log
+# stays a readable history of holds rather than a line every 30 seconds.
+set -uo pipefail
+
+MAX_HOLD_MIN=${AGENT_SLEEP_GUARD_MAX_HOLD_MIN:-90}
+BATT_FLOOR=${AGENT_SLEEP_GUARD_BATT_FLOOR:-30}
+
+# macOS-only; no-op elsewhere. .chezmoiignore already keeps this off Linux, but
+# a stray copy on a devbox should die quietly rather than spew errors.
+command -v pmset >/dev/null 2>&1 || exit 0
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/agent-sleep-guard"
+mkdir -p "$state_dir" 2>/dev/null || exit 0
+hold_since="$state_dir/hold-since"   # epoch when the current continuous hold began
+latched="$state_dir/capped"          # present = cap tripped, stay off until idle
+
+log() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
+
+# Same expression as dot_zshenv / dot_bash_aliases.tmpl, and it has to be
+# repeated here: launchd runs this directly, not through a login shell, so none
+# of the shell rc files that normally export it are read. Without it tmux looks
+# for its socket under /tmp instead of ~/.cache/tmux and finds no server —
+# reporting zero agents forever. Keep in sync with dot_zshenv.
+export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
+
+# Resolve tmux by absolute path, for the same reason: launchd hands an agent a
+# bare PATH=/usr/bin:/bin:/usr/sbin:/sbin, which does NOT include the Homebrew
+# prefix where tmux lives. Both prefixes are listed so this works on Apple
+# Silicon and Intel.
+find_tmux() {
+    local c
+    for c in "$(command -v tmux 2>/dev/null)" /opt/homebrew/bin/tmux /usr/local/bin/tmux; do
+        if [ -n "$c" ] && [ -x "$c" ]; then printf '%s' "$c"; return 0; fi
+    done
+    return 1
+}
+
+# pmset names this setting asymmetrically, and getting it wrong is silently
+# catastrophic: you WRITE `pmset -a disablesleep 1`, but `pmset -g` READS it back
+# as `SleepDisabled 1`. Matching the write name never matches, so every release
+# would early-return as a no-op and the Mac would take a hold and never let go —
+# the exact runaway this script exists to prevent. The row is absent entirely
+# until the key has been written once, which correctly reads as 0.
+disablesleep_now() {
+    local v
+    v=$(pmset -g 2>/dev/null | awk '$1 == "SleepDisabled" { print $2; exit }')
+    printf '%s' "${v:-0}"
+}
+
+# Flip disablesleep, but only on a real transition — that keeps both the sudo
+# calls and the log to actual state changes.
+set_disablesleep() {
+    local want=$1 reason=$2
+    [ "$(disablesleep_now)" = "$want" ] && return 0
+    if sudo -n /usr/bin/pmset -a disablesleep "$want" 2>&1; then
+        if [ "$want" = 1 ]; then
+            log "HOLD    lid close will NOT sleep — $reason"
+        else
+            log "release lid close will sleep normally — $reason"
+        fi
+    else
+        log "FAILED  could not set disablesleep=$want ($reason) — is /etc/sudoers.d/agent-sleep-guard installed?"
+        return 1
+    fi
+}
+
+release() {
+    set_disablesleep 0 "$1"
+    rm -f "$hold_since"
+}
+
+# A missing tmux BINARY is a broken install, not an idle machine — say so once
+# (a marker keeps it out of every 30s tick) rather than silently reporting zero
+# agents forever. A missing tmux SERVER is different and perfectly normal: it
+# yields 0 below and the Mac sleeps, which is correct.
+no_tmux="$state_dir/no-tmux"
+if ! tmux_bin=$(find_tmux); then
+    [ -e "$no_tmux" ] || { log "FAILED  no tmux binary on PATH or in the usual Homebrew prefixes — guard is inert"; : > "$no_tmux"; }
+    release "cannot read agent state without tmux"
+    exit 0
+fi
+rm -f "$no_tmux"
+
+# Same one-liner as tmux-agent-count.
+running=$("$tmux_bin" list-windows -a -F "#{@agent_state}" 2>/dev/null | grep -c '^running$')
+running=${running:-0}
+
+if [ "$running" -eq 0 ]; then
+    # Nothing working: release, and re-arm the cap for the next batch of work.
+    rm -f "$latched"
+    release "no agents running"
+    exit 0
+fi
+
+# Cap already tripped for this batch — stay released. Only the branch above,
+# reached when the last agent finishes, clears the latch.
+[ -e "$latched" ] && exit 0
+
+# Battery floor. On AC there's nothing to protect, so only gate on battery.
+if pmset -g batt 2>/dev/null | grep -q "'Battery Power'"; then
+    pct=$(pmset -g batt 2>/dev/null | grep -o '[0-9]\{1,3\}%' | head -1 | tr -d '%')
+    if [ -n "${pct:-}" ] && [ "$pct" -lt "$BATT_FLOOR" ]; then
+        release "battery ${pct}% under ${BATT_FLOOR}% floor, despite $running running agent(s)"
+        exit 0
+    fi
+fi
+
+now=$(date +%s)
+[ -s "$hold_since" ] || printf '%s' "$now" > "$hold_since"
+started=$(cat "$hold_since" 2>/dev/null)
+elapsed_min=$(( (now - ${started:-$now}) / 60 ))
+
+if [ "$elapsed_min" -ge "$MAX_HOLD_MIN" ]; then
+    : > "$latched"
+    release "held ${elapsed_min}m, hit the ${MAX_HOLD_MIN}m cap — $running agent(s) still running, but letting the Mac sleep"
+    exit 0
+fi
+
+set_disablesleep 1 "$running agent(s) running"

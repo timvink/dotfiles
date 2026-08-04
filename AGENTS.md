@@ -65,3 +65,25 @@ needs input, yellow ○ your turn), driven by the `@agent_state` window option t
   are wired into `~/.gemini/antigravity-cli/settings.json` by
   `modify_private_settings.json`. agy ≥ 1.0.8 is required (statusline/title/hooks);
   the package script installs latest, older installs need `agy update`.
+
+## Lid-close sleep guard (macOS)
+
+`@agent_state` has a second consumer: `~/.local/bin/agent-sleep-guard` keeps the
+Mac awake through a **lid close** while any window is `running`, then lets it
+sleep once the last one finishes. Closing the lid is a forced sleep, so the
+`caffeinate -i` that Claude Code spawns while it works — which is enough for
+idle sleep — doesn't survive it; the only knob that does is pmset's undocumented
+`disablesleep`, which needs root. Three moving parts:
+
+- `run_onchange_setup-agent-sleep-guard_darwin.sh.tmpl` installs the root half:
+  `/etc/sudoers.d/agent-sleep-guard` (NOPASSWD for exactly
+  `pmset -a disablesleep 0|1`, nothing more) and a boot-reset LaunchDaemon.
+- `com.timvink.agent-sleep-guard` LaunchAgent ticks the guard every 30s. It
+  polls rather than reacting to the lid because the hold must already be set
+  when the lid shuts — there's no usable lid-close hook.
+- Guards against a stuck hold cooking the laptop in a bag: a 90-minute cap that
+  latches off until the running count hits 0, a 30% battery floor, and the
+  boot-reset daemon for the case where the guard dies mid-hold.
+
+Only `running` counts — a red `needs-input` agent will never finish unattended.
+Log: `~/Library/Logs/agent-sleep-guard.log`, written on transitions only.
