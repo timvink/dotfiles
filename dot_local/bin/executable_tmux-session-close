@@ -8,6 +8,12 @@
 # left after a polite :qa. Idle agents + shells then exit via kill-session's
 # SIGHUP (clean for them). On any refusal we keep the session and flash why.
 #
+# Editors are found by walking each pane's *process tree*, not by reading
+# `pane_current_command` — that names only the foreground job, so an nvim
+# suspended with Ctrl+Z reported as "zsh", sailed past this guard, and had its
+# unsaved buffers thrown away by the kill-session below. Suspended editors are
+# resumed with `fg` so they can actually receive the :qa.
+#
 # Cosmetic note: with multiple nvim tabs and one dirty, the clean ones exit (to
 # shells) before we detect the dirty holdout and abort. Data-safe; the default
 # one-nvim layout (see tmux-sessionizer) never hits this.
@@ -42,33 +48,87 @@ if [ -n "$busy" ]; then
   exit 0
 fi
 
-# 3. Ask every nvim/vim to quit (no force). Escape first in case it's in insert
-#    mode, so the :qa lands as a command and not as inserted text.
-while IFS=$'\t' read -r pane cmd; do
-  case "$cmd" in
+# 3. Find the panes holding an nvim/vim, foreground or not, by walking the
+#    descendants of each pane's process. One line per *pane* — "<pane_id>\t<0|1>",
+#    the flag marking a suspended (ps state "T") editor — because a single editor
+#    is several processes (the TUI plus its `--embed` server) and they must not
+#    each draw their own round of keystrokes.
+editors_in_session() {
+  local snapshot panes
+  snapshot=$(ps -axo pid=,ppid=,stat=,comm= 2>/dev/null) || return 0
+  panes=$(tmux list-panes -s -t "=$session" -F '#{pane_id} #{pane_pid}' 2>/dev/null) || return 0
+  printf '%s\n' "$panes" | while read -r pane root; do
+    [ -n "$root" ] || continue
+    printf '%s\n' "$snapshot" | awk -v root="$root" -v pane="$pane" '
+      { id[NR]=$1; parent[$1]=$2; state[$1]=$3; comm[$1]=$4; n=NR }
+      END {
+        desc[root]=1
+        # the process table is unordered, so grow the descendant set to a fixpoint
+        changed=1
+        while (changed) {
+          changed=0
+          for (i=1;i<=n;i++) {
+            p=id[i]
+            if (!desc[p] && desc[parent[p]]) { desc[p]=1; changed=1 }
+          }
+        }
+        found=0; susp=0
+        for (i=1;i<=n;i++) {
+          p=id[i]
+          if (desc[p] && comm[p] ~ /(^|\/)n?vim$/) {
+            found=1
+            if (state[p] ~ /T/) susp=1
+          }
+        }
+        if (found) print pane "\t" susp
+      }'
+  done
+  return 0
+}
+
+# 4. Ask every *foreground* editor to quit (no force). Escape first in case it's
+#    in insert mode, so the :qa lands as a command and not as inserted text.
+#
+#    Exactly once per pane, and never to a suspended one. Both matter:
+#      - a refused :qa still flushes the buffer to disk, so a *second* :qa finds it
+#        clean and closes the workspace — "refuse and show me" becomes "save and
+#        close", which is the opposite of what this guard is for;
+#      - a suspended editor can't read the tty, and `fg`-ing it from here would
+#        mean typing into whatever the pane is running. It stays a blocker below
+#        instead, which is the same "refuse and flash why" contract used for a
+#        dirty buffer. Rare in practice: `autowrite` is on, so :suspend already
+#        writes modified *named* buffers — only a nameless scratch buffer is
+#        genuinely at risk, and that is precisely what must not be discarded.
+while IFS=$'\t' read -r pane susp; do
+  [ -n "$pane" ] || continue
+  [ "$susp" = "0" ] || continue
+  case "$(tmux display-message -p -t "$pane" '#{pane_current_command}' 2>/dev/null)" in
     nvim|vim) tmux send-keys -t "$pane" Escape
               tmux send-keys -t "$pane" ':qa' Enter ;;
   esac
-done < <(tmux list-panes -s -t "=$session" \
-           -F '#{pane_id}'$'\t''#{pane_current_command}')
+done < <(editors_in_session)
 
-# 4. Poll for clean exits; abort if an nvim/vim is still up (dirty buffer blocked
-#    the :qa). After a clean quit the pane's command is the shell again, so it no
-#    longer matches here — that's how "exited" is told apart from "refused".
+# 5. Poll for clean exits; abort if an editor is still up — a dirty buffer blocked
+#    the :qa, or one is sitting suspended. Avoid `head -1` on the pipe: under
+#    `pipefail` its early exit would SIGPIPE the producer and trip `set -e`.
 stuck=""
 for _ in 1 2 3 4 5 6; do                       # ~1.5s at 0.25s
-  stuck=$(tmux list-panes -s -t "=$session" \
-            -F '#{pane_id}'$'\t''#{pane_current_command}' 2>/dev/null \
-          | awk -F'\t' '$2=="nvim"||$2=="vim"{print $1; exit}')
+  found=$(editors_in_session)
+  stuck=${found%%$'\n'*}
   [ -z "$stuck" ] && break
   sleep 0.25
 done
 if [ -n "$stuck" ]; then
-  tmux select-window -t "$stuck"
-  tmux display-message "workspace kept open — unsaved changes in nvim"
+  pane=$(printf '%s' "$stuck" | cut -f1)
+  tmux select-window -t "$pane"
+  if [ "$(printf '%s' "$stuck" | cut -f2)" = "1" ]; then
+    tmux display-message "workspace kept open — nvim suspended here (fg, then quit it)"
+  else
+    tmux display-message "workspace kept open — unsaved changes in nvim"
+  fi
   exit 0
 fi
 
-# 5. Safe to close. detach-on-destroy off → the client jumps to another
+# 6. Safe to close. detach-on-destroy off → the client jumps to another
 #    workspace (or detaches if this was the last one) rather than quitting tmux.
 tmux kill-session -t "=$session"
