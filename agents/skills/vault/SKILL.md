@@ -91,9 +91,16 @@ unlocked — on exit **2 (locked)**, ask the user to `rbw unlock` and retry; you
 never handle the master password yourself.
 
 `check` compares without writing, for when you want to know where things stand:
-**0** in sync, **2** locked, **3** drift (it prints the drifted **key names**,
-never values), **4** no backup yet. Both 3 and 4 are resolved the same way — run
-`update`.
+**0** in sync, **2** locked, **3** drift, **4** no backup yet. Both 3 and 4 are
+resolved the same way — run `update`.
+
+Exit 3 covers two cases, reported by **key name** only (never values):
+
+- `DRIFT` — a key is in the `.env` but missing or different in the vault, i.e.
+  the backup is behind.
+- `STALE` — a key is still in the vault but has been **deleted** from the
+  `.env`. Without this, a removed credential would sit in the backup forever
+  while `check` cheerfully reported "in sync".
 
 ## Notes
 

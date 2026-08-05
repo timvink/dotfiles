@@ -15,9 +15,11 @@
 #   env-vault-sync.sh update <path/to/.env>
 #
 # `check` exit codes:
-#   0  in sync — every .env key is present in the vault with a matching value
+#   0  in sync — the vault copy and the .env hold exactly the same keys+values
 #   2  vault locked        -> the user must run `rbw unlock`
-#   3  drift               -> some keys missing/changed in the vault copy
+#   3  drift               -> keys missing/changed in the vault copy (DRIFT), or
+#                             left in the vault after being deleted from the .env
+#                             (STALE). Both are fixed by `update`.
 #   4  no backup yet       -> the item doesn't exist; run `update`
 #  64  usage / environment error
 #
@@ -68,12 +70,24 @@ require_unlocked() {
 # changing them must not count as drift).
 sig() { grep -vE '^[[:space:]]*(#|$)' "$1" 2>/dev/null || true; }
 
-# Print the names of keys that are missing-or-changed in $2 (vault) relative to
-# $1 (current .env). Keyed on the text before the first '='; compares whole
-# lines, so a changed value counts. Values are never emitted — only key names.
+# Compare $1 (current .env) and $2 (vault copy) in BOTH directions, emitting one
+# marked key name per line:
+#   >KEY  in the .env but missing or different in the vault  -> backup is behind
+#   <KEY  still in the vault but no longer in the .env       -> stale secret
+#
+# The second direction matters: a key you DELETE from a .env stays in the vault
+# forever otherwise, and a one-directional check happily reports "in sync" while
+# a dead credential sits in the backup. Both conditions are fixed by `update`,
+# which rewrites the note wholesale.
+#
+# Keyed on the text before the first '='; compares whole lines, so a changed
+# value counts. Values are never emitted — only key names.
 drifted_keys() { # $1=current  $2=vault
   awk -F= 'NR==FNR { cur[$1]=$0; next } { v[$1]=$0 }
-           END { for (k in cur) if (cur[k] != v[k]) print k }' "$1" "$2" | sort
+           END {
+             for (k in cur) if (cur[k] != v[k]) print ">" k
+             for (k in v)   if (!(k in cur))    print "<" k
+           }' "$1" "$2" | sort
 }
 
 case "$cmd" in
@@ -83,9 +97,17 @@ case "$cmd" in
       echo "no vault backup for $abs yet — run: env-vault-sync.sh update $envpath" >&2; exit 4; }
     note=$("$rbw" get --field notes "$item" 2>/dev/null) || note=""
     keys=$(drifted_keys <(sig "$envpath") <(printf '%s\n' "$note" | grep -vE '^[[:space:]]*(#|$)' || true))
-    if [ -n "$keys" ]; then
-      echo "DRIFT — these .env keys are missing or changed in the vault backup:" >&2
-      printf '  %s\n' $keys >&2
+    behind=$(printf '%s\n' "$keys" | sed -n 's/^>//p')
+    stale=$(printf '%s\n' "$keys" | sed -n 's/^<//p')
+    if [ -n "$behind" ] || [ -n "$stale" ]; then
+      if [ -n "$behind" ]; then
+        echo "DRIFT — these .env keys are missing or changed in the vault backup:" >&2
+        printf '  %s\n' $behind >&2
+      fi
+      if [ -n "$stale" ]; then
+        echo "STALE — these keys are still in the vault backup but no longer in the .env:" >&2
+        printf '  %s\n' $stale >&2
+      fi
       echo "run: env-vault-sync.sh update $envpath  (after rbw unlock)" >&2
       exit 3
     fi
