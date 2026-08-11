@@ -7,62 +7,118 @@
 # apply). Instead we PIN the portable settings below and PASS THROUGH Codex's
 # runtime sections verbatim.
 #
-# Why pin `model`: Codex rewrites `model` to a bare upstream model id whenever
-# you switch models — via the `/model` picker or its model-migration logic — but
-# what Azure wants is the *deployment* name, so a mismatch 404s ("deployment does
-# not exist") mid-session. This pin repairs that on the next `chezmoi apply`.
+# TWO BACKENDS, ONE CONFIG. This script is itself a chezmoi template (hence the
+# .tmpl suffix): chezmoi renders it per-machine, then runs it.
+#   * Linux (the devbox) → Azure OpenAI, billed to the shared dev-tools account,
+#     key from the AZURE_OPENAI_API_KEY env var set by /etc/profile.d/codex.sh.
+#   * macOS (this laptop) → OpenAI directly on my personal ChatGPT subscription
+#     (`codex login`, credentials in ~/.codex/auth.json). No API key exists here,
+#     so emitting `model_provider = "azure"` on macOS makes every session fail
+#     with "Missing environment variable: AZURE_OPENAI_API_KEY".
+# Only the provider differs: the subscription serves the same model ids
+# (gpt-5.6-terra/sol/luna) that the devbox names as Azure deployments.
 #
-# As of 2026-07-30 the deployments are named *identically* to their model ids
-# (gpt-5.6-terra, gpt-5.6-sol, gpt-5.6-luna), so a `/model` switch between them is now a no-op
-# rather than a breakage — the pin is a second line of defence, not the only one.
-# They carried a `-codex` suffix until then, a leftover from gpt-5.3-codex; a
-# single `/model` switch was enough to break a live session, so it was dropped.
+# Why Linux pins `model`: Codex rewrites `model` to a bare upstream model id
+# whenever you switch models — via the `/model` picker or its model-migration
+# logic — but what Azure wants is the *deployment* name, so a mismatch 404s
+# ("deployment does not exist") mid-session. The pin repairs that on the next
+# `chezmoi apply`. As of 2026-07-30 the deployments are named *identically* to
+# their model ids, so a `/model` switch between them is now a no-op rather than
+# a breakage — the pin is a second line of defence, not the only one. They
+# carried a `-codex` suffix until then, a leftover from gpt-5.3-codex; a single
+# `/model` switch was enough to break a live session, so it was dropped.
 # Switching to a model that isn't deployed (for example a future 5.7) still
 # 404s — correctly. Deployments live in the nwf-ai-platform-infra repo
 # (infra/global/platform.bicep, aif-nwf-devtools account); both are EU-resident
 # DataZoneStandard. terra costs the same per token as the gpt-5.4 it replaced;
-# sol is roughly 2x, hence opt-in. Dead [profiles.global] (the old non-EU
-# gpt-5.3-codex) and [notice.model_migrations] references are dropped.
+# sol is roughly 2x, hence opt-in.
+#
+# macOS deliberately does NOT pin the model: there is no deployment-name
+# mismatch to defend against, so a `/model` switch is safe and is carried over
+# on each apply instead of being reverted. The values below only seed a machine
+# that has no config yet.
 #
 # chezmoi feeds the current target file on stdin; we emit the desired file.
 import sys, re
 
-OWNED = '''# Interactive defaults. Pointed at the shared dev-tools Azure OpenAI
+# Rendered by chezmoi: True on the Azure devbox, False on the ChatGPT-sub Mac.
+AZURE = {{ if eq .chezmoi.os "darwin" }}False{{ else }}True{{ end }}
+
+SEED_MODEL = "gpt-5.6-terra"
+SEED_EFFORT = "medium"
+
+src = sys.stdin.read()
+
+
+def stored(key, default):
+    """What Codex last wrote for a top-level key, or `default` if absent.
+
+    Only the preamble (everything before the first [table] header) is scanned,
+    so a same-named key inside any table can't be mistaken for it.
+    """
+    for ln in src.splitlines():
+        if ln.startswith('['):
+            break
+        m = re.match(r'\s*' + key + r'\s*=\s*"([^"]*)"\s*$', ln)
+        if m and m.group(1):
+            return m.group(1)
+    return default
+
+
+if AZURE:
+    DEFAULTS = '''# Interactive defaults. Pointed at the shared dev-tools Azure OpenAI
 # deployment (EU-resident, Responses API). The key comes from the
 # AZURE_OPENAI_API_KEY env var, set by /etc/profile.d/codex.sh.
-# Managed by chezmoi (dot_codex/modify_private_config.toml) — edit the source
-# there, not this file. The settings below are pinned; Codex's runtime sections
-# ([projects.*], [tui.*], [hooks.*]) are preserved as-is.
+# Managed by chezmoi (dot_codex/modify_private_config.toml.tmpl) — edit the
+# source there, not this file. The settings below are pinned; Codex's runtime
+# sections ([projects.*], [tui.*], [hooks.*]) are preserved as-is.
 #
 # `model` is an Azure *deployment* name that is deliberately identical to the
 # upstream model id, so Codex's /model picker can't rewrite it into a 404.
-model = "gpt-5.6-terra"
+model = "''' + SEED_MODEL + '''"
 model_provider = "azure"
-model_reasoning_effort = "medium"
-approval_policy = "on-request"
-sandbox_mode = "workspace-write"
+model_reasoning_effort = "''' + SEED_EFFORT + '''"
+'''
+else:
+    DEFAULTS = '''# Interactive defaults. Pointed straight at OpenAI on my personal ChatGPT
+# subscription — `codex login`, credentials in ~/.codex/auth.json — so there is
+# deliberately no `model_provider` line (Codex's built-in `openai` provider is
+# the default) and no API key. The Azure provider this repo uses on the Linux
+# devbox is emitted there only; naming it here would demand an
+# AZURE_OPENAI_API_KEY that this machine has no reason to hold.
+# Managed by chezmoi (dot_codex/modify_private_config.toml.tmpl) — edit the
+# source there, not this file. Codex's runtime sections ([projects.*], [tui.*],
+# [hooks.*]) are preserved as-is.
+#
+# `model`/`model_reasoning_effort` are NOT pinned: the deployment-name mismatch
+# that forces a pin on Azure doesn't exist here, so whatever the /model picker
+# last stored is carried over instead of being reverted on apply.
+model = "''' + stored("model", SEED_MODEL) + '''"
+model_reasoning_effort = "''' + stored("model_reasoning_effort", SEED_EFFORT) + '''"
+'''
 
+COMMON = '''approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+'''
+
+AZURE_PROVIDER = '''
 [model_providers.azure]
 name = "Azure OpenAI"
 base_url = "https://aif-nwf-devtools.openai.azure.com/openai/v1"
 env_key = "AZURE_OPENAI_API_KEY"
 wire_api = "responses"
+'''
 
-# Opt-in heavy profile: `codex --profile sol`. GPT-5.6-sol is the heaviest
-# variant of the generation (the default above is terra, the middle one) and
-# costs ~2x per token, so reach for it on hard problems, not by default. Same
-# dev-tools account, same DataZoneStandard SKU — still EU-resident.
-[profiles.sol]
-model = "gpt-5.6-sol"
-model_provider = "azure"
+# The opt-in `sol` / `luna` profiles are NOT declared here. Since Codex 0.134 a
+# profile is an overlay *file* — `~/.codex/<name>.config.toml`, loaded on top of
+# this one by `codex --profile <name>` — and a leftover `[profiles.<name>]`
+# table is a hard error ("cannot be used while config.toml contains legacy
+# ... config"), not a fallback. They live in dot_codex/private_sol.config.toml
+# and private_luna.config.toml, are plain files rather than templates because an
+# overlay inherits `model_provider` from the base config above, and are dropped
+# from any existing config.toml by the pass-through filter below.
 
-# Opt-in lighter profile: `codex --profile luna`. Terra remains the interactive
-# default; Luna uses maximum reasoning effort by default.
-[profiles.luna]
-model = "gpt-5.6-luna"
-model_provider = "azure"
-model_reasoning_effort = "max"
-
+MCP = '''
 # MCP servers — mirrors the Claude Code set, declared in
 # .chezmoiscripts/run_onchange_after_setup-claude-mcp.sh.tmpl. Codex detects the
 # streamable-HTTP transport from the `url` key alone; no extra flags needed.
@@ -102,6 +158,8 @@ command = "/Users/timvink/.local/bin/ah-mcp"
 args = ["--transport", "stdio"]
 '''
 
+OWNED = DEFAULTS + COMMON + (AZURE_PROVIDER if AZURE else '') + MCP
+
 PASS_GROUPS = {"projects", "tui", "hooks"}   # runtime state Codex manages
 
 # Managed TUI status line. `context-used` shows the % of the context window
@@ -115,8 +173,6 @@ STATUS_LINE = 'status_line = ["current-dir", "git-branch", "model-with-reasoning
 def group_of(header):
     m = re.match(r'\[+\s*"?([^".\]]+)', header)
     return m.group(1) if m else None
-
-src = sys.stdin.read()
 
 # Split into blocks at column-0 table headers ("[..."). The first block is the
 # top-level preamble (keys before any table); we re-author it via OWNED.

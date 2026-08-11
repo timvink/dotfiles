@@ -1,0 +1,15 @@
+# Opt-in lighter profile: `codex --profile luna`, at maximum reasoning effort.
+#
+# Managed by chezmoi (dot_codex/private_luna.config.toml) — edit the source
+# there, not this file. Since Codex 0.134 a profile is an overlay file loaded on
+# top of ~/.codex/config.toml, so this only carries what differs from the base
+# config; `model_provider` is deliberately absent so it inherits whichever
+# backend that machine uses (Azure OpenAI on the Linux devbox, my ChatGPT
+# subscription on the Mac). The model id is identical on both — on Azure it
+# names a deployment in the aif-nwf-devtools account, upstream it names the
+# model itself.
+#
+# Luna is the lightest variant of the generation, so it's cheap enough to run at
+# max reasoning effort — trading raw model strength for thinking time.
+model = "gpt-5.6-luna"
+model_reasoning_effort = "max"

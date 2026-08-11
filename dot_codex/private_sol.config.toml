@@ -1,0 +1,15 @@
+# Opt-in heavy profile: `codex --profile sol`.
+#
+# Managed by chezmoi (dot_codex/private_sol.config.toml) — edit the source there,
+# not this file. Since Codex 0.134 a profile is an overlay file loaded on top of
+# ~/.codex/config.toml, so this only carries what differs from the base config;
+# `model_provider` is deliberately absent so it inherits whichever backend that
+# machine uses (Azure OpenAI on the Linux devbox, my ChatGPT subscription on the
+# Mac). The model id is identical on both — on Azure it names a deployment in
+# the aif-nwf-devtools account, upstream it names the model itself.
+#
+# GPT-5.6-sol is the heaviest variant of the generation (terra, the everyday
+# default, is the middle one; luna the lightest). It costs ~2x per token on
+# Azure and eats the subscription's limit correspondingly faster, so reach for
+# it on hard problems rather than by default.
+model = "gpt-5.6-sol"
