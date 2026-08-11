@@ -45,11 +45,24 @@
 #                                                     if working. PostToolUse restores
 #                                                     running once the user answers.
 #   Notification[permission_prompt]  → "needs-input" red ●   (blocked on an
-#                                                     approval). The idle_prompt
-#                                                     nudge is deliberately NOT
-#                                                     hooked, so a finished tab
-#                                                     stays yellow ○ instead of
-#                                                     turning red after ~60s.
+#                                                     approval). idle_prompt does
+#                                                     NOT touch a finished tab
+#                                                     (stays yellow ○, never red);
+#                                                     it only backstops the ESC-
+#                                                     interrupt case below.
+#   ESC interrupt                    → no hook fires AT ALL (anthropics/
+#                                                     claude-code#9516), so the dot
+#                                                     would sit stale on blue/red.
+#                                                     Covered outside the hooks:
+#                                                     `agent-interrupt-state` spots
+#                                                     the "[Request interrupted by
+#                                                     user]" marker at the transcript
+#                                                     tail and flips the dot idle ○ —
+#                                                     triggered by the status-line
+#                                                     refresh (fast path, see
+#                                                     executable_statusline-command.sh)
+#                                                     and by Notification[idle_prompt]
+#                                                     (~60s backstop).
 #
 # This is a chezmoi modify_ script: stdin = current target content, stdout
 # = new content. Idempotent — overwrites only the hook keys we manage and
@@ -81,11 +94,15 @@ running_hook=$(mk_hook "running")
 # Notification fires for two cases, distinguished by the payload's
 # "notification_type" field (NOT by the matcher — matchers only match tool
 # names, so the old matcher:"permission_prompt" matched nothing and the dot
-# never went red). We want red only for permission_prompt; idle_prompt (the
-# ~60s "waiting for your input" nudge) must leave the dot alone so a finished
-# tab stays idle instead of turning red. So: match all Notifications (matcher
-# ""), then gate on notification_type inside the command. $HOME stays literal.
-perm_cmd='if [ "$(jq -r .notification_type)" = permission_prompt ]; then $HOME/.local/bin/agent-state needs-input; fi'
+# never went red). permission_prompt → red. idle_prompt (the ~60s "waiting for
+# your input" nudge) must NOT turn a finished tab red — but it IS the backstop
+# for the one turn end that fires no hook at all: a user ESC interrupt (see
+# agent-interrupt-state, primary trigger in executable_statusline-command.sh).
+# That helper only flips the dot to idle when the transcript tail proves the
+# interrupt, so a legitimately yellow, red, or background-running blue tab is
+# left alone. Match all Notifications (matcher ""), gate on notification_type
+# inside the command. $HOME stays literal.
+perm_cmd='p=$(cat); case "$(printf "%s" "$p" | jq -r .notification_type)" in permission_prompt) $HOME/.local/bin/agent-state needs-input ;; idle_prompt) $HOME/.local/bin/agent-interrupt-state "$(printf "%s" "$p" | jq -r .transcript_path)" ;; esac'
 perm_hook=$(jq -n --arg cmd "$perm_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')

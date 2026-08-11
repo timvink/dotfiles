@@ -55,7 +55,12 @@ needs input, yellow ○ your turn), driven by the `@agent_state` window option t
 `window-status-format` reads (`dot_tmux.conf`). It's set by `~/.local/bin/agent-state`:
 
 - **Claude Code / Codex** drive it from lifecycle hooks (`dot_claude/modify_settings.json`,
-  `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`).
+  `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`). One gap:
+  Claude Code fires **no hook on an ESC interrupt** (anthropics/claude-code#9516),
+  which would leave the dot stale blue/red. `agent-interrupt-state` covers it by
+  spotting the `[Request interrupted by user]` marker at the transcript tail —
+  triggered from the Claude statusline refresh (fast path) and the
+  `Notification[idle_prompt]` hook (~60s backstop).
 - **Antigravity (`agy`)** has no permission/notification hook event, so the dot
   is driven from its **status line** instead (`dot_gemini/antigravity-cli/executable_statusline.sh`),
   the one payload that exposes `agent_state`, `tool_confirmation_pending` (blocked

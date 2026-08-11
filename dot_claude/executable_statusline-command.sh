@@ -15,6 +15,14 @@ cwd=$(echo "$input"   | jq -r '.workspace.current_dir // .cwd // empty')
 model=$(echo "$input" | jq -r '.model.display_name // empty')
 used=$(echo "$input"  | jq -r '.context_window.used_percentage // empty')
 
+# Side effect (same trick as the Antigravity statusline, see CLAUDE.md): Claude
+# fires no hook when the user ESC-interrupts a turn, but it does re-run this
+# status line when the conversation updates — including on the interrupt — so
+# let that refresh clear a dot left stale by the cancel. Backgrounded so the
+# tmux/jq calls never delay rendering the line itself.
+tp=$(echo "$input" | jq -r '.transcript_path // empty')
+[ -n "$tp" ] && "$HOME/.local/bin/agent-interrupt-state" "$tp" >/dev/null 2>&1 &
+
 short_cwd="${cwd/#$HOME/~}"
 
 branch=""

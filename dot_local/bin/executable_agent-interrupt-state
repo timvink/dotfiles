@@ -1,0 +1,59 @@
+#!/bin/sh
+# Clear a stale agent dot after the user ESC-cancels a Claude Code turn.
+#
+# Claude Code fires NO lifecycle hook on a user interrupt — the Stop hook
+# explicitly skips that case (anthropics/claude-code#9516) — so after an ESC
+# the dot keeps whatever the last hook set: running blue ● from PreToolUse/
+# PostToolUse, or needs-input red ● if the ESC dismissed a permission prompt.
+# The one durable trace an interrupt leaves is a user record at the end of the
+# transcript JSONL reading "[Request interrupted by user]" (or "... for tool
+# use]"). So: when the dot claims running/needs-input but the LAST
+# conversational record (type user/assistant; bookkeeping records like
+# system/turn_duration and file-history-snapshot follow it) is that marker,
+# the agent is actually sitting at the prompt — set idle ○.
+#
+# Two best-effort triggers call this (see dot_claude/modify_settings.json and
+# executable_statusline-command.sh):
+#   - the status-line command: Claude re-runs it when the conversation
+#     updates, including on the interrupt itself → dot flips within ~a second;
+#   - the Notification[idle_prompt] hook (~60s after the prompt goes idle):
+#     backstop in case that status-line refresh raced the transcript flush.
+#
+# The running|needs-input gate keeps every deliberate state intact: a fresh or
+# resumed session (state unset — tail may still show an old marker) stays
+# dot-free, a finished yellow tab stays yellow, and an OPEN permission/
+# question dialog stays red because while one is up the last conversational
+# record is the assistant's tool_use, never the marker.
+#
+# Usage: agent-interrupt-state <transcript-path>
+# No-op outside tmux or when nothing needs flipping. Always exits 0.
+
+tp="${1:-}"
+[ -n "$tp" ] && [ -f "$tp" ] && [ -n "${TMUX_PANE:-}" ] || exit 0
+
+state=$(tmux display-message -t "$TMUX_PANE" -p '#{@agent_state}' 2>/dev/null)
+case "$state" in
+    running|needs-input) ;;
+    *) exit 0 ;;
+esac
+
+# Last user/assistant record in the tail — a partial mid-write line makes jq
+# bail, which lands in the safe "no" branch. 10 lines is plenty: at most a
+# couple of bookkeeping records follow the marker before anything conversational.
+interrupted=$(tail -n 10 "$tp" 2>/dev/null | jq -rs '
+    map(select(.type == "user" or .type == "assistant"))
+    | last
+    | if . == null then "no"
+      elif .type == "user" and
+           ((.message.content
+             | if type == "array"
+               then map(select(.type == "text") | .text) | join("")
+               else tostring end)
+            | startswith("[Request interrupted by user"))
+      then "yes"
+      else "no" end
+' 2>/dev/null)
+
+[ "$interrupted" = yes ] && "$(dirname "$0")/agent-state" idle
+
+exit 0

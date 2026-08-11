@@ -13,10 +13,11 @@
 #                            Set on SessionStart so a new session isn't yellow
 #                            and a reused window drops any stale prior state.)
 #
-# Driven entirely by the Claude Code and Codex lifecycle hooks (see
-# dot_claude/modify_settings.json and dot_codex/private_hooks.json). Tabs that
-# never run an agent (shells, nvim, …) never set @agent_state, so they show no
-# dot at all.
+# Driven by the Claude Code and Codex lifecycle hooks (see
+# dot_claude/modify_settings.json and dot_codex/private_hooks.json), plus
+# `agent-interrupt-state` for the ESC-cancel case Claude Code fires no hook
+# for. Tabs that never run an agent (shells, nvim, …) never set @agent_state,
+# so they show no dot at all.
 #
 # Usage: agent-state running|idle|needs-input|none
 #
