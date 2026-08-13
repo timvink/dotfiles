@@ -291,19 +291,49 @@ zfs_unlock() {
 # (see _remote_ssh_flag) for the session's duration; the same flag is shared with
 # homelab() above. See ~/.local/bin/xdg-open (box), and ~/.local/bin/open-url-listener +
 # ~/.local/bin/ssh-image-paste (this Mac).
+#
+# The session itself is _devbox_session below; this wrapper owns only the Karabiner
+# flag and the one retry. If the box refuses the -R 2489 bind because a dead session
+# still holds the port, _devbox_reclaim_fwd clears it and we reconnect once. A second
+# failure means something is holding it that the reclaim deliberately won't kill (it
+# prints which), so we stop rather than loop.
 devbox() {
   _remote_ssh_flag 1
+  local rc
+  _devbox_session; rc=$?
+  if [ "$rc" -eq 2 ] && _devbox_reclaim_fwd; then
+    # The port really was stale, so nothing live is using the bridge: drop whatever the
+    # dead session left behind locally, or _revmount would see a live-looking pidfile and
+    # skip mounting ~/mac-downloads for the session we're about to open.
+    _revumount_devbox
+    _devbox_session
+  fi
+  _remote_ssh_flag 0
+}
+
+# One connect attempt: bring up the mount waiter, run the session, tear both down.
+# Returns 2 — and only 2 — when the box refused the -R 2489 bind, the one failure
+# devbox() knows how to heal.
+_devbox_session() {
   # Auto-mount ~/Downloads (read-write) at devbox:~/mac-downloads for this session
   # (see the reverse-mount helpers below). The devbox waiter resolves User+host from
   # the live connection (the IP isn't known up-front), mounts once the master is up,
   # and is torn down on exit. $_mnt is that waiter, killed if still polling on exit.
+  # It lives here rather than in devbox() so a retried attempt gets a *fresh* waiter:
+  # its poll window is only ~30s, which a failed attempt plus a reclaim would burn.
   _revmount_bg_devbox &
   local _mnt=$!
+  # az exits 0 even when ssh aborted on ExitOnForwardFailure, so its status can't tell
+  # us the tunnel never came up; ssh's message on stderr is the only signal. tee keeps
+  # a copy to grep after the fact while the terminal still sees the filtered stream live.
+  local errfile rc=0
+  errfile="$(mktemp "${TMPDIR:-/tmp}/devbox-stderr.XXXXXX" 2>/dev/null)"
+  [ -n "$errfile" ] || errfile="${TMPDIR:-/tmp}/devbox-stderr.$$"
   # Reset the flag and unmount even if the session dies abruptly (terminal closed →
   # SIGHUP, or killed) and skips the normal cleanup below; the handler clears itself
   # so the trap never leaks into the interactive shell. INT/TERM/HUP behave the same
   # in bash and zsh.
-  trap "_remote_ssh_flag 0; kill $_mnt 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
+  trap "_remote_ssh_flag 0; kill $_mnt 2>/dev/null; _revumount_devbox; rm -f '$errfile'; trap - INT TERM HUP" INT TERM HUP
   # --only-show-errors silences the ssh extension's unconditional "upgrade to
   # az ssh >=2.0.4" breaking-change banner (hardcoded in azext_ssh, fires on
   # every `az ssh vm` regardless of installed version) without hiding real
@@ -327,21 +357,79 @@ devbox() {
   # host-key changes — still comes through. (homelab uses plain ssh with no injected
   # `-v`, so its `LogLevel FATAL` in ~/.ssh/config genuinely works and needs no filter.)
   # -o ExitOnForwardFailure=yes: if -R 2489 (or -D 1080) can't bind at connect —
-  # e.g. a prior session's tunnel still holds the port through an overlapping
-  # ControlPersist window — abort loudly instead of silently running tunnel-less
-  # for the whole 30m persist window. Without this, a lost -R 2489 bind kills
-  # prefix+u URL-opening (the box's xdg-open shim can't reach the listener here)
-  # with no signal for half an hour. On failure just re-run devbox; the stale
-  # port clears within seconds.
+  # e.g. a prior session's tunnel still holds the port — abort loudly instead of
+  # silently running tunnel-less for the whole 30m persist window. Without this, a
+  # lost -R 2489 bind kills prefix+u URL-opening (the box's xdg-open shim can't reach
+  # the listener here) with no signal for half an hour. The stale port does NOT
+  # necessarily clear on its own, so devbox() reclaims it — see _devbox_reclaim_fwd.
   az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
     -D 1080 -R 2489:127.0.0.1:2489 \
     -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m \
     -o ExitOnForwardFailure=yes \
-    2> >(grep -E --line-buffered -v 'channel [0-9]+: open failed: connect failed: Connection refused' >&2)
+    2> >(tee "$errfile" | grep -E --line-buffered -v 'channel [0-9]+: open failed: connect failed: Connection refused' >&2)
+  grep -q 'remote port forwarding failed for listen port 2489' "$errfile" 2>/dev/null && rc=2
+  rm -f "$errfile"
   kill "$_mnt" 2>/dev/null
-  _revumount_devbox
+  # An attempt that lost the bind never got a master, so it has no mount of its own to
+  # tear down — and the one that ~/mac-downloads currently belongs to may be a live
+  # sibling session (that's exactly the case _devbox_reclaim_fwd declines to kill).
+  # Unmounting here would yank the bridge out from under it; devbox() does the teardown
+  # instead, on the path where the port really was stale.
+  [ "$rc" -eq 2 ] || _revumount_devbox
   trap - INT TERM HUP
-  _remote_ssh_flag 0
+  return "$rc"
+}
+
+# Reclaim the box's -R 2489 bind from a session that died without the box noticing, so
+# devbox() can retry. Cause: this Mac's public IP changes under a live session (network
+# switch, roam, sleep/wake) and the old TCP connection is never torn down — the box keeps
+# the session, and with it the port. sshd's own ClientAliveInterval (120s ×3) does not
+# rescue it: sshd sits blocked writing to the vanished peer with data stuck in Send-Q and
+# never reaches its keepalive timeout, so orphans outlive the 30m ControlPersist window
+# indefinitely (one was seen at 43 minutes and counting).
+#
+# Safety rule: kill the holder ONLY when its peer IP differs from the IP we are connecting
+# from now. Same IP ⇒ it's a live devbox session in another window of this Mac and the port
+# is legitimately taken — say so and leave it alone. `sudo -n` is required because the
+# forward's listening socket belongs to sshd, and `ss` hides the owning pid without it (the
+# box has NOPASSWD sudo); lacking that we can see the port is taken but not by whom, which
+# is not enough to kill anything. Returns 0 when the port is free to retry, 1 when it isn't.
+_devbox_reclaim_fwd() {
+  local out
+  printf '%s\n' "devbox: the box refused the -R 2489 bind — checking for a dead session…" >&2
+  out="$(az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
+    -T -o BatchMode=yes -o ConnectTimeout=10 '
+      port=2489
+      me=${SSH_CLIENT%% *}
+      holder=$(sudo -n ss -ltnpH "( sport = :$port )" 2>/dev/null | grep -o "pid=[0-9]*" | head -1 | cut -d= -f2)
+      if [ -z "$holder" ]; then
+        if ss -ltnH "( sport = :$port )" 2>/dev/null | grep -q .; then echo RECLAIM:opaque; else echo RECLAIM:free; fi
+        exit
+      fi
+      peer=$(sudo -n ss -tnpH state established "( sport = :22 )" 2>/dev/null |
+             grep "pid=$holder," | head -1 | awk "{print \$4}" | sed "s/:[0-9]*$//")
+      if [ -n "$peer" ] && [ "$peer" = "$me" ]; then echo RECLAIM:live; exit; fi
+      kill "$holder" 2>/dev/null || sudo -n kill "$holder" 2>/dev/null
+      i=0
+      while [ "$i" -lt 10 ]; do
+        ss -ltnH "( sport = :$port )" 2>/dev/null | grep -q . || { echo RECLAIM:killed; exit; }
+        sleep 0.5; i=$((i+1))
+      done
+      echo RECLAIM:stuck' 2>/dev/null)"
+  case "$out" in
+    *RECLAIM:killed*)
+      printf '%s\n' "devbox: cleared a stale session that still held port 2489 — reconnecting" >&2; return 0 ;;
+    *RECLAIM:free*)
+      printf '%s\n' "devbox: port 2489 is free again — reconnecting" >&2; return 0 ;;
+    *RECLAIM:live*)
+      printf '%s\n' "devbox: port 2489 is held by another live devbox session from this Mac — exit that one first (URL-opening rides a single tunnel)" >&2; return 1 ;;
+    *RECLAIM:opaque*)
+      printf '%s\n' "devbox: port 2489 is taken on the box but sudo -n can't say by whom — re-run devbox once it clears" >&2; return 1 ;;
+    *RECLAIM:stuck*)
+      printf '%s\n' "devbox: killed the session holding port 2489 but it hasn't released — re-run devbox in a moment" >&2; return 1 ;;
+    *)
+      printf '%s\n' "devbox: couldn't reach the box to check port 2489" >&2; return 1 ;;
+  esac
 }
 
 ## Reverse ~/Downloads mounts
