@@ -43,7 +43,7 @@ My dotfiles and machine configuration — shell config, `~/.gitconfig`,
 never hand-edit a live config file: the next `chezmoi apply` silently
 overwrites it. Load the `chezmoi` skill before changing any of this.
 
-## .env files are vault-backed
+## .env files and key files are vault-backed
 Secrets in a `.env` are mirrored into my password vault. Whenever you **change**
 a `.env` (or `.env.local`, etc.) — add, edit or remove a key — refresh the vault
 copy afterwards with the `vault` skill's helper (symlinked into all my agent
@@ -53,6 +53,13 @@ Reading a secret out of a `.env` needs no sync — only writing does. If the
 helper says the vault is locked, tell me; never run `rbw login`/`rbw unlock`
 yourself (those take my master password via pinentry). See the `vault` skill for
 the rest.
+
+Gitignored **key files** — signing keystores, SSH/TLS private keys,
+service-account JSON — get the same treatment from the sibling helper
+`file-vault-sync.sh` (`update` / `check` / `restore`, up to ~7 KB). If you create
+or rotate one, back it up in the same pass: unlike a password these cannot be
+re-read from anywhere, so an unbacked key file is a single laptop away from
+gone. See the `vault` skill.
 
 ## Git worktrees
 When working in a git worktree (e.g. started with `claude --worktree`) the

@@ -102,6 +102,44 @@ Exit 3 covers two cases, reported by **key name** only (never values):
   `.env`. Without this, a removed credential would sit in the backup forever
   while `check` cheerfully reported "in sync".
 
+## Backing up a whole FILE (binary or text) to the vault
+
+A `.env` is a list of separately-editable keys, so `env-vault-sync.sh` diffs it
+key by key. Some credentials are not like that: an Android signing keystore, an
+SSH or TLS private key, a service-account JSON. Their **bytes** are the secret,
+nothing should hand-edit them, and losing the file is unrecoverable in a way
+losing a password is not — a lost Play upload key means a key reset with Google,
+not a re-issue. Those go in with `file-vault-sync.sh` (next to this file), which
+stores the file base64-encoded in the notes of `file-backup:<repo-name>/<path>`,
+keyed exactly like the `.env` entries.
+
+```bash
+~/.claude/skills/vault/file-vault-sync.sh update  <path/to/file>   # back it up
+~/.claude/skills/vault/file-vault-sync.sh check   <path/to/file>   # still current?
+~/.claude/skills/vault/file-vault-sync.sh restore <path/to/file>   # machine died
+```
+
+- **`update` verifies its own work.** It writes the note, reads it back out of
+  the vault, and re-hashes — an unverified backup is not a backup. It refuses
+  files over ~7 KB, because a Bitwarden note caps at 10000 characters and a
+  silently truncated keystore only fails on the day you need it.
+- **`check`** shares the `.env` exit codes: **0** in sync, **2** locked, **3**
+  drift, **4** no backup yet. Sync is decided by SHA-256 of the whole file; the
+  contents are never printed, only hashes and sizes.
+- **`restore`** refuses to overwrite an existing file unless given `--force`,
+  restores the original mode, and re-hashes what it wrote against the hash
+  recorded in the note.
+- A keystore backup is only useful together with its password — keep that in the
+  `.env` (already vault-backed) or its own vault entry, and check both are
+  current at the same time.
+
+Two rbw quirks this relies on, worth knowing before writing anything else that
+drives `rbw add`/`rbw edit`: **rbw silently strips every line starting with `#`**
+from the editor buffer, so metadata headers use `;` (also not a base64
+character, so a header can never be mistaken for body); and `rbw` has **no
+attachment support** (checked through 1.15), which is why the bytes ride in the
+notes at all.
+
 ## Notes
 
 - The vault server and account are set in the rbw config (chezmoi-managed at
