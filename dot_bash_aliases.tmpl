@@ -311,82 +311,158 @@ devbox() {
   _remote_ssh_flag 0
 }
 
-# One connect attempt: bring up the mount waiter, run the session, tear both down.
-# Returns 2 — and only 2 — when the box refused the -R 2489 bind, the one failure
-# devbox() knows how to heal.
+# One connect attempt: make sure a usable master exists, ride it into an interactive
+# shell, tear the mount down on the way out. Returns 2 — and only 2 — when the box
+# refused the -R 2489 bind, the one failure devbox() knows how to heal.
 _devbox_session() {
+  # Must come first: a dead master left over from a previous session would otherwise
+  # swallow this connect whole, and the mount waiter below would latch onto it too.
+  _devbox_drop_dead_master
+  local rc conn user host
+  _devbox_ensure_master; rc=$?
+  [ "$rc" -eq 0 ] || return "$rc"
+  conn="$(_devbox_conn)"
+  if [ -z "$conn" ]; then
+    printf '%s\n' "devbox: the master is up but its address can't be resolved — re-run devbox" >&2
+    return 1
+  fi
+  read -r user host <<< "$conn"
   # Auto-mount ~/Downloads (read-write) at devbox:~/mac-downloads for this session
-  # (see the reverse-mount helpers below). The devbox waiter resolves User+host from
-  # the live connection (the IP isn't known up-front), mounts once the master is up,
-  # and is torn down on exit. $_mnt is that waiter, killed if still polling on exit.
+  # (see the reverse-mount helpers below). The waiter mounts as soon as the master
+  # answers and is torn down on exit; $_mnt is that waiter, killed if still polling.
   # It lives here rather than in devbox() so a retried attempt gets a *fresh* waiter:
   # its poll window is only ~30s, which a failed attempt plus a reclaim would burn.
   _revmount_bg_devbox &
   local _mnt=$!
-  # az exits 0 even when ssh aborted on ExitOnForwardFailure, so its status can't tell
-  # us the tunnel never came up; ssh's message on stderr is the only signal. tee keeps
-  # a copy to grep after the fact while the terminal still sees the filtered stream live.
-  local errfile rc=0
-  errfile="$(mktemp "${TMPDIR:-/tmp}/devbox-stderr.XXXXXX" 2>/dev/null)"
-  [ -n "$errfile" ] || errfile="${TMPDIR:-/tmp}/devbox-stderr.$$"
   # Reset the flag and unmount even if the session dies abruptly (terminal closed →
   # SIGHUP, or killed) and skips the normal cleanup below; the handler clears itself
   # so the trap never leaks into the interactive shell. INT/TERM/HUP behave the same
   # in bash and zsh.
-  trap "_remote_ssh_flag 0; kill $_mnt 2>/dev/null; _revumount_devbox; rm -f '$errfile'; trap - INT TERM HUP" INT TERM HUP
-  # --only-show-errors silences the ssh extension's unconditional "upgrade to
-  # az ssh >=2.0.4" breaking-change banner (hardcoded in azext_ssh, fires on
-  # every `az ssh vm` regardless of installed version) without hiding real
-  # az errors like auth failures or a missing VM.
-  #
-  # The trailing `2> >(grep …)` drops "channel N: open failed: connect failed:
-  # Connection refused" spam from the interactive terminal. It comes from the
-  # -D 1080 SOCKS / -R 2489 forwards when a browser tab still points at a
-  # devbox:<port> dev server that has since stopped (proxy.pac routes it here, the
-  # box refuses, and the master ssh — which also runs the shell — logs it).
-  #
-  # Why grep and not `-o LogLevel=FATAL` (what we tried first): this is an AAD
-  # login, so azext_ssh sets delete_cert and force-injects its OWN `-v` into the ssh
-  # command (ssh_utils.py, to parse the log for auth success and clean up the
-  # ephemeral cert). A command-line `-v` pins LogLevel=DEBUG and unconditionally
-  # beats `-o LogLevel` (which only applies while the level is still unset) — so no
-  # LogLevel we pass can win. az then re-emits ssh's stderr to our terminal, swallowing
-  # only debug1/Authenticated lines and passing the channel errors through; so we
-  # filter those off az's stderr instead. The interactive session rides stdout (the
-  # PTY) and is untouched; any non-matching stderr — real fatal errors, auth failures,
-  # host-key changes — still comes through. (homelab uses plain ssh with no injected
-  # `-v`, so its `LogLevel FATAL` in ~/.ssh/config genuinely works and needs no filter.)
-  # -o ExitOnForwardFailure=yes: if -R 2489 (or -D 1080) can't bind at connect —
-  # e.g. a prior session's tunnel still holds the port — abort loudly instead of
-  # silently running tunnel-less for the whole 30m persist window. Without this, a
-  # lost -R 2489 bind kills prefix+u URL-opening (the box's xdg-open shim can't reach
-  # the listener here) with no signal for half an hour. The stale port does NOT
-  # necessarily clear on its own, so devbox() reclaims it — see _devbox_reclaim_fwd.
-  az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
-    -D 1080 -R 2489:127.0.0.1:2489 \
-    -o ControlMaster=auto -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o ControlPersist=30m \
-    -o ExitOnForwardFailure=yes \
-    2> >(tee "$errfile" | grep -E --line-buffered -v 'channel [0-9]+: open failed: connect failed: Connection refused' >&2)
-  grep -q 'remote port forwarding failed for listen port 2489' "$errfile" 2>/dev/null && rc=2
-  rm -f "$errfile"
+  trap "_remote_ssh_flag 0; kill $_mnt 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
+  # The shell itself is a plain mux client, NOT az — and that is what makes exiting
+  # instant. az waits on the ssh process it spawns, and under ControlMaster that same
+  # process goes on to serve the master, so an az-run session can't return until the
+  # master dies: with ControlPersist that's up to half an hour, and with the mount
+  # bridge attached (a mux session keeps the master alive) it is never. Exiting looked
+  # like a frozen terminal. A mux client exits the moment the shell does.
+  # The terminal is quiet for free too: az's forced -v and the "channel N: open failed"
+  # spam the forwards emit (a browser tab still pointing at a devbox:<port> dev server
+  # that has since stopped) belong to the master and now land in its log, not here.
+  ssh -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o User="$user" "$host"
   kill "$_mnt" 2>/dev/null
-  # An attempt that lost the bind never got a master, so it has no mount of its own to
-  # tear down — and the one that ~/mac-downloads currently belongs to may be a live
-  # sibling session (that's exactly the case _devbox_reclaim_fwd declines to kill).
-  # Unmounting here would yank the bridge out from under it; devbox() does the teardown
-  # instead, on the path where the port really was stale.
-  [ "$rc" -eq 2 ] || _revumount_devbox
+  _revumount_devbox
   trap - INT TERM HUP
+  return 0
+}
+
+# Bring up the shared master unless one is already running, and leave it in the background
+# for the next devbox to reuse — ControlPersist keeps it ~30m after the last client leaves,
+# so a reconnect within that window costs nothing and needs no az round trip at all.
+# Returns 2 when the box refused the -R 2489 bind, 1 when the connection never came up.
+_devbox_ensure_master() {
+  local sock="$HOME/.ssh/cm-devbox.sock" log rc=0 i
+  # _devbox_drop_dead_master ran first, so a socket still here has answered a round trip.
+  [ -S "$sock" ] && return 0
+  log="$(mktemp "${TMPDIR:-/tmp}/devbox-master.XXXXXX" 2>/dev/null)"
+  [ -n "$log" ] || log="${TMPDIR:-/tmp}/devbox-master.$$"
+  printf '%s\n' "devbox: opening a connection…" >&2
+  # --only-show-errors silences the ssh extension's unconditional "upgrade to az ssh
+  # >=2.0.4" breaking-change banner (hardcoded in azext_ssh, fires on every `az ssh vm`
+  # regardless of installed version) without hiding real az errors like auth failures
+  # or a missing VM.
+  #
+  # -N -f: no remote command, and fork into the background once authenticated with the
+  # forwards up. The fork re-parents the master to init, and it serves clients from that
+  # moment — but az does NOT return when it happens: it goes on waiting for EOF on the
+  # stderr pipe the master inherited, i.e. for the master's entire life. So az is put in
+  # the background too and we wait for the socket instead of for az. That leftover wait is
+  # useful rather than merely harmless: it is what makes az clean up the ephemeral AAD
+  # cert once the master finally exits. The subshell keeps the shell from announcing it
+  # with a job-control line.
+  #
+  # Its output can't be quietened, only redirected: this is an AAD login, so azext_ssh
+  # sets delete_cert and force-injects its OWN `-v` into the ssh command (ssh_utils.py,
+  # to parse the log for auth success and clean up that cert). A command-line `-v` pins
+  # LogLevel=DEBUG and unconditionally beats any `-o LogLevel` we pass (that only applies
+  # while the level is still unset). So it goes to $log, which is shown only if the master
+  # never appears, and which the master keeps writing to through the unlink below — that
+  # is deliberate: it swallows the channel spam for the master's whole life. (homelab uses
+  # plain ssh with no injected `-v`, so its `LogLevel FATAL` in ~/.ssh/config just works.)
+  #
+  # -o ExitOnForwardFailure=yes: if -R 2489 (or -D 1080) can't bind, fail loudly rather
+  # than leave a master that silently lacks its tunnels — a lost -R 2489 bind kills
+  # prefix+u URL-opening (the box's xdg-open shim can't reach the listener here) with no
+  # signal at all. The stale port does NOT necessarily clear on its own, so devbox()
+  # reclaims it — see _devbox_reclaim_fwd.
+  #
+  # -o ServerAliveInterval/CountMax: bound how long this master can outlive its own
+  # connection. Without keepalives a master whose peer vanished (IP change, sleep) sits
+  # there for the full persist window looking healthy, and it is exactly what the next
+  # devbox rides into a hang — see _devbox_drop_dead_master, which cleans up the ones that
+  # slip through this ~60s window. A blip shorter than that rides through untouched.
+  ( az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
+      -N -f -D 1080 -R 2489:127.0.0.1:2489 \
+      -o ControlMaster=yes -o ControlPath="$sock" -o ControlPersist=30m \
+      -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+      -o ExitOnForwardFailure=yes >/dev/null 2>"$log" & )
+  # Wait for the socket, or for the log to explain why there won't be one. az's exit
+  # status is no help even when we do wait for it: it exits 0 whether ssh connected or
+  # aborted on ExitOnForwardFailure.
+  for i in $(seq 1 90); do
+    [ -S "$sock" ] && break
+    grep -qE 'remote port forwarding failed for listen port|Could not request|Permission denied|^ERROR:' "$log" 2>/dev/null && break
+    sleep 0.5
+  done
+  if [ -S "$sock" ]; then
+    rc=0
+  elif grep -q 'remote port forwarding failed for listen port 2489' "$log" 2>/dev/null; then
+    rc=2
+  else
+    rc=1
+    printf '%s\n' "devbox: the connection didn't come up —" >&2
+    grep -vE '^debug[0-9]|^OpenSSH_|^Transferred:|^Bytes per second:' "$log" 2>/dev/null | tail -5 >&2
+  fi
+  rm -f "$log"
   return "$rc"
 }
 
+# Drop a ControlPersist master that has no live connection left under it. Same trigger as
+# the reclaim below — this Mac's public IP changes (network switch, roam, sleep/wake) — but
+# this is the local half of the damage: the master process survives with its socket in
+# place, and `ssh -O check` still answers "Master running" because it only ever asks that
+# local process, never the network. _devbox_ensure_master would then hand that socket to
+# the session, which rides it straight into a black hole and hangs indefinitely: no error,
+# and no ExitOnForwardFailure to catch it either, since a mux client requests no forwards
+# of its own. That is one of the two frozen terminals this file guards against (the other
+# is in _devbox_session), and only a real round trip can tell it apart from a healthy one.
+_devbox_drop_dead_master() {
+  local sock="$HOME/.ssh/cm-devbox.sock" conn user host
+  [ -S "$sock" ] || return 0
+  # The probe has to be bounded or the check becomes the hang it is meant to prevent;
+  # without `timeout` (coreutils) don't ask at all, and let the connect take its chances.
+  command -v timeout >/dev/null 2>&1 || return 0
+  conn="$(_devbox_conn)"
+  [ -n "$conn" ] || return 0
+  read -r user host <<< "$conn"
+  timeout 8 ssh -n -o BatchMode=yes -o ControlPath="$sock" -o User="$user" "$host" true 2>/dev/null && return 0
+  printf '%s\n' "devbox: the previous session's master is unreachable (IP changed?) — dropping it" >&2
+  timeout 5 ssh -O exit -o ControlPath="$sock" -o User="$user" "$host" 2>/dev/null
+  # -O exit asks a master that may itself be wedged, so don't trust it alone: kill whatever
+  # still rides that socket (the master, and the reverse-mount bridge multiplexed over it —
+  # one was found still hung 1h39m after its connection died), then clear the socket and the
+  # local half of the mount so the reconnect below starts from nothing.
+  pkill -f 'cm-devbox\.sock' 2>/dev/null
+  rm -f "$sock"
+  _revumount_devbox
+}
+
 # Reclaim the box's -R 2489 bind from a session that died without the box noticing, so
-# devbox() can retry. Cause: this Mac's public IP changes under a live session (network
-# switch, roam, sleep/wake) and the old TCP connection is never torn down — the box keeps
-# the session, and with it the port. sshd's own ClientAliveInterval (120s ×3) does not
-# rescue it: sshd sits blocked writing to the vanished peer with data stuck in Send-Q and
-# never reaches its keepalive timeout, so orphans outlive the 30m ControlPersist window
-# indefinitely (one was seen at 43 minutes and counting).
+# devbox() can retry. The remote half of the same IP-change damage: the old TCP connection
+# is never torn down, so the box keeps the session and with it the port. sshd's own
+# ClientAliveInterval (120s ×3) does not rescue it — sshd sits blocked writing to the
+# vanished peer with data stuck in Send-Q and never reaches its keepalive timeout, so
+# orphans outlive the 30m ControlPersist window indefinitely (one was seen at 43 minutes
+# and counting).
 #
 # Safety rule: kill the holder ONLY when its peer IP differs from the IP we are connecting
 # from now. Same IP ⇒ it's a live devbox session in another window of this Mac and the port
