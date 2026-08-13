@@ -433,11 +433,34 @@ _revmount_bg_devbox() {
 # Tear down tag's bridge: unmount on the box (best effort — killing the local bridge
 # also EOFs the box's sshfs so it self-unmounts) then drop the local processes.
 # $1=tag; rest = ssh dest args (may be empty if the box is no longer reachable).
+#
+# This runs on the way OUT of a session, so it must never be able to block the shell
+# you're returning to — and it used to. The remote unmount is the only step in the
+# whole exit path that talks to the box, and when that connection is a black hole
+# (VM deallocated under us, laptop slept, network switched) ssh waits forever:
+# silently, since stderr is dropped, and holding the terminal's stdin. Exiting the
+# session then looks like a frozen terminal with only Ctrl-C to escape. Hence:
+#   timeout 10        hard ceiling; over a live connection this takes well under 1s.
+#   -n                stdin from /dev/null, so a stalled ssh can't eat keystrokes.
+#   ConnectTimeout=5  bounds the fallback path when the master socket is already gone.
+#   -uz               lazy unmount, same as _revmount: against a stalled-but-alive
+#                     sshfs a plain umount(2) blocks in the kernel, while MNT_DETACH
+#                     returns at once and still frees ~/mac-downloads — which matters,
+#                     because a mount left wedged hangs the box's NEXT login shell
+#                     (see _revmount).
+# Keepalives would only shorten the stall, not remove it, so the ceiling is the fix.
+# Without `timeout` (coreutils: brew on macOS, base on Linux) skip the remote unmount
+# rather than reintroduce the hang — _revmount's -uz heals the leftover on reconnect.
 _revumount() {
   local tag="$1"; shift
-  local pidfile="$HOME/.ssh/revmount-$tag.pid" pid
-  [ $# -gt 0 ] && ssh -o BatchMode=yes "$@" \
-    'fusermount3 -u ~/mac-downloads 2>/dev/null || fusermount -u ~/mac-downloads 2>/dev/null' 2>/dev/null || true
+  local pidfile="$HOME/.ssh/revmount-$tag.pid" pid rc
+  if [ $# -gt 0 ] && command -v timeout >/dev/null 2>&1; then
+    timeout 10 ssh -n -o BatchMode=yes -o ConnectTimeout=5 "$@" \
+      'fusermount3 -uz ~/mac-downloads 2>/dev/null || fusermount -uz ~/mac-downloads 2>/dev/null' 2>/dev/null
+    rc=$?
+    [ "$rc" = 124 ] && printf '%s\n' \
+      "note: remote unmount of ~/mac-downloads timed out — it clears on next connect" >&2
+  fi
   if [ -f "$pidfile" ]; then
     pid="$(cat "$pidfile" 2>/dev/null)"
     [ -n "$pid" ] && { kill "$pid" 2>/dev/null; pkill -P "$pid" 2>/dev/null; }
