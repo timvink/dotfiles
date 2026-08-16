@@ -36,6 +36,21 @@ slowest turns." Litmus: if you'd be fine stopping here, state it. Don't contort 
 writing or tack a reflexive "Want me to…?" onto finished work. Tool prompts
 (AskUserQuestion, ExitPlanMode, permissions) signal separately — no question needed.
 
+## Per-tab progress note (tmux)
+The tab dot says *whether* you are working; a note next to it says *what*. That
+note is the only thing separating five simultaneously-working agents in my
+prefix+o overview, so set it with `agent-note` when you start real work, and
+again at each phase change:
+
+    agent-note "reading the tmux overview renderer"
+    agent-note "hook wired; running the checks"
+
+Present tense, under ~40 characters, no trailing punctuation — it is a label, not
+a sentence. Two to four over a task is about right; skip it entirely for quick
+questions and one-line edits. Never clear it: the last note is what tells me what
+happened while I was away, and starting or ending a session clears it for me.
+No-op outside tmux, so it is always safe to call.
+
 ## Machine setup is infrastructure-as-code
 Prefer declaring a change in code over running a one-off imperative command.
 My dotfiles and machine configuration — shell config, `~/.gitconfig`,

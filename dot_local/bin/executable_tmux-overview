@@ -7,6 +7,11 @@ label box ("KEY name") filled with the window's @agent_state colour. A window
 running a foreground `make serve` gets a green box with its port(s) appended
 (e.g. "3 api  8000"), so servers stand out from agents.
 
+Under the box, when the window has one, sits its @agent_note — a line the agent
+writes itself saying what it is doing (see the `agent-note` script), drawn in the
+same colour as the box. It's what tells five simultaneously-working tabs apart:
+without it a montage of agents is a montage of identical blue dots.
+
 Navigate: hjkl (or arrow keys) move a peach highlight between cells, wrapping at
 every edge; Enter opens the highlighted cell. Or jump straight to a cell by its
 KEY — 1-9 then a-z (skipping the h/j/k/l/q keys) — or by clicking it with the
@@ -132,16 +137,20 @@ def gather():
         rec = []
         listing = tmux(
             "list-windows", "-t", s, "-F",
-            "#{window_index}\t#{window_name}\t#{@agent_state}\t#{@server_state}\t#{@server_port}",
+            "#{window_index}\t#{window_name}\t#{@agent_state}\t#{@server_state}\t"
+            "#{@server_port}\t#{@agent_note}",
         )
         for line in listing.split("\n"):
             if not line:
                 continue
-            idx, name, state, server, port = (line.split("\t", 4) + [""] * 4)[:5]
+            # @agent_note is free text and so goes last, taking the final split:
+            # a stray tab in it then lands inside the note instead of shifting
+            # every column after it. (agent-note strips tabs anyway.)
+            idx, name, state, server, port, note = (line.split("\t", 5) + [""] * 5)[:6]
             cap = tmux("capture-pane", "-e", "-p", "-t", f"{s}:{idx}").split("\n")
             while cap and not strip_ansi(cap[-1]).strip():
                 cap.pop()
-            rec.append((idx, name, state, server, port, cap))
+            rec.append((idx, name, state, server, port, note, cap))
         wins[s] = rec
         maxcols = max(maxcols, len(rec))
     return sessions, wins, maxcols
@@ -155,6 +164,18 @@ def box_style(state, server):
     return bg(OTHER) + fg(SNOW) + BOLD
 
 
+def note_style(state, server):
+    """@agent_note line: the box's fill colour used as ink on the dark background.
+
+    The same accent inverted, and not bold — so the note reads as part of the box
+    above it rather than as a second filled block competing with the label."""
+    if server == "running":
+        return bg(INK) + fg(GREEN)
+    if state in STATE:
+        return bg(INK) + fg(STATE[state])
+    return bg(INK) + fg(SNOW)
+
+
 def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
     if not sessions:
         return f"{ESC}[2J{at(1, 1)}no sessions", {}, [], []
@@ -164,7 +185,7 @@ def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
     content_h = max(1, (rows - 1 - nsess) // nsess)
 
     buf = [f"{ESC}[2J"] if clear else []
-    boxes = []          # (ri, ci, cstart, cx, cell_w, content_h, label, state, server)
+    boxes = []          # (ri, ci, cstart, cx, cell_w, content_h, label, note, state, server)
     sep_rows = []
     jumpmap = {}        # hotkey -> (session, idx)
     grid = []           # grid[ri] = [(session, idx), …] in column order, for nav/Enter
@@ -180,7 +201,7 @@ def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
         for c in range(maxcols):
             cx = c * (cell_w + 1) + 1
             if c < len(rec):
-                idx, name, state, server, port, cap = rec[c]
+                idx, name, state, server, port, note, cap = rec[c]
                 hotkey = HOTKEYS[g] if g < len(HOTKEYS) else None
                 g += 1
                 label = f"{hotkey} {name}" if hotkey else name
@@ -194,7 +215,7 @@ def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
                 disp = [""] * (content_h - len(disp)) + disp
                 for i in range(content_h):
                     buf.append(at(cstart + i, cx) + cell_ansi(disp[i], cell_w))
-                boxes.append((ri, c, cstart, cx, cell_w, content_h, label, state, server))
+                boxes.append((ri, c, cstart, cx, cell_w, content_h, label, note, state, server))
             else:
                 for i in range(content_h):
                     buf.append(at(cstart + i, cx) + " " * cell_w)
@@ -207,24 +228,35 @@ def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
         for rr in sep_rows:
             buf.append(at(rr, sx) + fg(SEP) + "│" + RESET)
 
-    for ri, ci, cstart, cx, cw_, ch_, label, state, server in boxes:
+    for ri, ci, cstart, cx, cw_, ch_, label, note, state, server in boxes:
         style = box_style(state, server)
+        # A note needs a row of its own under the box, and it has to stay off the
+        # cell's bottom row where the selection frame draws — hence ch_ >= 5. With
+        # one, box and note are centred together as a 4-row unit: the box shifts
+        # up a row rather than the note hanging below where the box used to sit.
+        show_note = bool(note) and ch_ >= 5 and cw_ >= 8
         if ch_ >= 3 and cw_ >= 8:
             lab = crop_plain(label, cw_ - 6)
             interior = vis_width(lab) + 4
             bw = interior + 2
             bx = cx + max(0, (cw_ - bw) // 2)
-            brow = cstart + max(0, (ch_ - 3) // 2)
+            brow = cstart + max(0, (ch_ - (4 if show_note else 3)) // 2)
             buf.append(at(brow, bx) + style + "┌" + "─" * interior + "┐" + RESET)
             buf.append(at(brow + 1, bx) + style + "│  " + lab + "  │" + RESET)
             buf.append(at(brow + 2, bx) + style + "└" + "─" * interior + "┘" + RESET)
+            if show_note:
+                # Cropping the note is this renderer's job alone — agent-note
+                # stores it uncapped, because only here is the cell width known.
+                txt = f" {crop_plain(note, cw_ - 4)} "
+                nx = cx + max(0, (cw_ - vis_width(txt)) // 2)
+                buf.append(at(brow + 3, nx) + note_style(state, server) + txt + RESET)
         else:
             buf.append(at(cstart, cx) + style + crop_plain(f" {label} ", cw_) + RESET)
 
     # Heavy peach frame around the selected cell, drawn last so it sits on top of
     # content, separators and the label box.
     if sel is not None:
-        for ri, ci, cstart, cx, cw_, ch_, label, state, server in boxes:
+        for ri, ci, cstart, cx, cw_, ch_, label, note, state, server in boxes:
             if (ri, ci) != sel:
                 continue
             if cw_ >= 2 and ch_ >= 2:

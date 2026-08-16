@@ -71,6 +71,19 @@ needs input, yellow ○ your turn), driven by the `@agent_state` window option t
   `modify_private_settings.json`. agy ≥ 1.0.8 is required (statusline/title/hooks);
   the package script installs latest, older installs need `agy update`.
 
+A companion `@agent_note` window option carries **what** the agent is doing, since
+the dot only says whether it is doing anything — five working agents are five
+identical blue dots. Agents set it themselves with `~/.local/bin/agent-note`,
+instructed by the "Per-tab progress note" section of `agents/AGENTS.md`; nothing
+polls or infers it, so a tab whose agent never calls it just has no note. Only
+`tmux-overview` (prefix+o) renders it, centred under each cell's label box in that
+cell's state colour — the tab bar is deliberately left alone, being far too narrow
+for a sentence. `agent-state none` unsets it alongside the dot, which is what keeps
+the two from desyncing: every path that ends a session (SessionStart, SessionEnd,
+the zsh precmd reaper) drops the note for free. A new turn does *not* clear it —
+the previous note still names the work, and blanking it would empty the box for
+exactly as long as the agent takes to write the next one.
+
 ## Lid-close sleep guard (macOS)
 
 `@agent_state` has a second consumer: `~/.local/bin/agent-sleep-guard` keeps the

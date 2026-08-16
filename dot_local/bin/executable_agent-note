@@ -1,0 +1,52 @@
+#!/bin/sh
+# Set the @agent_note user option on the current tmux window: one short line of
+# free text saying WHAT the agent is doing, next to the @agent_state dot that
+# only says WHETHER it is working. Five agents mid-task are five identical blue
+# dots; the note is what tells them apart.
+#
+# Only `tmux-overview` (prefix+o) renders it — centred just under each cell's
+# label box, in that cell's state colour. The per-tab window-status-format is
+# deliberately left alone: tabs are a few columns wide and a sentence there
+# would wreck the bar.
+#
+# Agents set it themselves at phase boundaries; the instruction telling them to
+# lives in agents/AGENTS.md, symlinked into Claude, Codex and Antigravity.
+#
+# Usage: agent-note "wiring the hook; tests next"
+#        agent-note fixing the freeze      (unquoted words are joined)
+#        agent-note                        (no args → clear)
+#
+# Clearing is otherwise automatic and NOT this script's job: `agent-state none`
+# unsets @agent_note too, so SessionStart, SessionEnd and the zsh precmd reaper
+# (dot_zshrc.tmpl) each wipe the note along with the dot, and a reused window
+# never shows the previous session's note.
+#
+# A new turn does NOT clear it, on purpose. The previous note still names the
+# work in progress, whereas blanking it on UserPromptSubmit would leave the box
+# empty for exactly as long as the agent takes to write the next one — which is
+# the stretch you most want to read it.
+#
+# No-op outside tmux. Always exits 0 so the agent never sees an error.
+
+# Join the arguments, then flatten to a single clean line: tabs would collide
+# with the field separator tmux-overview splits list-windows output on, and
+# control characters would corrupt the popup's cursor positioning. Length is not
+# capped here — the renderer crops to the cell width it actually has, which is
+# the only place that knows how much room there is.
+note=$(printf '%s' "$*" \
+    | tr '\n\r\t' '   ' \
+    | tr -d '\001-\010\013\014\016-\037\177' \
+    | sed 's/  */ /g; s/^ *//; s/ *$//')
+
+if [ -n "${TMUX_PANE:-}" ]; then
+    win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
+    if [ -n "${win:-}" ]; then
+        if [ -z "$note" ]; then
+            tmux set-option -wt "$win" -u '@agent_note' 2>/dev/null || true
+        else
+            tmux set-option -wt "$win" '@agent_note' "$note" 2>/dev/null || true
+        fi
+    fi
+fi
+
+exit 0
