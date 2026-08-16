@@ -71,6 +71,19 @@ installed. Before starting project work, confirm the repo provides both:
   deps, build venvs, seed config); run it with `make setup`.
 If either is missing, stop and ask the user to add it before continuing.
 
+Clean up when you're done. Everything `make setup` installs lives inside the
+worktree and dies with the directory — docker's state is the exception. Compose
+names its project after the worktree directory, so each worktree that ran a dev
+stack or a build leaves its own containers, images and volumes on a daemon that
+`git worktree remove` never touches, and disk on my dev machine is limited. From
+inside the worktree, *before* removing it (a no-op if nothing ever ran):
+`docker compose down --rmi local --volumes --remove-orphans`
+Never reach for `docker system prune -a` instead — the daemon is shared with
+every other project and parallel session, so a global prune throws away their
+images too. `docker system df` shows what is really using the space, and when it
+is the layer cache that fills the disk, `docker builder prune` is the one global
+sweep that is safe — cache only, so nobody loses work, they just build cold once.
+
 ## Project-level AGENTS.md
 When a repo ships an `AGENTS.md`, follow it exactly as if it were a `CLAUDE.md`
 — it carries the same authority. (This matters because Claude Code only loads
