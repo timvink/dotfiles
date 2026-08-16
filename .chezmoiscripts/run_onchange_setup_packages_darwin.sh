@@ -73,6 +73,8 @@ PACKAGES=(
   scw
   watch
   pngpaste # clipboard image -> PNG, used by img-clip.nvim in neovim
+  whisper-cpp # `whisper-cli`, Metal-accelerated; engine behind the transcribe skill
+  ffmpeg # transcode to the 16k mono wav whisper-cli wants (transcribe skill)
   imagemagick # `magick` CLI; snacks.image uses it to render .png/.jpg previews in nvim
   wireguard-tools # wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn` CLI)
   wireguard-go # userspace WireGuard backend (macOS has no kernel module)

@@ -27,6 +27,10 @@ you'd download a model yourself and skip the Handy bits.
 
 ## One-time setup
 
+`whisper-cpp` and `ffmpeg` are declared in the chezmoi darwin package script (as
+is the `handy` cask), so a `chezmoi apply` machine already has them. On a box
+that skipped that:
+
 ```sh
 brew install whisper-cpp ffmpeg
 ```
