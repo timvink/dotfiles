@@ -77,8 +77,12 @@ identical blue dots. Agents set it themselves with `~/.local/bin/agent-note`,
 instructed by the "Per-tab progress note" section of `agents/AGENTS.md`; nothing
 polls or infers it, so a tab whose agent never calls it just has no note. Only
 `tmux-overview` (prefix+o) renders it, centred under each cell's label box in that
-cell's state colour — the tab bar is deliberately left alone, being far too narrow
-for a sentence. `agent-state none` unsets it alongside the dot, which is what keeps
+cell's state colour and wrapped over up to two lines — the tab bar is deliberately
+left alone, being far too narrow for a sentence. **Space** in that popup hides the
+pane snapshots so the labels and notes sit on empty cells, which is the readable
+way to scan a busy machine; the choice persists in the `@overview_panes` tmux
+server option, and hidden panes skip `capture-pane` entirely, so it is also the
+cheaper mode. `agent-state none` unsets the note alongside the dot, which is what keeps
 the two from desyncing: every path that ends a session (SessionStart, SessionEnd,
 the zsh precmd reaper) drops the note for free. A new turn does *not* clear it —
 the previous note still names the work, and blanking it would empty the box for

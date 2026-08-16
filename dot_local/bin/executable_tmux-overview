@@ -7,15 +7,18 @@ label box ("KEY name") filled with the window's @agent_state colour. A window
 running a foreground `make serve` gets a green box with its port(s) appended
 (e.g. "3 api  8000"), so servers stand out from agents.
 
-Under the box, when the window has one, sits its @agent_note — a line the agent
-writes itself saying what it is doing (see the `agent-note` script), drawn in the
-same colour as the box. It's what tells five simultaneously-working tabs apart:
-without it a montage of agents is a montage of identical blue dots.
+Under the box, when the window has one, sits its @agent_note — what the agent
+says it is doing (see the `agent-note` script), drawn in the same colour as the
+box and wrapped over up to two lines. It's what tells five simultaneously-working
+tabs apart: without it a montage of agents is a montage of identical blue dots.
 
 Navigate: hjkl (or arrow keys) move a peach highlight between cells, wrapping at
 every edge; Enter opens the highlighted cell. Or jump straight to a cell by its
 KEY — 1-9 then a-z (skipping the h/j/k/l/q keys) — or by clicking it with the
-mouse. q or Esc closes. Nothing is highlighted until you first move.
+mouse. Space hides the pane snapshots, leaving just the labels and notes on empty
+cells, which is the readable way to scan what everything is doing; the choice is
+remembered across popups. q or Esc closes. Nothing is highlighted until you first
+move.
 
     blue ● running    red ● waiting    yellow ○ idle    green ■ server
 
@@ -30,6 +33,7 @@ import select
 import shutil
 import subprocess
 import sys
+import textwrap
 import unicodedata
 
 ESC = "\033"
@@ -51,6 +55,8 @@ SNOW = (235, 235, 245)
 STATE = {"running": BLUE, "needs-input": RED, "idle": YELLOW}
 OTHER = DIM
 INTERVAL = 1.0
+NOTE_LINES = 2      # most an @agent_note may wrap to; a taller cell buys no more
+PANES_OPT = "@overview_panes"   # "off" hides the pane snapshots (space toggles)
 
 # Direct-jump hotkeys: 1-9 then letters, SKIPPING the hjkl nav keys and the q
 # quit key so a jump can never be read as a move or a quit.
@@ -129,7 +135,31 @@ def tmux(*args):
     ).stdout
 
 
-def gather():
+def panes_pref():
+    """Whether pane snapshots are shown, remembered in a tmux *server* option so
+    the choice survives closing the popup — same instinct as @agent_state, state
+    lives in tmux rather than in a dotfile of our own. Unset means on."""
+    return tmux("show-options", "-sv", PANES_OPT).strip() != "off"
+
+
+def set_panes_pref(on):
+    tmux("set-option", "-s", PANES_OPT, "on" if on else "off")
+
+
+def wrap_note(note, width, maxlines):
+    """Word-wrap a note to at most `maxlines` lines of `width` columns, marking a
+    truncated tail with an ellipsis.
+
+    textwrap counts characters where the rest of this file counts display cells,
+    so each line goes through crop_plain as well: a wide glyph can then only make
+    a line narrower than asked for, never overflow the cell it sits in."""
+    if width < 1 or maxlines < 1:
+        return []
+    lines = textwrap.wrap(note, width=width, max_lines=maxlines, placeholder="…")
+    return [crop_plain(ln, width) for ln in lines]
+
+
+def gather(show_panes=True):
     sessions = [s for s in tmux("list-sessions", "-F", "#{session_name}").split("\n") if s]
     wins = {}
     maxcols = 1
@@ -147,9 +177,13 @@ def gather():
             # a stray tab in it then lands inside the note instead of shifting
             # every column after it. (agent-note strips tabs anyway.)
             idx, name, state, server, port, note = (line.split("\t", 5) + [""] * 5)[:6]
-            cap = tmux("capture-pane", "-e", "-p", "-t", f"{s}:{idx}").split("\n")
-            while cap and not strip_ansi(cap[-1]).strip():
-                cap.pop()
+            # Hidden panes need no snapshot at all, so skip the capture — one
+            # shell-out per window per tick, which is most of what this costs.
+            cap = []
+            if show_panes:
+                cap = tmux("capture-pane", "-e", "-p", "-t", f"{s}:{idx}").split("\n")
+                while cap and not strip_ansi(cap[-1]).strip():
+                    cap.pop()
             rec.append((idx, name, state, server, port, note, cap))
         wins[s] = rec
         maxcols = max(maxcols, len(rec))
@@ -176,7 +210,7 @@ def note_style(state, server):
     return bg(INK) + fg(SNOW)
 
 
-def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
+def build_frame(cols, rows, sessions, wins, maxcols, sel, clear, show_panes=True):
     if not sessions:
         return f"{ESC}[2J{at(1, 1)}no sessions", {}, [], []
 
@@ -211,10 +245,14 @@ def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
                     jumpmap[hotkey] = (s, idx)
                 rowcells.append((s, idx))
                 hitboxes.append((cstart, cx, cstart + content_h - 1, cx + cell_w - 1, (s, idx)))
-                disp = cap[-content_h:]
-                disp = [""] * (content_h - len(disp)) + disp
-                for i in range(content_h):
-                    buf.append(at(cstart + i, cx) + cell_ansi(disp[i], cell_w))
+                if show_panes:
+                    disp = cap[-content_h:]
+                    disp = [""] * (content_h - len(disp)) + disp
+                    for i in range(content_h):
+                        buf.append(at(cstart + i, cx) + cell_ansi(disp[i], cell_w))
+                else:
+                    for i in range(content_h):
+                        buf.append(at(cstart + i, cx) + RESET + " " * cell_w)
                 boxes.append((ri, c, cstart, cx, cell_w, content_h, label, note, state, server))
             else:
                 for i in range(content_h):
@@ -230,26 +268,30 @@ def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
 
     for ri, ci, cstart, cx, cw_, ch_, label, note, state, server in boxes:
         style = box_style(state, server)
-        # A note needs a row of its own under the box, and it has to stay off the
-        # cell's bottom row where the selection frame draws — hence ch_ >= 5. With
-        # one, box and note are centred together as a 4-row unit: the box shifts
-        # up a row rather than the note hanging below where the box used to sit.
-        show_note = bool(note) and ch_ >= 5 and cw_ >= 8
+        # Each note line takes a row under the box, and the last of them has to
+        # stay off the cell's bottom row where the selection frame draws — so a
+        # cell fits n lines when ch_ >= n + 4. Cropping and wrapping are this
+        # renderer's job alone: agent-note stores the note uncapped, because only
+        # here is the cell width known.
+        nlines = []
+        if note and cw_ >= 8:
+            nlines = wrap_note(note, cw_ - 4, min(NOTE_LINES, max(0, ch_ - 4)))
         if ch_ >= 3 and cw_ >= 8:
             lab = crop_plain(label, cw_ - 6)
             interior = vis_width(lab) + 4
             bw = interior + 2
             bx = cx + max(0, (cw_ - bw) // 2)
-            brow = cstart + max(0, (ch_ - (4 if show_note else 3)) // 2)
+            # Box and notes are centred together as one (3 + n)-row unit, so the
+            # box rises to make room instead of the notes hanging off the bottom.
+            brow = cstart + max(0, (ch_ - (3 + len(nlines))) // 2)
             buf.append(at(brow, bx) + style + "┌" + "─" * interior + "┐" + RESET)
             buf.append(at(brow + 1, bx) + style + "│  " + lab + "  │" + RESET)
             buf.append(at(brow + 2, bx) + style + "└" + "─" * interior + "┘" + RESET)
-            if show_note:
-                # Cropping the note is this renderer's job alone — agent-note
-                # stores it uncapped, because only here is the cell width known.
-                txt = f" {crop_plain(note, cw_ - 4)} "
+            nstyle = note_style(state, server)
+            for i, ln in enumerate(nlines):
+                txt = f" {ln} "
                 nx = cx + max(0, (cw_ - vis_width(txt)) // 2)
-                buf.append(at(brow + 3, nx) + note_style(state, server) + txt + RESET)
+                buf.append(at(brow + 3 + i, nx) + nstyle + txt + RESET)
         else:
             buf.append(at(cstart, cx) + style + crop_plain(f" {label} ", cw_) + RESET)
 
@@ -269,15 +311,21 @@ def build_frame(cols, rows, sessions, wins, maxcols, sel, clear):
                 buf.append(at(bottom, left) + hl + "┗" + "━" * (cw_ - 2) + "┛" + RESET)
             break
 
-    buf.append(at(rows, 1) + legend(cols))
+    buf.append(at(rows, 1) + legend(cols, show_panes))
     return "".join(buf), jumpmap, grid, hitboxes
 
 
-def legend(cols):
+def legend(cols, show_panes=True):
     parts = [(BLUE, "● running"), (RED, "● waiting"), (YELLOW, "○ idle"), (GREEN, "■ server"), (DIM, "· other")]
     left = "  ".join(f"{fg(rgb)}{txt}{RESET}" for rgb, txt in parts)
     left_w = sum(vis_width(txt) for _, txt in parts) + 2 * (len(parts) - 1)
-    hint = "hjkl move · ↵ open · 1-9/a-z/click jump · q quit"
+    panes = "hide" if show_panes else "show"
+    hint = f"hjkl move · ↵ open · 1-9/a-z/click jump · space {panes} panes · q quit"
+    # Autowrap is off in the live loop, so an over-long legend would be silently
+    # chopped at the right edge — losing the tail, which is where q quit lives.
+    # Drop to an abbreviated form rather than let that happen on a narrow term.
+    if left_w + vis_width(hint) + 2 > cols:
+        hint = f"hjkl · ↵ · jump · space {panes} · q"
     pad = max(1, cols - left_w - vis_width(hint) - 1)
     return f"{left}{' ' * pad}{fg(DIM)}{hint}{RESET}"
 
@@ -285,8 +333,10 @@ def legend(cols):
 def main():
     if not sys.stdin.isatty():
         cols, rows = shutil.get_terminal_size((100, 30))
-        sessions, wins, maxcols = gather()
-        sys.stdout.write(build_frame(cols, rows, sessions, wins, maxcols, None, clear=True)[0])
+        show_panes = panes_pref()
+        sessions, wins, maxcols = gather(show_panes)
+        sys.stdout.write(build_frame(
+            cols, rows, sessions, wins, maxcols, None, clear=True, show_panes=show_panes)[0])
         return
     run_live()
 
@@ -345,6 +395,7 @@ def run_live():
     old = termios.tcgetattr(fd)
     target = None
     sel = None          # (band, col), or None until the first move
+    show_panes = panes_pref()
     try:
         tty.setraw(fd)
         # hide cursor, disable autowrap, clear, enable SGR mouse reporting
@@ -352,16 +403,19 @@ def run_live():
         prev = None
         while True:
             cols, rows = shutil.get_terminal_size((100, 30))
-            sessions, wins, maxcols = gather()
+            sessions, wins, maxcols = gather(show_panes)
             # drop a stale selection if the layout shrank under it
             if sel is not None and (
                 sel[0] >= len(sessions)
                 or sel[1] >= len(wins.get(sessions[sel[0]], []))
             ):
                 sel = None
-            dims = (cols, rows, len(sessions), maxcols)
+            # show_panes rides in dims so toggling forces the full clear that
+            # wiping the old snapshots off the screen needs.
+            dims = (cols, rows, len(sessions), maxcols, show_panes)
             frame, jumpmap, grid, hitboxes = build_frame(
-                cols, rows, sessions, wins, maxcols, sel, clear=dims != prev)
+                cols, rows, sessions, wins, maxcols, sel, clear=dims != prev,
+                show_panes=show_panes)
             sys.stdout.write(frame)
             sys.stdout.flush()
             prev = dims
@@ -387,6 +441,10 @@ def run_live():
             ch = s[0] if s else ""
             if len(s) == 1 and ch in "hjkl":
                 sel = move(sel, ch, grid)
+                continue
+            if ch == " ":
+                show_panes = not show_panes
+                set_panes_pref(show_panes)
                 continue
             if ch in ("\r", "\n"):
                 if sel is not None:
