@@ -1,4 +1,17 @@
 theme = Catppuccin Mocha
+
+# Rescue text that an app paints on its own background without also setting a
+# foreground: it inherits our near-white default fg (#cdd6f4), which on one of
+# Catppuccin's pastel backgrounds is all but invisible. pre-commit is the worst
+# offender — its GREEN/RED are a bare `\033[42m`/`\033[41m` (no fg), so `Passed`
+# lands at a 1.03 contrast ratio and `Failed` at 1.60, while `Skipped` is legible
+# only because its TURQUOISE pins fg to black (`\033[46;30m`). Ghostty compares
+# each cell's real fg/bg and nudges the fg toward black or white until the WCAG
+# ratio is met. 3 is the readability floor; Catppuccin's own muted text (overlay0,
+# 3.36) stays untouched, though truly dim SGR-2 text gets a little brighter —
+# drop to ~2 if that bothers you.
+minimum-contrast = 3
+
 # JetBrains Mono (Nerd Font patch — keeps the icon glyphs the tmux status bar
 # draws). Ghostty enables ligatures (calt/liga) by default, so -> => != >= etc.
 # render as ligatures with no extra config; add `font-feature = -calt` to disable.
