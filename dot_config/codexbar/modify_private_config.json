@@ -1,0 +1,50 @@
+#!/bin/sh
+# chezmoi modify_ script for ~/.config/codexbar/config.json (CodexBar, the menu
+# bar usage monitor installed as a cask in setup_applications_darwin.sh).
+#
+# CodexBar owns this file at runtime: the Settings UI and `codexbar config
+# set-api-key` rewrite it, and every release appends the providers it learned to
+# support (0.30 shipped 18 of them, 0.50 ships 69). Managing it as a static file
+# would therefore be wrong twice over — `chezmoi apply` would drop the newer
+# provider entries, and any stored API key would have to live in this repo.
+#
+# So we manage exactly one thing: which providers get polled and shown. The four
+# below are the agents actually in use here — Claude Code, Codex (`co`),
+# Antigravity (`agy`) and Gemini. Everything else is forced off rather than left
+# alone, so a provider CodexBar auto-detects on a fresh machine can't silently
+# start polling. Copilot is deliberately not in the list — no longer used, and
+# its leftover token had gone stale (every refresh failed with
+# NSURLErrorDomain -1015), so the key was deleted from the target as well.
+#
+# Because the set is authoritative, toggling a provider in the Settings UI is
+# undone by the next `chezmoi apply` — edit the list here instead.
+#
+# Everything else passes through untouched: each provider's `apiKey`/`region`
+# fields (which is why the target is 600 — `private_` — and why no credential
+# ever reaches this repo), the `version` field, and any key a later release adds.
+#
+# Note the file moved here from ~/.codexbar/config.json, the legacy location,
+# which CodexBar still prefers whenever it exists — so that one copy has to stay
+# gone or it silently wins over this one. The ~/.codexbar *directory* is a
+# different matter and reappears on its own: the app keeps oauth caches and the
+# agy session there. Leave it be; just never let a config.json back into it.
+#
+# stdin = current target content, stdout = new content. Idempotent.
+set -eu
+
+input=$(cat)
+# Fresh machine: no config yet, so start from the empty shape CodexBar writes.
+[ -z "$input" ] && input='{"version":1,"providers":[]}'
+
+printf '%s' "$input" | jq '
+  ["codex","claude","antigravity","gemini"] as $on
+  | .version   //= 1
+  | .providers //= []
+  | [.providers[].id] as $have
+  | .providers = (
+      # Existing entries keep every field they carry; only `enabled` is ours.
+      [ .providers[] | .enabled = (.id | IN($on[])) ]
+      # ...then add any managed provider this config has never heard of.
+      + [ $on[] | select(IN($have[]) | not) | {id: ., enabled: true} ]
+    )
+'

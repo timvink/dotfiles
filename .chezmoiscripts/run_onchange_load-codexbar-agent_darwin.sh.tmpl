@@ -1,0 +1,16 @@
+#!/bin/bash
+# (Re)load the CodexBar login LaunchAgent whenever the plist changes. chezmoi
+# reruns a run_onchange_ script only when its rendered content changes, so the
+# hash below makes that dependency explicit.
+set -euo pipefail
+
+# plist hash: {{ include "private_Library/LaunchAgents/com.timvink.codexbar.plist" | sha256sum }}
+
+plist="$HOME/Library/LaunchAgents/com.timvink.codexbar.plist"
+
+# Legacy unload/load (rather than bootout/bootstrap) — it doesn't need the gui
+# domain target, so it works the same from a Terminal, an SSH session, or
+# chezmoi. unload tolerates "not currently loaded".
+launchctl unload "$plist" 2>/dev/null || true
+launchctl load "$plist"
+echo "=== chezmoi: (re)loaded com.timvink.codexbar LaunchAgent ==="

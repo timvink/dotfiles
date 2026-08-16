@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Start CodexBar (menu bar usage monitor for Claude/Codex/Antigravity/Gemini)
+     at login.
+
+     CodexBar has its own "Launch at Login" switch, but it is built on
+     SMAppService, which records the registration in macOS's opaque background
+     task management database (/var/db/com.apple.backgroundtaskmanagement) —
+     nothing chezmoi can declare, so a rebuilt Mac would install the app and then
+     never run it. A LaunchAgent is the reproducible half of the same behaviour,
+     and it is the same pattern as com.timvink.openurl / agent-sleep-guard.
+
+     RunAtLoad with no KeepAlive: `open` hands off to LaunchServices and exits, so
+     KeepAlive would respawn it forever. Quitting CodexBar by hand therefore keeps
+     it quit until the next login, which is what a login item should do. Flipping
+     the in-app switch on as well is harmless — `open` on a running app just
+     activates it.
+
+     Managed by chezmoi; (re)loaded by run_onchange_load-codexbar-agent_darwin.sh. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.codexbar</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/open</string>
+        <string>-a</string>
+        <string>/Applications/CodexBar.app</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>

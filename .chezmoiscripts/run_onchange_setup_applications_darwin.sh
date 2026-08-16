@@ -45,6 +45,9 @@ CASKS=(
     font-caskaydia-mono-nerd-font
     font-jetbrains-mono-nerd-font
     firefox
+    codex # OpenAI's Codex CLI (`co`; tab 1 where codingAgent=codex). Cask, not
+          # the npm build: it ships a self-contained binary and brew keeps it
+          # current, and everything in dot_codex/ is useless without it.
     steipete/tap/codexbar
     handy
     nextcloud
@@ -62,18 +65,41 @@ brew trust netbirdio/tap
 # becomes mandatory, a fresh `brew install --cask` would otherwise refuse it.
 brew trust --cask steipete/tap/codexbar
 
+# `brew list --cask` answers from Homebrew's receipts alone, so a cask whose app
+# has since been dragged to the Trash still reports as installed -- the loop below
+# skips it and the CASKS list quietly stops meaning anything. (CodexBar vanished
+# exactly that way and no amount of `chezmoi apply` brought it back.) Homebrew
+# keeps a Caskroom symlink pointing at wherever the app really lives, so a deleted
+# app leaves a dangling one: resolve it and treat "installed but gone" as missing.
+# Casks with no app artifact (all the fonts above) list no *.app and always pass.
+cask_artifacts_intact() {
+    while IFS= read -r artifact; do
+        case "$artifact" in
+            *.app) [ -e "$artifact" ] || return 1 ;;
+        esac
+    done <<EOF
+$(brew list --cask "$1" 2>/dev/null)
+EOF
+    return 0
+}
+
 echo "Installing cask apps..."
 for cask in "${CASKS[@]}"; do
     cask_name="${cask##*/}"  # strip tap prefix (e.g. steipete/tap/codexbar -> codexbar)
-    if brew list --cask "$cask_name" &>/dev/null 2>&1; then
-        echo "Already installed, skipping: $cask_name"
-    else
+    if ! brew list --cask "$cask_name" &>/dev/null 2>&1; then
         # --adopt takes ownership of an app that is already in /Applications but
         # was NOT installed by brew (installed by hand, or by the app's own
         # updater). Without it brew aborts the whole script with "It seems there
         # is already an App at '/Applications/<X>.app'", which is how a single
         # hand-installed app blocks every later step of `chezmoi apply`.
         brew install --cask --adopt "$cask"
+    elif cask_artifacts_intact "$cask_name"; then
+        echo "Already installed, skipping: $cask_name"
+    else
+        # Receipt says installed, app says otherwise. `brew install` would just
+        # print "already installed" and change nothing, so this needs reinstall.
+        echo "Installed but app is missing, reinstalling: $cask_name"
+        brew reinstall --cask "$cask"
     fi
 done
 

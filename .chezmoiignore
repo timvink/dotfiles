@@ -27,12 +27,19 @@ Library/Application Support/rbw/config.json
 .chezmoiscripts/setup_packages_darwin.sh
 .chezmoiscripts/setup_finder_copypath_darwin.sh
 .chezmoiscripts/load-open-url-agent_darwin.sh
+.chezmoiscripts/load-codexbar-agent_darwin.sh
 .chezmoiscripts/setup-agent-sleep-guard_darwin.sh
 .local/bin/open-url-listener
 .local/bin/agent-sleep-guard
 Library/LaunchAgents/com.timvink.openurl.plist
 Library/LaunchAgents/com.timvink.agent-sleep-guard.plist
+Library/LaunchAgents/com.timvink.codexbar.plist
 .ssh/config
+# Karabiner-Elements is macOS-only, so its config is dead weight elsewhere.
+.config/karabiner
+# CodexBar is a macOS menu bar app (cask, not in the Linux package script), so
+# there is nothing on a Linux box for its provider toggles to configure.
+.config/codexbar
 {{ end }}
 {{ if ne .chezmoi.os "linux" }}
 setup_packages_linux.sh
