@@ -297,27 +297,27 @@ def gather(capture_all=False):
         folded[name] = fold.strip() == "1"
 
     wins = {}
-    maxcols = 1
     for s in sessions:
         rec = []
         listing = tmux(
             "list-windows", "-t", s, "-F",
             "#{window_index}\t#{window_name}\t#{@agent_state}\t#{@server_state}\t"
-            "#{@server_port}\t#{@agent_since}\t#{pane_current_path}\t#{@agent_note}",
+            "#{@server_port}\t#{@agent_since}\t#{@agent_note}\t#{pane_current_path}",
         )
         for line in listing.split("\n"):
             if not line:
                 continue
-            # @agent_note is free text and so goes last, taking the final split:
-            # a stray tab in it then lands inside the note instead of shifting
-            # every column after it. (agent-note strips tabs anyway.)
-            idx, name, state, server, port, since, path, note = (
+            # Fields are tab-separated and the path goes last, absorbing the final
+            # split — because it is the only one that can legitimately contain a
+            # tab (a directory may; tmux rejects a window name that does, and
+            # agent-note strips them from a note). A tab in a path then lands
+            # inside the path instead of shifting every field after it.
+            idx, name, state, server, port, since, note, path = (
                 line.split("\t", 7) + [""] * 7)[:8]
             cap = capture_pane(s, idx) if capture_all else []
             rec.append(Win(idx, name, state, note, server, port, path, since, cap))
         wins[s] = rec
-        maxcols = max(maxcols, len(rec))
-    return sessions, wins, folded, maxcols
+    return sessions, wins, folded
 
 
 # ---------------------------------------------------------------- shared bits
@@ -387,20 +387,34 @@ def hit_test(hitboxes, x, y):
 
 # ------------------------------------------------------------------ tree view
 
+def filtered(sessions, wins, agents_only):
+    """(sessions, windows, widest band) after the / filter, for BOTH views.
+
+    Filtering has to happen before layout, not during drawing: the grid sizes its
+    columns off the widest band, so a band filtered down to two tabs must not go
+    on reserving twenty columns' worth of width. A session the filter empties is
+    dropped outright rather than left as a blank band — a band with no tabs behind
+    it is a selection that resolves to nothing."""
+    out_s, out_w = [], {}
+    for s in sessions:
+        ws = [w for w in wins[s] if not agents_only or is_agent(w)]
+        if ws:
+            out_s.append(s)
+            out_w[s] = ws
+    return out_s, out_w, max([1] + [len(v) for v in out_w.values()])
+
+
 def tree_rows(sessions, wins, folded, agents_only):
     """Flatten the tree to the rows actually on screen, top to bottom.
 
     ("s", session, windows) for a header, ("w", session, win) for a tab. A folded
-    session contributes only its header; with the filter on, a session whose tabs
-    have all been hidden contributes nothing at all."""
+    session contributes only its header."""
+    sessions, wins, _ = filtered(sessions, wins, agents_only)
     out = []
     for s in sessions:
-        ws = [w for w in wins[s] if not agents_only or is_agent(w)]
-        if agents_only and not ws:
-            continue
-        out.append(("s", s, ws))
+        out.append(("s", s, wins[s]))
         if not folded.get(s):
-            out.extend(("w", s, w) for w in ws)
+            out.extend(("w", s, w) for w in wins[s])
     return out
 
 
@@ -479,8 +493,13 @@ def render_tree(cols, rows, rowlist, folded, sel, top, detail, agents_only, clea
             head = f"{'▸' if folded.get(s) else '▾'} {s} "
             summary = sess_summary(ws)
             sum_w = sum(vis_width(t) for _, t in summary) + max(0, len(summary) - 1)
+            # Crop the name to what is left AFTER the roll-up, not to the whole
+            # column: a session named longer than the column would otherwise push
+            # its own counts off the end and write past left_w, into cells the
+            # separator and detail pane then partly repaint — leaving residue.
+            head = crop_plain(head, max(0, left_w - 2 - sum_w))
             rule = max(0, left_w - 1 - vis_width(head) - sum_w - 1)
-            line = bar + fg(MAUVE) + BOLD + crop_plain(head, max(0, left_w - 1)) + RESET
+            line = bar + fg(MAUVE) + BOLD + head + RESET
             line += fg(SEP) + "─" * rule + RESET + " "
             line += " ".join(f"{fg(rgb)}{t}{RESET}" for rgb, t in summary)
             target = ("s", s, None)
@@ -504,9 +523,12 @@ def render_tree(cols, rows, rowlist, folded, sel, top, detail, agents_only, clea
         hitboxes.append((r, 1, r, left_w, target))
 
     if split:
+        # The separator write covers sx and the space after it, so the detail
+        # pane starts at sx+2 and runs to the last column inclusive — every cell
+        # right of the tree has to belong to someone, or it keeps last tick's text.
         sx = left_w + 1
-        dx = sx + 3
-        dw = max(10, cols - dx)
+        dx = sx + 2
+        dw = max(10, cols - dx + 1)
         cur = rowlist[sel] if 0 <= sel < len(rowlist) else None
         lines = detail_lines(cur, dw, body_h)
         for i in range(body_h):
@@ -667,10 +689,16 @@ def render_grid(cols, rows, sessions, wins, maxcols, sel, show_panes, agents_onl
     g = 0               # running cell number across all sessions
     r = 1
     for ri, s in enumerate(sessions):
+        # Stop before a band would run under the legend row: content_h's floor of
+        # 1 means enough sessions on a short popup ask for more rows than exist,
+        # and drawing them anyway would overwrite the legend and scroll the rest
+        # off the bottom. Better to show the bands that fit.
+        if r + content_h > rows - 1:
+            break
         fill = max(0, cols - 4 - vis_width(s))
         buf.append(at(r, 1) + fg(MAUVE) + BOLD + f"━━ {s} " + "━" * fill + RESET)
         cstart = r + 1
-        rec = [w for w in wins[s] if not agents_only or is_agent(w)]
+        rec = wins[s]
         rowcells = []
         for c in range(maxcols):
             cx = c * (cell_w + 1) + 1
@@ -768,15 +796,19 @@ def grid_move(sel, nav, grid):
         if nav == "l":
             return (0, 0)
         if nav == "h":
-            return (0, len(grid[0]) - 1)
+            return (0, max(0, len(grid[0]) - 1))
         if nav == "j":
             return (1 % nrows, 0)
         if nav == "k":
             return (nrows - 1, 0)
         return None
     r, c = sel
-    if not grid[r]:
-        return sel
+    # The selection can outlive the band it pointed at: sessions come and go
+    # between ticks, the / filter drops bands, and a short popup stops drawing
+    # bands that would run under the legend — so `grid` is not always as long as
+    # the session list. Fall back to no selection rather than index off the end.
+    if r >= len(grid) or not grid[r]:
+        return None
     if nav == "h":
         c = (c - 1) % len(grid[r])
     elif nav == "l":
@@ -820,11 +852,12 @@ def main():
         panes = opt(PANES_OPT, "on") != "off"
         agents_only = opt(AGENTS_OPT, "off") == "on"
         if view == "grid":
-            sessions, wins, _, maxcols = gather(panes)
+            sessions, wins, _ = gather(panes)
+            sessions, wins, maxcols = filtered(sessions, wins, agents_only)
             frame = render_grid(cols, rows, sessions, wins, maxcols, None,
                                 panes, agents_only, clear=True)[0]
         else:
-            sessions, wins, folded, _ = gather()
+            sessions, wins, folded = gather()
             rowlist = tree_rows(sessions, wins, folded, agents_only)
             frame = render_tree(cols, rows, rowlist, folded, 0, 0, detail,
                                 agents_only, clear=True)[0]
@@ -858,8 +891,11 @@ def run_live():
             body_h = max(1, rows - 1)
 
             if view == "grid":
-                sessions, wins, folded, maxcols = gather(panes)
-                # drop a stale selection if the layout shrank under it
+                sessions, wins, folded = gather(panes)
+                sessions, wins, maxcols = filtered(sessions, wins, agents_only)
+                # Drop a stale selection if the layout shrank under it. Measured
+                # against the FILTERED bands, so turning / on with a high column
+                # selected clears it instead of leaving it pointing past the end.
                 if gsel is not None and (
                     gsel[0] >= len(sessions)
                     or gsel[1] >= len(wins.get(sessions[gsel[0]], []))
@@ -870,7 +906,7 @@ def run_live():
                     cols, rows, sessions, wins, maxcols, gsel, panes, agents_only,
                     clear=dims != prev)
             else:
-                sessions, wins, folded, _ = gather()
+                sessions, wins, folded = gather()
                 rowlist = tree_rows(sessions, wins, folded, agents_only)
                 tsel = max(0, min(tsel, len(rowlist) - 1)) if rowlist else 0
                 # Keep the cursor on screen, scrolling only as far as it takes.
@@ -884,7 +920,10 @@ def run_live():
                 if detail and cols >= 80 and rowlist and rowlist[tsel][0] == "w":
                     _, s, w = rowlist[tsel]
                     rowlist[tsel] = ("w", s, w._replace(cap=capture_pane(s, w.idx)))
-                dims = (view, cols, rows, len(rowlist), detail, agents_only, top)
+                # `top` is deliberately NOT in dims: every body row is repainted
+                # in full each tick, so scrolling needs no clear — and forcing
+                # one would flash the whole popup on every j past the edge.
+                dims = (view, cols, rows, len(rowlist), detail, agents_only)
                 frame, jumpmap, hitboxes = render_tree(
                     cols, rows, rowlist, folded, tsel, top, detail, agents_only,
                     clear=dims != prev)
@@ -913,7 +952,11 @@ def run_live():
                     break
             ch = s[0] if s else ""
 
-            if len(s) == 1 and ch in "hjkl":
+            # No length test here: holding j batches several bytes into one read,
+            # and requiring exactly one would drop the lot. Escape sequences can't
+            # be mistaken for a move — ARROWS has already rewritten the ones we
+            # accept, and every other starts with ESC, not a letter.
+            if ch in "hjkl":
                 if view == "grid":
                     gsel = grid_move(gsel, ch, grid)
                 else:
@@ -939,7 +982,11 @@ def run_live():
                 continue
             if ch in ("\r", "\n"):
                 if view == "grid":
-                    if gsel is not None:
+                    # Bounds-check rather than trust gsel: the bands can shrink
+                    # under it between ticks, and an IndexError here would take
+                    # the popup down with it (-E) as if Enter had simply quit.
+                    if (gsel is not None and gsel[0] < len(grid)
+                            and gsel[1] < len(grid[gsel[0]])):
                         target = grid[gsel[0]][gsel[1]]
                         break
                 elif rowlist:
@@ -947,7 +994,10 @@ def run_live():
                     target = ("s", sname, None) if kind == "s" else ("w", sname, payload.idx)
                     break
                 continue
-            if ch in ("q", "\x1b", "\x03"):
+            # A bare ESC quits, but an escape *sequence* must not: PageUp, Home,
+            # Delete, F-keys and modified arrows all arrive as ESC + more, and
+            # closing the popup on those is the opposite of ignoring them.
+            if ch in ("q", "\x03") or (ch == "\x1b" and len(s) == 1):
                 break
             if ch in jumpmap:
                 target = jumpmap[ch]
