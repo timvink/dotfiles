@@ -45,9 +45,10 @@ again at each phase change:
     agent-note "reading the tmux overview renderer"
     agent-note "hook wired; running the checks"
 
-Present tense, under ~60 characters (it wraps over two lines), no trailing
-punctuation — it is a label, not a sentence. Anything longer is cropped with an
-ellipsis. Two to four over a task is about right; skip it entirely for quick
+Present tense, around 60 characters, no trailing punctuation — it is a label, not
+a sentence. There is room for more (the overview wraps it), but a note you have to
+read rather than glance at defeats the point. Two to four over a task is about
+right; skip it entirely for quick
 questions and one-line edits. Never clear it: the last note is what tells me what
 happened while I was away, and starting or ending a session clears it for me.
 No-op outside tmux, so it is always safe to call.

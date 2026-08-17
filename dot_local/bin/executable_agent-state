@@ -19,6 +19,9 @@
 # for. Tabs that never run an agent (shells, nvim, …) never set @agent_state,
 # so they show no dot at all.
 #
+# Alongside the dot it stamps @agent_since, the epoch second the state last
+# changed, which is where the overview's "blocked · 6m12s" comes from.
+#
 # Usage: agent-state running|idle|needs-input|none
 #
 # No-op outside tmux. Always exits 0 so the agent doesn't surface an error.
@@ -45,8 +48,19 @@ if [ -n "${TMUX_PANE:-}" ]; then
             # the two options impossible to desync.
             tmux set-option -wt "$win" -u '@agent_state' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_note' 2>/dev/null || true
+            tmux set-option -wt "$win" -u '@agent_since' 2>/dev/null || true
             rm -f "$sentinel" 2>/dev/null || true
         else
+            # @agent_since: the epoch second this state began, which is what the
+            # overview's detail pane counts "2m14s" from. Stamped only when the
+            # state actually CHANGES — PostToolUse fires "running" over and over
+            # inside a single turn, and restamping there would keep resetting the
+            # clock to zero. Costs one extra tmux call on a path already making
+            # two, which is nothing next to the hook's own startup.
+            prev=$(tmux show-options -wt "$win" -qv '@agent_state' 2>/dev/null)
+            [ "$prev" = "$state" ] \
+                || tmux set-option -wt "$win" '@agent_since' "$(date +%s)" 2>/dev/null \
+                || true
             tmux set-option -wt "$win" '@agent_state' "$state" 2>/dev/null || true
             : > "$sentinel" 2>/dev/null || true
         fi

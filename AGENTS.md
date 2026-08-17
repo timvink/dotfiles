@@ -76,17 +76,36 @@ the dot only says whether it is doing anything — five working agents are five
 identical blue dots. Agents set it themselves with `~/.local/bin/agent-note`,
 instructed by the "Per-tab progress note" section of `agents/AGENTS.md`; nothing
 polls or infers it, so a tab whose agent never calls it just has no note. Only
-`tmux-overview` (prefix+o) renders it, centred under each cell's label box in that
-cell's state colour and wrapped over up to two lines — the tab bar is deliberately
-left alone, being far too narrow for a sentence. **Space** in that popup hides the
-pane snapshots so the labels and notes sit on empty cells, which is the readable
-way to scan a busy machine; the choice persists in the `@overview_panes` tmux
-server option, and hidden panes skip `capture-pane` entirely, so it is also the
-cheaper mode. `agent-state none` unsets the note alongside the dot, which is what keeps
-the two from desyncing: every path that ends a session (SessionStart, SessionEnd,
-the zsh precmd reaper) drops the note for free. A new turn does *not* clear it —
-the previous note still names the work, and blanking it would empty the box for
-exactly as long as the agent takes to write the next one.
+`tmux-overview` (prefix+o) renders it — the tab bar is deliberately left alone,
+being far too narrow for a sentence. `agent-state none` unsets the note alongside
+the dot, which is what keeps the two from desyncing: every path that ends a session
+(SessionStart, SessionEnd, the zsh precmd reaper) drops the note for free. A new
+turn does *not* clear it — the previous note still names the work, and blanking it
+would empty the row for exactly as long as the agent takes to write the next one.
+`agent-state` also stamps `@agent_since`, the epoch second the state last changed,
+which is where the overview's "blocked · 6m12s" comes from; it is written only on
+an actual transition, since PostToolUse fires `running` over and over within one
+turn and would otherwise keep resetting the clock.
+
+## The prefix+o overview, and its two views
+
+`tmux-overview` has a **tree** view (the default) and the original **grid**
+montage; **space** switches them and the choice sticks. The tree is one row per
+tab under a foldable session header, carrying the dot, the name, the git branch
+(peach `⑂ branch` in a linked worktree, the same marker `tmux-git-branch` puts in
+the status bar) and a right-hand detail pane for whatever the cursor is on: full
+note, worktree path, time in state, and a live snapshot of that one pane. **tab**
+hides the detail pane, which widens the tree and moves the note onto each row
+instead; in the grid it hides the snapshots. **/** narrows to tabs that ever ran
+an agent. In the tree `l` unfolds a session or descends into it and `h` ascends
+then folds, so `h,h` collapses whatever you are inside of.
+
+State lives in tmux options rather than a dotfile of ours — `@overview_view`,
+`@overview_detail`, `@overview_panes` and `@overview_agents` on the server, plus
+`@overview_fold` per session. Two things keep it cheap: the tree captures only the
+one pane its detail column shows (the grid captures every window, every tick), and
+branch lookups are cached per directory for a few seconds, since a branch moves far
+more slowly than the 1s redraw.
 
 ## Lid-close sleep guard (macOS)
 
