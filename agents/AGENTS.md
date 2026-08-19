@@ -19,6 +19,17 @@ Define success criteria. Loop until verified.
 Don't follow steps. Define success and iterate.
 Strong success criteria let you loop independently.
 
+## Rule 3 — Write For Humans
+Anything I read — replies, commit messages, PRs, docs, comments, emails — follows
+the `write-for-humans` skill: the Google developer docs style guide, plus the tics
+that make LLM prose recognizable. Load it before writing anything longer than a few
+sentences. Internal reasoning is exempt; think however you like, this governs what
+you hand over. The core, which holds even when you don't load the skill: no
+throat-clearing or recap, no "it's not X, it's Y", no summary of something I can
+already see whole, no bold spray or bullets where a sentence is shorter, no vogue
+words (robust, seamless, crucial, leverage, delve), plain words over inflated ones,
+active voice with the actor named, and never call the work simple or easy.
+
 ## HTML artifacts & scratch files
 When I ask for an HTML artifact — a standalone file just for me to open and look
 at, not part of a project — write it to the session scratchpad dir your tool
