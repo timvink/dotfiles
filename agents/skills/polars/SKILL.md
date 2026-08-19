@@ -17,7 +17,6 @@ source: https://github.com/polars-inc/skills/tree/main/polars
 metadata:
   author: Polars
   homepage: https://pola.rs
-  version: "0.2.0"
   tags:
     - polars
     - dataframes

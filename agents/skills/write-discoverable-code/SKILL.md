@@ -10,6 +10,7 @@ description: |
   costs wasted reads.
 license: MIT
 source: https://github.com/modem-dev/skills/tree/main/write-discoverable-code
+local-edits: dropped the upstream "colocate tests" rule — Python here, tests live in test/
 ---
 
 # Write discoverable code

@@ -49,6 +49,11 @@ the repo copy is instantly live in every tool.
    (upstream files won't contain it — it's our addition). Keep any other local
    additions intentional and call them out.
 
+   A `local-edits:` line in the frontmatter records a deliberate departure from
+   upstream — a rule that was removed on purpose, say. Re-apply it after copying
+   the new files, or the sync silently restores what was dropped, and keep the
+   line itself.
+
 5. **No `chezmoi apply` needed for edits.** Skills are symlinked, so overwriting
    the repo files under `agents/skills/<name>/` is already live in every tool.
    (`chezmoi apply` is only needed when adding a *brand-new* skill, to create its
