@@ -5,11 +5,11 @@ Bound to prefix+o. Space switches between them and the choice is remembered:
 
   TREE (default) — one row per tab under a foldable session header, carrying the
     agent dot, the window name, its git branch (peach "⑂ branch" when the tab
-    sits in a linked worktree, matching the status bar's marker) and, on the
-    right, a detail pane for whatever the cursor is on: full note, worktree path,
-    how long it has been in this state, and a live snapshot of that one pane.
-    Tab hides the detail pane, which widens the tree and gives every row a note
-    column instead.
+    sits in a linked worktree, matching the status bar's marker), a sapphire
+    "+3" for any subagents that tab has in flight, and, on the right, a detail
+    pane for whatever the cursor is on: full note, worktree path, how long it has
+    been in this state, and a live snapshot of that one pane. Tab hides the
+    detail pane, which widens the tree and gives every row a note column instead.
 
   GRID — the original montage: one band per session, a column per window, each
     a colour-preserving snapshot of that window's screen with a state-coloured
@@ -35,8 +35,9 @@ Both views share the same keys:
 State lives in tmux options, not a dotfile of ours: @overview_view, @overview_detail,
 @overview_panes and @overview_agents on the server, and @overview_fold per session
 for what's folded. The per-window inputs are @agent_state / @agent_note (see the
-agent-state and agent-note scripts) and @agent_since, the epoch second the state
-last changed, which is what "2m14s" counts from.
+agent-state and agent-note scripts), @agent_since, the epoch second the state last
+changed, which is what "2m14s" counts from, and @agent_subagents (agent-subagents),
+how many subagents that tab has in flight.
 
 Redraws in place each tick (~1s) without clearing, so it stays current with
 minimal flicker. Opened with -E so the script exiting closes the popup.
@@ -64,6 +65,7 @@ RED = (243, 139, 168)
 YELLOW = (249, 226, 175)
 GREEN = (166, 227, 161)
 PEACH = (250, 179, 135)   # worktree marker, and the selection highlight
+SAPPHIRE = (116, 199, 236)  # subagent count, a shade off the blue it hangs from
 DIM = (108, 112, 134)
 SEP = (88, 91, 112)
 INK = (30, 30, 46)
@@ -93,8 +95,10 @@ HOTKEYS = [str(d) for d in range(1, 10)] + [c for c in "abcdefghijklmnopqrstuvwx
 CSI = re.compile(r"\033\[[0-9;:?]*[ -/]*[@-~]")
 
 # One tab. `cap` is filled only for the windows a view actually shows a snapshot
-# of — every window in the grid, just the selected one in the tree.
-Win = collections.namedtuple("Win", "idx name state note server port path since cap")
+# of — every window in the grid, just the selected one in the tree. `subs` is the
+# raw @agent_subagents string, which is empty for most tabs; read it through
+# sub_count.
+Win = collections.namedtuple("Win", "idx name state note server port path since subs cap")
 
 
 def fg(rgb):
@@ -302,7 +306,8 @@ def gather(capture_all=False):
         listing = tmux(
             "list-windows", "-t", s, "-F",
             "#{window_index}\t#{window_name}\t#{@agent_state}\t#{@server_state}\t"
-            "#{@server_port}\t#{@agent_since}\t#{@agent_note}\t#{pane_current_path}",
+            "#{@server_port}\t#{@agent_since}\t#{@agent_subagents}\t#{@agent_note}\t"
+            "#{pane_current_path}",
         )
         for line in listing.split("\n"):
             if not line:
@@ -312,10 +317,10 @@ def gather(capture_all=False):
             # tab (a directory may; tmux rejects a window name that does, and
             # agent-note strips them from a note). A tab in a path then lands
             # inside the path instead of shifting every field after it.
-            idx, name, state, server, port, since, note, path = (
-                line.split("\t", 7) + [""] * 7)[:8]
+            idx, name, state, server, port, since, subs, note, path = (
+                line.split("\t", 8) + [""] * 8)[:9]
             cap = capture_pane(s, idx) if capture_all else []
-            rec.append(Win(idx, name, state, note, server, port, path, since, cap))
+            rec.append(Win(idx, name, state, note, server, port, path, since, subs, cap))
         wins[s] = rec
     return sessions, wins, folded
 
@@ -348,6 +353,18 @@ def doing(w):
     if w.server == "running" and w.port:
         return f"serving :{w.port}"
     return ""
+
+
+def sub_count(w):
+    """Subagents this tab has in flight, from @agent_subagents (see the
+    agent-subagents script); 0 for a tab that has none or never sets it.
+
+    Claude-only: Codex and Antigravity tabs never write the option, so their rows
+    stay bare rather than claiming a zero they haven't measured."""
+    try:
+        return max(0, int(w.subs))
+    except (TypeError, ValueError):
+        return 0
 
 
 def legend(cols, view, detail, agents_only):
@@ -420,14 +437,22 @@ def tree_rows(sessions, wins, folded, agents_only):
 
 def sess_summary(ws):
     """A session header's right-hand roll-up: a count per state that occurs, in
-    the order that matters when you're triaging — blocked, working, your turn."""
+    the order that matters when you're triaging — blocked, working, your turn.
+
+    The subagent total rides on the end as "+11", so a folded session still says
+    how much work is under it. It hangs off the working count it belongs to, and
+    is the only entry here that counts tasks rather than tabs."""
     counts = [
         (RED, "●", sum(1 for w in ws if w.state == "needs-input")),
         (BLUE, "●", sum(1 for w in ws if w.state == "running")),
         (YELLOW, "○", sum(1 for w in ws if w.state == "idle")),
         (GREEN, "■", sum(1 for w in ws if w.server == "running")),
     ]
-    return [(rgb, f"{n}{glyph}") for rgb, glyph, n in counts if n]
+    out = [(rgb, f"{n}{glyph}") for rgb, glyph, n in counts if n]
+    subs = sum(sub_count(w) for w in ws)
+    if subs:
+        out.append((SAPPHIRE, f"+{subs}"))
+    return out
 
 
 def branch_cell(w, width):
@@ -452,6 +477,15 @@ def render_tree(cols, rows, rowlist, folded, sel, top, detail, agents_only, clea
     # -3 = the 2 spaces between name and branch, plus one held back at the right
     # so a branch that exactly fills its column still clears the separator.
     avail = max(8, left_w - prefix_w - 3)
+    # The subagent suffix gets a column only when some tab on screen actually has
+    # subagents, and the width is the same for every row so they stay aligned.
+    # Most of the time nothing is fanned out and this costs the tree nothing —
+    # which is the only reason a column this rarely-used is worth having at all.
+    sub_w = 0
+    widest = max((sub_count(p) for k, _, p in rowlist if k == "w"), default=0)
+    if widest:
+        sub_w = 1 + len(f"+{widest}")               # the space before it, and "+11"
+        avail = max(8, avail - sub_w)
     if split:
         name_w = max(10, min(20, avail // 2))
         branch_w = avail - name_w
@@ -515,6 +549,9 @@ def render_tree(cols, rows, rowlist, folded, sel, top, detail, agents_only, clea
             line += fg(rgb) + dot(w) + RESET + " "
             line += (fg(SUB) if is_agent(w) else fg(OTHER)) + fit(w.name, name_w) + RESET
             line += "  " + fg(brgb) + bcell + RESET
+            if sub_w:
+                subs = sub_count(w)
+                line += " " + fg(SAPPHIRE) + fit(f"+{subs}" if subs else "", sub_w - 1) + RESET
             if note_w > 0:
                 line += "  " + fg(rgb) + fit(doing(w), note_w) + RESET
             target = ("w", s, w.idx)
@@ -577,6 +614,12 @@ def detail_lines(cur, w, height):
         put(f"{fg(rgb)}{crop_plain(status, w)}{RESET}")
     else:
         put(f"{fg(DIM)}no agent here{RESET}")
+    # Spelled out here rather than left as the row's "+3", because this pane has
+    # the room to say what the number counts.
+    subs = sub_count(win)
+    if subs:
+        word = "subagent" if subs == 1 else "subagents"
+        put(f"{fg(SAPPHIRE)}+{subs} {word} in flight{RESET}")
     put()
 
     branch, wt = git_info(win.path) if win.path else ("", "")
@@ -709,6 +752,11 @@ def render_grid(cols, rows, sessions, wins, maxcols, sel, show_panes, agents_onl
                 label = f"{hotkey} {w.name}" if hotkey else w.name
                 if w.server == "running" and w.port:
                     label = f"{label}  {w.port}"
+                # Subagents go inside the label box rather than beside it: the
+                # box is the only part of a grid cell that isn't the tab's own
+                # screen, and the port already sets the precedent.
+                elif sub_count(w):
+                    label = f"{label}  +{sub_count(w)}"
                 if hotkey:
                     jumpmap[hotkey] = (s, w.idx)
                 rowcells.append((s, w.idx))

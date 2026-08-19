@@ -41,14 +41,18 @@ if [ -n "${TMUX_PANE:-}" ]; then
         if [ "$state" = none ]; then
             # Unset the option entirely → no dot, and a reused window doesn't
             # carry a stale state from a previous agent session. @agent_note (the
-            # companion "what is it doing" line, see agent-note) goes with it:
-            # every path that clears the dot — SessionStart, SessionEnd, the zsh
-            # precmd reaper — means this window's agent is gone, so its note is
-            # stale by definition. Clearing here rather than in each caller keeps
-            # the two options impossible to desync.
+            # companion "what is it doing" line, see agent-note) and
+            # @agent_subagents (how wide it has fanned out, see agent-subagents)
+            # go with it: every path that clears the dot — SessionStart,
+            # SessionEnd, the zsh precmd reaper — means this window's agent is
+            # gone, so both are stale by definition. Clearing here rather than in
+            # each caller keeps the options impossible to desync, and is what
+            # stops a session killed mid-fan-out from leaving its subagents
+            # counted in the status bar forever.
             tmux set-option -wt "$win" -u '@agent_state' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_note' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_since' 2>/dev/null || true
+            tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
             rm -f "$sentinel" 2>/dev/null || true
         else
             # @agent_since: the epoch second this state began, which is what the

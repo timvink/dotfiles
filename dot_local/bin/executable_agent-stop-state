@@ -24,13 +24,35 @@
 # field when present, else from the last text block of the JSONL transcript at
 # `.transcript_path` (older builds). Any parse failure falls through to idle, so
 # a finished tab is never wrongly stuck red. No-op outside tmux (agent-state is).
+#
+# Same payload also feeds @agent_subagents (see agent-subagents), the count of
+# subagents this tab has in flight — the one number the status bar's "6+11" and
+# the prefix+o rows add to the dot.
 
 dir=$(dirname "$0")
 payload=$(cat)
 
+# One pass over background_tasks for both numbers this payload carries: how much
+# work of any kind is still attached, which decides the dot, and how much of it
+# is subagents, which the status bar and prefix+o count on their own. Entries
+# name their kind — "subagent", "shell", "workflow", … — so the second number is
+# a filter on the first. (// [] covers builds predating background_tasks.)
+set -- $(printf '%s' "$payload" | jq -r '
+    (.background_tasks // []) as $t
+    | "\($t | length) \([$t[] | select(.type == "subagent")] | length)"
+' 2>/dev/null)
+attached=${1:-0}
+subagents=${2:-0}
+
+# Stamp the subagent count before deciding the dot, and on every path: Stop is
+# the one moment Claude Code hands over an authoritative list of what is still
+# running, so this is a recount rather than a tally kept across events, and a
+# turn that ends with nothing attached writes the 0 that clears the option.
+"$dir/agent-subagents" "$subagents"
+
 # Background work still attached → session auto-resumes; show running, not "your
-# turn". (// [] covers builds predating background_tasks.)
-if [ "$(printf '%s' "$payload" | jq -r '(.background_tasks // []) | length')" -gt 0 ]; then
+# turn".
+if [ "$attached" -gt 0 ]; then
     "$dir/agent-state" running
     exit 0
 fi

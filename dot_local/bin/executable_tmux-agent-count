@@ -1,27 +1,45 @@
 #!/usr/bin/env bash
-# tmux-agent-count — how many agents are RUNNING (working) right now across the
-# whole tmux server, for the right side of the status bar (dot_tmux.conf), shown
-# just left of the session-dots chip, next to the hostname. An "agent" here is a
-# window whose @agent_state is "running" (the blue ● state set by the
-# Claude/Codex lifecycle hooks); this counts those windows server-wide.
+# tmux-agent-count — how much agent work is in flight right now across the whole
+# tmux server, for the right side of the status bar (dot_tmux.conf), shown just
+# left of the session-dots chip, next to the hostname. Reads as one figure:
 #
-# Emits a blue tmux FORMAT-styled number, or NOTHING when the count is 0 — so the
-# bar shows a figure only while something is actually working, and the slot
-# vanishes when nothing is. Same signal as tmux-session-dots / the alt+f finder,
-# but a raw count of running windows rather than a per-session roll-up. Run async
-# by tmux on status-interval, like tmux-git-branch / tmux-session-dots, so it
-# never stalls the bar.
+#   6      six windows are working: @agent_state is "running" (the blue ● the
+#          Claude/Codex lifecycle hooks set), counted server-wide.
+#   6+11   …and between them those six have eleven subagents in flight, from
+#          @agent_subagents (see agent-subagents). The "+11" appears only when
+#          there are any, in a lighter blue, because it answers a different
+#          question: six blue dots could be six agents each doing one thing, or
+#          two of them driving a wide fan-out, and the load on the machine and on
+#          the rate limit is nothing alike.
+#
+# The subagent half is Claude-only by construction — Codex and Antigravity
+# sessions count toward the first number and can never add to the second, since
+# only Claude Code reports its background work to a hook.
+#
+# Emits a tmux FORMAT-styled number, or NOTHING when nothing is working — so the
+# bar shows a figure only while something is, and the slot vanishes when nothing
+# is. Same signal as tmux-session-dots / the alt+f finder, but a raw count of
+# running windows rather than a per-session roll-up. Run async by tmux on
+# status-interval, like tmux-git-branch / tmux-session-dots, so it never stalls
+# the bar.
 #
 # Emits tmux FORMAT (#[fg=...]), NOT raw ANSI: tmux re-expands #[...] in #()
 # output on the status bar. bg is left untouched so the number sits on whatever
 # bar bg is current (the hostname's @status_bg, before the dots chip's #313244).
 set -uo pipefail
 
-# One pass over every window's @agent_state; count the ones that are "running".
-# grep -c prints 0 and exits 1 on no match, which `|| true` absorbs under set -e
-# (harmless here without -e, but kept for clarity / future-proofing).
-n=$(tmux list-windows -a -F "#{@agent_state}" 2>/dev/null | grep -c '^running$' || true)
+# One pass over every window for both halves: awk counts the running ones and
+# sums their subagents together, rather than asking tmux twice. A window that
+# never set @agent_subagents prints an empty second field, which awk adds as 0.
+read -r n subs < <(
+    tmux list-windows -a -F "#{@agent_state} #{@agent_subagents}" 2>/dev/null \
+        | awk '$1 == "running" { n++; s += $2 } END { print n + 0, s + 0 }'
+)
 
 # Trailing space sits on the bar bg, adding a gap before the dots chip's own
 # leading space — so the number reads as evenly spaced between host and dots.
-[ "${n:-0}" -gt 0 ] && printf '#[fg=#89b4fa]%s#[default] ' "$n"
+if [ "${n:-0}" -gt 0 ]; then
+    printf '#[fg=#89b4fa]%s#[default]' "$n"
+    [ "${subs:-0}" -gt 0 ] && printf '#[fg=#74c7ec]+%s#[default]' "$subs"
+    printf ' '
+fi

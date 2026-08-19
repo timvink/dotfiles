@@ -87,14 +87,35 @@ which is where the overview's "blocked · 6m12s" comes from; it is written only 
 an actual transition, since PostToolUse fires `running` over and over within one
 turn and would otherwise keep resetting the clock.
 
+A third window option, `@agent_subagents`, says **how wide** the agent has fanned
+out: how many subagents it has in flight. The status bar's agent count reads
+`6+11` — six working tabs, eleven subagents between them — and `tmux-overview`
+puts the `+11` on the row, in the detail pane and in the session roll-up. Claude
+Code exposes no ambient number for this (the status-line payload has no such
+field, and the `tasks/*.output` files on disk outlive the task that wrote them),
+but the **Stop hook payload carries `background_tasks`**, its own list of what is
+still attached to the session, each entry typed `subagent` / `shell` /
+`workflow` / …. So `agent-stop-state` — which already reads that array's length to
+decide the dot — counts the `subagent` entries and hands the number to
+`~/.local/bin/agent-subagents`. Recomputing from that list every turn is the whole
+point: a counter incremented on spawn and decremented on finish drifts the first
+time a process dies between the two and never recovers, whereas each Stop
+overwrites the option with the truth. `agent-state none` unsets it with the dot
+and the note, so a session killed mid-fan-out doesn't leave phantom subagents in
+the bar. The number is Claude-only by construction — Codex and Antigravity tabs
+count toward the `6` and can never add to the `+11`.
+
 ## The prefix+o overview, and its two views
 
 `tmux-overview` has a **tree** view (the default) and the original **grid**
 montage; **space** switches them and the choice sticks. The tree is one row per
 tab under a foldable session header, carrying the dot, the name, the git branch
 (peach `⑂ branch` in a linked worktree, the same marker `tmux-git-branch` puts in
-the status bar) and a right-hand detail pane for whatever the cursor is on: full
-note, worktree path, time in state, and a live snapshot of that one pane. **tab**
+the status bar), a sapphire `+3` for any subagents that tab has in flight, and a
+right-hand detail pane for whatever the cursor is on: full note, worktree path,
+time in state, and a live snapshot of that one pane. The `+3` column exists only
+while some visible tab has subagents, so the tree gives up no width in the usual
+case where nothing is fanned out. **tab**
 hides the detail pane, which widens the tree and moves the note onto each row
 instead; in the grid it hides the snapshots. **/** narrows to tabs that ever ran
 an agent. In the tree `l` unfolds a session or descends into it and `h` ascends

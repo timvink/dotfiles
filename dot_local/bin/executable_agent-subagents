@@ -1,0 +1,46 @@
+#!/bin/sh
+# Set the @agent_subagents user option on the current tmux window: how many
+# subagents this window's agent has in flight right now. The @agent_state dot
+# says whether the agent is working and @agent_note says what it is working on;
+# this says how wide it has fanned out, which is the difference between one
+# agent grinding alone and one driving a dozen.
+#
+# Read by the status bar's agent count (tmux-agent-count, which sums it across
+# the whole server to render the "6+11") and by tmux-overview (prefix+o), which
+# shows it per tab.
+#
+# Usage: agent-subagents 3    (0, an empty string or no args → clear the option)
+#
+# NOT for agents to call, unlike its neighbour agent-note. The only writer is
+# agent-stop-state, which reads the count out of the Stop hook payload's
+# background_tasks — Claude Code's own list of what is still attached to the
+# session. Recomputing it from that list every turn is what keeps the number
+# honest: an event-driven counter incremented on spawn and decremented on
+# finish drifts the first time a process dies between the two, and never
+# recovers, whereas each Stop overwrites whatever was here with the truth.
+#
+# Clearing when the session goes away is not this script's job: `agent-state
+# none` unsets @agent_subagents along with @agent_state and @agent_note, so
+# SessionStart, SessionEnd and the zsh precmd reaper each wipe all three
+# together and the three can't desync.
+#
+# No-op outside tmux. Always exits 0 so a hook never surfaces an error.
+
+# Anything that isn't a plain positive integer clears the option rather than
+# being written through: this lands in a status bar that re-expands #[...] in
+# what it prints, so the value has to be something tmux can only read as a
+# number.
+n=$(printf '%s' "${1:-}" | tr -cd '0-9')
+
+if [ -n "${TMUX_PANE:-}" ]; then
+    win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
+    if [ -n "${win:-}" ]; then
+        if [ -z "$n" ] || [ "$n" -eq 0 ]; then
+            tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
+        else
+            tmux set-option -wt "$win" '@agent_subagents' "$n" 2>/dev/null || true
+        fi
+    fi
+fi
+
+exit 0
