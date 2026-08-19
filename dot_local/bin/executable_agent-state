@@ -53,6 +53,7 @@ if [ -n "${TMUX_PANE:-}" ]; then
             tmux set-option -wt "$win" -u '@agent_note' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_since' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
+            tmux set-option -wt "$win" -u '@agent_bg' 2>/dev/null || true
             rm -f "$sentinel" 2>/dev/null || true
         else
             # @agent_since: the epoch second this state began, which is what the
@@ -65,6 +66,14 @@ if [ -n "${TMUX_PANE:-}" ]; then
             [ "$prev" = "$state" ] \
                 || tmux set-option -wt "$win" '@agent_since' "$(date +%s)" 2>/dev/null \
                 || true
+            # @agent_bg annotates one specific blue — the one agent-stop-state
+            # sets when a turn ends with agent-driven work still attached — and
+            # tells agent-state-sweep to leave that blue alone. Any later state,
+            # including another `running` from PreToolUse, means the session has
+            # moved on, so the annotation is dropped here and agent-stop-state
+            # re-adds it if the next turn ends the same way. Setting it that way
+            # round is what stops it outliving the reason it was set.
+            tmux set-option -wt "$win" -u '@agent_bg' 2>/dev/null || true
             tmux set-option -wt "$win" '@agent_state' "$state" 2>/dev/null || true
             : > "$sentinel" 2>/dev/null || true
         fi

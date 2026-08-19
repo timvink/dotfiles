@@ -28,6 +28,16 @@
 # bar bg is current (the hostname's @status_bg, before the dots chip's #313244).
 set -uo pipefail
 
+# Reconcile before counting. Every input to @agent_state is an event, and a
+# missed event leaves a tab stuck blue — so the number this script renders is
+# only as honest as the options it reads, which makes the counter the natural
+# place to hang the one check that doesn't depend on events arriving.
+# agent-state-sweep compares each dot against what Claude Code is broadcasting in
+# its pane title and demotes the ones that are lying. It runs here because the
+# status bar is the only thing tmux ticks on a timer; nothing about counting
+# needs it, and nothing about it needs counting.
+"$HOME/.local/bin/agent-state-sweep" 2>/dev/null || true
+
 # One pass over every window for both halves: awk counts the running ones and
 # sums their subagents together, rather than asking tmux twice. A window that
 # never set @agent_subagents prints an empty second field, which awk adds as 0.

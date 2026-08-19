@@ -90,19 +90,32 @@ mk_hook() {
 
 none_hook=$(mk_hook "none")
 running_hook=$(mk_hook "running")
+# StopFailure fires when a turn ends in a terminal error instead of ending
+# normally — the context blown past what compaction can rescue (prompt_too_long),
+# a tool call that still won't parse after a retry, an image the model can't
+# take. Stop does NOT fire in those cases, so without this the tab keeps the blue
+# dot PostToolUse last set and reads as "still working" while the session sits
+# stuck. Red rather than yellow because it isn't an ordinary finished turn: the
+# session needs you to do something before it goes anywhere.
+failed_hook=$(mk_hook "needs-input")
 
-# Notification fires for two cases, distinguished by the payload's
+# Notification covers a dozen cases, distinguished by the payload's
 # "notification_type" field (NOT by the matcher — matchers only match tool
 # names, so the old matcher:"permission_prompt" matched nothing and the dot
-# never went red). permission_prompt → red. idle_prompt (the ~60s "waiting for
-# your input" nudge) must NOT turn a finished tab red — but it IS the backstop
+# never went red). Four of them mean the same thing to us: Claude has put a
+# dialog up and stopped until you answer it. permission_prompt is the common one;
+# worker_permission_prompt is its equivalent inside a worker; and the two
+# elicitation types are an MCP server asking a question through Claude, which
+# blocks the turn just as hard while firing nothing else. idle_prompt (the ~60s
+# "waiting for your input" nudge) must NOT turn a finished tab red — but it IS
+# the backstop
 # for the one turn end that fires no hook at all: a user ESC interrupt (see
 # agent-interrupt-state, primary trigger in executable_statusline-command.sh).
 # That helper only flips the dot to idle when the transcript tail proves the
 # interrupt, so a legitimately yellow, red, or background-running blue tab is
 # left alone. Match all Notifications (matcher ""), gate on notification_type
 # inside the command. $HOME stays literal.
-perm_cmd='p=$(cat); case "$(printf "%s" "$p" | jq -r .notification_type)" in permission_prompt) $HOME/.local/bin/agent-state needs-input ;; idle_prompt) $HOME/.local/bin/agent-interrupt-state "$(printf "%s" "$p" | jq -r .transcript_path)" ;; esac'
+perm_cmd='p=$(cat); case "$(printf "%s" "$p" | jq -r .notification_type)" in permission_prompt|worker_permission_prompt|elicitation_dialog|elicitation_url_dialog) $HOME/.local/bin/agent-state needs-input ;; idle_prompt) $HOME/.local/bin/agent-interrupt-state "$(printf "%s" "$p" | jq -r .transcript_path)" ;; esac'
 perm_hook=$(jq -n --arg cmd "$perm_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
@@ -189,6 +202,7 @@ printf '%s' "$input" | jq \
     --argjson pretool "$pretool_hook" \
     --argjson perm    "$perm_hook" \
     --argjson stop    "$stop_hook" \
+    --argjson failed  "$failed_hook" \
     --arg     statuscmd "$status_cmd" \
     --arg     autocompactpct "$autocompact_pct" \
     --arg     defaultmode "$default_permission_mode" \
@@ -199,6 +213,7 @@ printf '%s' "$input" | jq \
    | .hooks.PostToolUse      = $running
    | .hooks.Notification     = $perm
    | .hooks.Stop             = $stop
+   | .hooks.StopFailure      = $failed
    | .statusLine             = { "type": "command", "command": $statuscmd }
    | .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $autocompactpct
    | .permissions.defaultMode = $defaultmode'

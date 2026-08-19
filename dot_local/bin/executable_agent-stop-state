@@ -2,11 +2,14 @@
 # Decide the end-of-turn agent-state dot from the Stop hook payload (stdin).
 # Wired in as the Claude Code Stop hook (see dot_claude/modify_settings.json).
 #
-#   in-flight background work   → running ●     a run_in_background shell,
-#                                               subagent, … will auto-resume the
+#   agent-driven work still
+#   attached                    → running ●     a subagent, workflow or monitor
+#                                               will finish and auto-resume the
 #                                               agent, so it's not your turn.
 #                                               Keyed off the payload's
-#                                               background_tasks array.
+#                                               background_tasks array, minus the
+#                                               background shells — see below for
+#                                               why those mean the opposite.
 #   final message ends with a
 #   question (last line → "?")  → needs-input ● red: the turn ended asking you
 #                                               something — "your input needed".
@@ -32,16 +35,29 @@
 dir=$(dirname "$0")
 payload=$(cat)
 
-# One pass over background_tasks for both numbers this payload carries: how much
-# work of any kind is still attached, which decides the dot, and how much of it
-# is subagents, which the status bar and prefix+o count on their own. Entries
-# name their kind — "subagent", "shell", "workflow", … — so the second number is
-# a filter on the first. (// [] covers builds predating background_tasks.)
+# One pass over background_tasks for the two numbers this payload carries.
+# Entries name their kind — "subagent", "workflow", "monitor", "shell", "MCP
+# task", "teammate", "cloud session" — which splits them into two groups that
+# mean opposite things for the dot:
+#
+#   everything except "shell"  the agent's own work, continuing. It will finish
+#                              and re-wake the session on its own, so the turn
+#                              isn't really over and the tab stays blue.
+#   "shell"                    a run_in_background command. The agent chose NOT
+#                              to wait for it, which is exactly what makes the
+#                              turn over: you can type now. Counting these as
+#                              working is what used to pin a tab blue for as
+#                              long as a dev server stayed up — hours, on a tab
+#                              that was in fact waiting for you the whole time.
+#
+# `subagents` is separate again and narrower than both: it feeds the status bar's
+# "6+11" and the prefix+o rows, which count fan-out rather than anything about
+# the dot. (// [] covers builds predating background_tasks.)
 set -- $(printf '%s' "$payload" | jq -r '
     (.background_tasks // []) as $t
-    | "\($t | length) \([$t[] | select(.type == "subagent")] | length)"
+    | "\([$t[] | select(.type != "shell")] | length) \([$t[] | select(.type == "subagent")] | length)"
 ' 2>/dev/null)
-attached=${1:-0}
+resumes=${1:-0}
 subagents=${2:-0}
 
 # Stamp the subagent count before deciding the dot, and on every path: Stop is
@@ -50,10 +66,18 @@ subagents=${2:-0}
 # turn that ends with nothing attached writes the 0 that clears the option.
 "$dir/agent-subagents" "$subagents"
 
-# Background work still attached → session auto-resumes; show running, not "your
-# turn".
-if [ "$attached" -gt 0 ]; then
+# Agent-driven work still attached → the session auto-resumes; show running, not
+# "your turn". @agent_bg records WHY this one is blue, because from the outside
+# it looks identical to a stale dot: Claude is sitting at the prompt with its
+# title showing ✳, which is exactly the shape agent-state-sweep demotes. The
+# annotation is what tells the sweep this blue was meant. agent-state clears it
+# on the next state change, so it can't outlive the work that earned it.
+if [ "$resumes" -gt 0 ]; then
     "$dir/agent-state" running
+    if [ -n "${TMUX_PANE:-}" ]; then
+        win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
+        [ -n "${win:-}" ] && tmux set-option -wt "$win" '@agent_bg' 1 2>/dev/null
+    fi
     exit 0
 fi
 

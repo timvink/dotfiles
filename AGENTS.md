@@ -55,12 +55,18 @@ needs input, yellow ○ your turn), driven by the `@agent_state` window option t
 `window-status-format` reads (`dot_tmux.conf`). It's set by `~/.local/bin/agent-state`:
 
 - **Claude Code / Codex** drive it from lifecycle hooks (`dot_claude/modify_settings.json`,
-  `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`). One gap:
-  Claude Code fires **no hook on an ESC interrupt** (anthropics/claude-code#9516),
-  which would leave the dot stale blue/red. `agent-interrupt-state` covers it by
-  spotting the `[Request interrupted by user]` marker at the transcript tail —
-  triggered from the Claude statusline refresh (fast path) and the
-  `Notification[idle_prompt]` hook (~60s backstop).
+  `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`). Two turn
+  endings fire no `Stop`: an **ESC interrupt** (anthropics/claude-code#9516) and a
+  turn that dies on a terminal error, which goes to **`StopFailure`** instead
+  (context past what compaction can rescue, a tool call that still won't parse
+  after a retry). `StopFailure` is wired to red — the session is stuck and needs
+  you, which is not an ordinary finished turn. The ESC case is covered by
+  `agent-interrupt-state`, which spots the `[Request interrupted by user]` marker
+  at the transcript tail, triggered from the Claude statusline refresh (fast path)
+  and the `Notification[idle_prompt]` hook (~60s backstop). `Notification` also
+  goes red on `worker_permission_prompt` and the two `elicitation_*` types — an
+  MCP server asking a question through Claude blocks the turn as hard as a
+  permission prompt and fires nothing else.
 - **Antigravity (`agy`)** has no permission/notification hook event, so the dot
   is driven from its **status line** instead (`dot_gemini/antigravity-cli/executable_statusline.sh`),
   the one payload that exposes `agent_state`, `tool_confirmation_pending` (blocked
@@ -104,6 +110,50 @@ overwrites the option with the truth. `agent-state none` unsets it with the dot
 and the note, so a session killed mid-fan-out doesn't leave phantom subagents in
 the bar. The number is Claude-only by construction — Codex and Antigravity tabs
 count toward the `6` and can never add to the `+11`.
+
+## Stale blue dots, and the one check that isn't an event
+
+Every input above is an **event**, and an event that never arrives leaves the last
+one standing — so the dot's failure mode is always the same shape: stuck on blue,
+which is the worst way to be wrong, since blue reads as "leave this one alone" and
+a finished agent goes unnoticed for as long as you believe it. Wiring
+`StopFailure` closes one hole and `agent-interrupt-state` closes another, but
+chasing holes one at a time never ends.
+
+`~/.local/bin/agent-state-sweep` is the level-triggered backstop, and it works
+because **Claude Code broadcasts its own state in the pane title**: a spinner
+glyph (`◐◑◒◓`, U+25D0-25D3; braille on ≤ 2.1.227) while it works, and `✳` the
+moment it stops. `tmux list-panes -a -F '#{pane_title}'` reads every pane's
+current state in one call — no hook, no transcript, no ESC special case — and a
+window claiming `running` while its Claude panes all show `✳` is simply wrong.
+Whatever sequence of missed events got the option into that state, the next sweep
+sets it right, because the title says what is true now rather than what happened
+once. It runs from `tmux-agent-count` on the status-interval tick: the status bar
+is the only thing tmux ticks on a timer, and a stale dot corrupts the count that
+script renders anyway. It demotes `running` → `idle` only:
+
+- **red is never touched.** A tab blocked on a permission prompt also shows `✳`,
+  and turning "answer me" into "nothing to see here" is worse than a stale dot.
+- **`@agent_bg` is honoured.** `agent-stop-state` sets it when a turn ends with
+  agent-driven work still attached; that blue is deliberate, and Claude sits at
+  the prompt showing `✳` the whole time — the exact shape the sweep demotes.
+  `agent-state` drops the annotation on the next state change, so it can't outlive
+  its reason.
+- **non-Claude tabs are invisible to it.** Codex and Antigravity never write these
+  titles, so nothing matches and their dots are left to their own hooks.
+
+The same pass fixed a stale blue that had nothing to do with missing events.
+`background_tasks` entries are typed, and a `shell` means the opposite of the
+rest: a subagent, workflow or monitor is the agent's own work continuing and will
+re-wake the session, while a `run_in_background` shell is the thing the agent
+chose *not* to wait for — which is exactly what makes the turn over. Counting
+shells as work pinned a tab blue for as long as a dev server stayed up. Only
+non-shell tasks hold the dot now.
+
+Credit where due: the pane-title signal and the "never latch, default to idle"
+principle come from reading [herdr](https://github.com/herdrdev/herdr), which
+drove Claude Code from these same lifecycle hooks, hit these same stale-state
+bugs, and removed the hooks entirely in favour of screen detection.
 
 ## The prefix+o overview, and its two views
 

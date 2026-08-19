@@ -1,0 +1,84 @@
+#!/bin/sh
+# Clear stale "working" dots by asking the agent itself, not by trusting our
+# event history. Claude Code sets the pane's OSC title to a spinner glyph while
+# it works and to "✳ <summary>" the moment it stops:
+#
+#   ◐ Tmux agent counter subagents display    working
+#   ✳ Resend to TEM migration verification    stopped — at the prompt
+#
+# So a window whose @agent_state says "running" while every Claude pane in it
+# shows ✳ is lying, and this puts it back to idle ○.
+#
+# Why this exists at all: every other input to the dot is an EVENT, and an event
+# that never arrives leaves the last one standing. Claude Code fires no hook on
+# an ESC interrupt (anthropics/claude-code#9516, which agent-interrupt-state
+# covers from the other end), and a turn that dies on a terminal API error —
+# context blown past what compaction can save, a tool call that can't be parsed
+# after a retry — ends via StopFailure instead of Stop. Miss one and the tab sits
+# blue forever, which is the worst way to be wrong: blue reads as "leave this one
+# alone", so a finished agent goes unnoticed for as long as you believe the dot.
+# The title is a different kind of signal. It says what is true now rather than
+# what happened once, so nothing can latch: whatever sequence of events got the
+# option wrong, the next sweep sets it right.
+#
+# It only ever demotes running → idle. Three deliberate limits:
+#
+#   - needs-input is never touched. A tab blocked on a permission prompt also
+#     shows ✳ (Claude isn't working, it's waiting on you), so demoting red would
+#     turn "answer me" into "nothing to see here" — the one direction worse than
+#     a stale dot.
+#   - @agent_bg is honoured. agent-stop-state sets it when a turn ended with
+#     agent-driven work still attached that will re-wake the session on its own;
+#     that blue is deliberate, and Claude is legitimately at the prompt meanwhile.
+#   - Windows with no Claude pane are invisible here. Codex and Antigravity tabs
+#     never write these titles, so nothing matches and their dots are left to
+#     their own hooks.
+#
+# Run from tmux-agent-count, on the status-interval tick — see the note there on
+# why the counter is the right place to hang a reconciler.
+#
+# No-op outside tmux. Always exits 0.
+
+command -v tmux >/dev/null 2>&1 || exit 0
+
+# Claude ≥ 2.1.228 spins through the quarter-circles below. Older builds used
+# braille (U+2800-28FF), which nothing here matches — that costs only the
+# "some pane is working" veto, and a title can't start with a spinner and ✳ at
+# once, so the worst case is a window with two Claude panes where one is on an
+# ancient build. The ✳ test itself is unchanged across versions.
+now=$(date +%s)
+tmux list-panes -a -F '#{window_id}	#{@agent_state}	#{@agent_bg}	#{pane_title}' 2>/dev/null \
+    | awk -F'\t' -v idle='✳' -v s1='◐' -v s2='◑' -v s3='◒' -v s4='◓' '
+        {
+            win = $1; state[win] = $2; bg[win] = $3; t = $4
+            # index(…) == 1 is "starts with" whether this awk counts bytes or
+            # characters, which keeps the test independent of the locale.
+            if (index(t, idle) == 1) stopped[win] = 1
+            else if (index(t, s1) == 1 || index(t, s2) == 1 ||
+                     index(t, s3) == 1 || index(t, s4) == 1) working[win] = 1
+        }
+        END {
+            for (w in state)
+                if (state[w] == "running" && bg[w] == "" && stopped[w] && !working[w])
+                    print w
+        }
+    ' 2>/dev/null \
+    | while IFS= read -r win; do
+        [ -n "$win" ] || continue
+        # Written straight rather than through agent-state, which only ever acts
+        # on its own $TMUX_PANE and so can't reach another window. @agent_since
+        # is restamped because this IS a state change, and it feeds the
+        # overview's "your turn · 4m11s".
+        tmux set-option -wt "$win" '@agent_since' "$now" 2>/dev/null || true
+        tmux set-option -wt "$win" '@agent_state' idle 2>/dev/null || true
+        # The subagent count goes too. It is stale here by construction: reaching
+        # this line means @agent_bg was unset, so the last Stop found no
+        # agent-driven work attached, and @agent_subagents can only be non-zero
+        # when there was some. The two disagree, and the dot was the one that
+        # turned out to be wrong. Left alone, a turn that died without a Stop
+        # would keep adding its dead fan-out to the bar's "6+11" until the
+        # session ended.
+        tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
+    done
+
+exit 0
