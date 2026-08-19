@@ -7,7 +7,10 @@
 #   ✳ Resend to TEM migration verification    stopped — at the prompt
 #
 # So a window whose @agent_state says "running" while every Claude pane in it
-# shows ✳ is lying, and this puts it back to idle ○.
+# shows ✳ is lying, and this puts it back to done ● — not idle ○, because
+# reaching this line means nothing told us the turn ended, so you certainly
+# did not watch it end. agent-seen opens the dot once the tab has been in
+# front of you, and runs from here too as its own backstop.
 #
 # Why this exists at all: every other input to the dot is an EVENT, and an event
 # that never arrives leaves the last one standing. Claude Code fires no hook on
@@ -21,7 +24,7 @@
 # what happened once, so nothing can latch: whatever sequence of events got the
 # option wrong, the next sweep sets it right.
 #
-# It only ever demotes running → idle. Three deliberate limits:
+# It only ever demotes running → done. Three deliberate limits:
 #
 #   - needs-input is never touched. A tab blocked on a permission prompt also
 #     shows ✳ (Claude isn't working, it's waiting on you), so demoting red would
@@ -33,6 +36,12 @@
 #   - Windows with no Claude pane are invisible here. Codex and Antigravity tabs
 #     never write these titles, so nothing matches and their dots are left to
 #     their own hooks.
+#
+# No debounce on the demotion, which is a measured decision rather than an
+# assumption: a working tab sampled every 250ms for 22s never once dropped its
+# spinner, so there is no mid-turn flicker to ride out. If that ever changes the
+# fix is to require the ✳ across two consecutive sweeps — and the symptom to
+# watch for is a tab briefly going yellow while it is plainly still working.
 #
 # Run from tmux-agent-count, on the status-interval tick — see the note there on
 # why the counter is the right place to hang a reconciler.
@@ -70,7 +79,7 @@ tmux list-panes -a -F '#{window_id}	#{@agent_state}	#{@agent_bg}	#{pane_title}' 
         # is restamped because this IS a state change, and it feeds the
         # overview's "your turn · 4m11s".
         tmux set-option -wt "$win" '@agent_since' "$now" 2>/dev/null || true
-        tmux set-option -wt "$win" '@agent_state' idle 2>/dev/null || true
+        tmux set-option -wt "$win" '@agent_state' done 2>/dev/null || true
         # The subagent count goes too. It is stale here by construction: reaching
         # this line means @agent_bg was unset, so the last Stop found no
         # agent-driven work attached, and @agent_subagents can only be non-zero
@@ -80,5 +89,12 @@ tmux list-panes -a -F '#{window_id}	#{@agent_state}	#{@agent_bg}	#{pane_title}' 
         # session ended.
         tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
     done
+
+# Whatever the sweep just demoted, plus anything an earlier turn left on done,
+# is resolved against what is actually on your screen. Runs unconditionally: the
+# tmux hooks in dot_tmux.conf catch a window becoming visible, and this catches
+# the rest — a turn that finished while you were already sitting in the tab, or
+# a hook that never fired.
+"$(dirname "$0")/agent-seen"
 
 exit 0

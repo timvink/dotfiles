@@ -50,9 +50,23 @@ instructions. Full rationale and the add/remove/private-skill workflow are in
 
 ## Per-tab agent dot + status line (tmux)
 
-A coloured dot per tmux tab shows each agent's state (blue ● working, red ●
-needs input, yellow ○ your turn), driven by the `@agent_state` window option that
-`window-status-format` reads (`dot_tmux.conf`). It's set by `~/.local/bin/agent-state`:
+A coloured dot per tmux tab shows each agent's state, driven by the `@agent_state`
+window option that `window-status-format` reads (`dot_tmux.conf`). It's set by
+`~/.local/bin/agent-state`:
+
+| state | dot | meaning |
+| --- | --- | --- |
+| `needs-input` | red ● | blocked on you: a permission prompt, a plan approval, or a turn that ended with a question |
+| `running` | blue ● | working, or its turn ended with agent-driven work still attached |
+| `done` | yellow ● | the turn is over and you have not looked at the tab yet |
+| `idle` | yellow ○ | the turn is over and you have looked |
+| *(unset)* | no dot | not an agent tab, or the session exited |
+
+Filled means it wants something from you and hollow means it doesn't, which is why
+`done` and `idle` share a colour but not a glyph. The four read as one escalation:
+red now, yellow-filled when you get a moment, blue nothing, hollow nothing at all.
+Everything that ends a turn sets `done`; the only thing that clears it is
+`agent-seen`, covered below.
 
 - **Claude Code / Codex** drive it from lifecycle hooks (`dot_claude/modify_settings.json`,
   `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`). Two turn
@@ -110,6 +124,49 @@ overwrites the option with the truth. `agent-state none` unsets it with the dot
 and the note, so a session killed mid-fan-out doesn't leave phantom subagents in
 the bar. The number is Claude-only by construction — Codex and Antigravity tabs
 count toward the `6` and can never add to the `+11`.
+
+## done vs idle: the dot remembers whether you looked
+
+"The agent finished" and "you know the agent finished" are different facts, and
+only the second one means there is nothing left to do. So a finished turn lands on
+`done` (filled ●) and stays there until the tab has actually been in front of you,
+at which point `~/.local/bin/agent-seen` opens it to `idle` (hollow ○). With six
+agents running, that is the difference between a wall of identical yellow dots and
+a list of the two you have not read yet.
+
+"In front of you" is the current window of a client that is both attached and
+**focused** — tmux puts `focused` in `#{client_flags}` when `focus-events` is on
+and the terminal cooperates. Focus is the whole difficulty: with five sessions in
+one terminal, four have a current window nobody is looking at, and marking those
+seen would empty the notification before it ever reached you. An absent flag is
+ambiguous, though — it means either "not focused now" or "this terminal never
+reports focus" — so the server remembers whether it has *ever* seen the flag in
+`@agent_focus_reporting`. Until it has, the poll falls back to every attached
+client's current window; after that, unfocused means unseen.
+
+Two paths clear it, believable for different reasons. The tmux hooks
+(`session-window-changed`, `client-session-changed`, `client-attached`,
+`client-focus-in`) hand `agent-seen` the window that just became visible and need
+no focus test, because they only fire when you press something. The polling form
+runs from `agent-state` the moment it sets `done`, so a tab you are already
+watching never flashes, and from `agent-state-sweep` every status tick as the
+backstop. Only ever `done` → `idle`: looking at a tab is not answering its
+question, so a red dot survives being glanced at.
+
+The attention ladder that `tmux-session-dots` and `tmux-sessionizer` roll a session
+up by is `needs-input 4 > done 3 > running 2 > idle 1 > unset 0` — **done outranks
+running**, because a finished agent is asking to be collected and a working one is
+asking for nothing.
+
+This mirrors [herdr](https://github.com/herdrdev/herdr)'s five-state model
+(blocked / working / done / idle / unknown) and its ladder, arrived at by reading
+its source. Two deliberate differences. herdr keeps `done` as a derived state —
+detection owns a four-variant enum and the view owns a separate `seen` bool,
+because in its architecture those live on different objects with different
+lifetimes; we have one option per window, so the pair is precomputed into
+`@agent_state` and every consumer tests one value. And herdr's `unknown` turns out
+to mean "this pane is a plain shell", which is what an unset `@agent_state`
+already means here — the grey `·` in `tmux-overview` is the same thing.
 
 ## Stale blue dots, and the one check that isn't an event
 
@@ -170,6 +227,16 @@ hides the detail pane, which widens the tree and moves the note onto each row
 instead; in the grid it hides the snapshots. **/** narrows to tabs that ever ran
 an agent. In the tree `l` unfolds a session or descends into it and `h` ascends
 then folds, so `h,h` collapses whatever you are inside of.
+
+Both views open with the cursor on the tab you pressed prefix+o in — you land
+where you came from, and ↵ is the way back. Finding that tab needs an explicit
+`-t`: a popup inherits no `TMUX_PANE`, and a bare `display-message` with nothing
+to resolve against answers for the server's most recently active session, which
+is only sometimes the one you are sitting in. What it does inherit is `TMUX`,
+whose third field is the id of the session the popup was displayed for, and a
+session has exactly one current window — the tab. A folded session, or one the
+`/` filter emptied of that tab, gets its header row instead. Each view places
+the cursor once, on its first frame, so moving away from it sticks.
 
 State lives in tmux options rather than a dotfile of ours — `@overview_view`,
 `@overview_detail`, `@overview_panes` and `@overview_agents` on the server, plus

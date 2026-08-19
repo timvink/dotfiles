@@ -2,7 +2,9 @@
 # tmux-session-dots — a row of summary dots, one per tmux session, for the right
 # side of the status bar (dot_tmux.conf, where the clock used to be). Each dot is
 # that session's aggregate agent state: the highest-priority @agent_state across
-# its windows, precedence needs-input > running > idle > none. So at a glance you
+# its windows, precedence needs-input > done > running > idle > none — the order
+# of how much each wants from you, which puts a finished-but-unseen agent above a
+# working one, since only the first is asking to be collected. So at a glance you
 # can count how many workspaces are working (blue ●), blocked on you (red ●), or
 # done and waiting (yellow ○) — without opening the alt+f finder.
 #
@@ -25,12 +27,12 @@ current=${1:-}
 TAB=$'\t'   # field delimiter for the -F table; '|' is legal in a session name.
 
 # Aggregate @agent_state to a numeric rank per session in ONE awk pass over every
-# window (needs-input 3 > running 2 > idle 1 > none/unset 0) — same one-pass shape
+# window (needs-input 4 > done 3 > running 2 > idle 1 > none/unset 0) — same shape
 # as tmux-sessionizer. A session whose windows are all none/unset is simply absent
 # here and falls through to rank 0 on the lookup below.
 win_states=$(tmux list-windows -a -F "#{session_name}${TAB}#{@agent_state}" 2>/dev/null || true)
 session_ranks=$(printf '%s\n' "$win_states" | awk -F"$TAB" '
-  { r = $2=="needs-input" ? 3 : $2=="running" ? 2 : $2=="idle" ? 1 : 0 }
+  { r = $2=="needs-input" ? 4 : $2=="done" ? 3 : $2=="running" ? 2 : $2=="idle" ? 1 : 0 }
   r > seen[$1] { seen[$1] = r }
   END { for (s in seen) print s "\t" seen[s] }
 ')
@@ -43,9 +45,10 @@ names=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | sort || true)
 # Set $_dot to the tmux-format glyph for rank $1 (mirrors dot_tmux.conf's palette).
 rank_dot() {
   case "$1" in
-    3) _dot='#[fg=#f38ba8]●' ;;  # needs-input  red
+    4) _dot='#[fg=#f38ba8]●' ;;  # needs-input  red
+    3) _dot='#[fg=#f9e2af]●' ;;  # done         yellow, filled — go collect it
     2) _dot='#[fg=#89b4fa]●' ;;  # running      blue
-    1) _dot='#[fg=#f9e2af]○' ;;  # idle         yellow
+    1) _dot='#[fg=#f9e2af]○' ;;  # idle         yellow, hollow — seen
     *) _dot='#[fg=#6c7086]●' ;;  # none / unset grey
   esac
 }

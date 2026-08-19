@@ -88,7 +88,7 @@ else
                 fi
                 case "$last" in
                     *\?) set_dot needs-input ;;
-                    *)   set_dot idle ;;
+                    *)   set_dot done ;;
                 esac
             fi
             ;;

@@ -16,7 +16,7 @@
       { "matcher": ".*", "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state needs-input" } ] }
     ],
     "Stop": [
-      { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state idle" } ] }
+      { "hooks": [ { "type": "command", "command": "$HOME/.local/bin/agent-state done" } ] }
     ]
   }
 }

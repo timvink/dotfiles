@@ -1,0 +1,71 @@
+#!/bin/sh
+# Mark the agent tabs you have actually looked at as seen: done ● → idle ○.
+#
+# A finished agent has two states, not one, because "it finished" and "you know
+# it finished" are different facts and only the second means there is nothing
+# left to do:
+#
+#   done  yellow ●  the turn is over and you have NOT looked at the tab yet.
+#                   Something is waiting to be collected.
+#   idle  yellow ○  the turn is over and you have looked. Nothing to do.
+#
+# Everything that ends a turn sets done; this is the only thing that clears it,
+# and it clears it for exactly one reason — the tab was in front of you. Only
+# ever done → idle: looking at a tab is not answering its question, so running
+# and needs-input are left alone and a red dot survives being glanced at.
+#
+# Two ways to be in front of you, because they are believable for different
+# reasons:
+#
+#   agent-seen @14 [@22 …]   these windows just came on screen. Called from the
+#                            tmux hooks that change what is displayed (see
+#                            dot_tmux.conf), which fire because you pressed
+#                            something — so no further evidence is needed.
+#   agent-seen               poll: whichever window each FOCUSED attached client
+#                            is showing. Called from agent-state the moment it
+#                            sets done, so a tab you are already watching never
+#                            flashes, and from agent-state-sweep every status
+#                            tick as the backstop for whatever the hooks miss.
+#
+# Focus is the whole difficulty in the polling form. tmux reports it in
+# #{client_flags} when focus-events is on (dot_tmux.conf sets it) and the
+# terminal cooperates, and it matters because a client showing a window while you
+# read your email is not showing it to you — marking that seen would empty the
+# notification before it ever reached you. But an absent "focused" flag is
+# ambiguous: it means either "not focused right now" or "this terminal never
+# reports focus at all", and those want opposite answers. So the server remembers
+# whether it has EVER seen the flag (@agent_focus_reporting). Until it has, the
+# polling form falls back to every attached client's current window; after that,
+# unfocused means unseen and stays that way.
+#
+# No-op outside tmux. Always exits 0.
+
+command -v tmux >/dev/null 2>&1 || exit 0
+
+if [ "$#" -gt 0 ]; then
+    visible="$*"
+else
+    # list-clients only ever lists attached clients, so this is purely the focus
+    # test. The pattern anchors on the comma boundaries of "attached,focused,UTF-8"
+    # so it cannot match some later flag that merely contains the word.
+    visible=$(tmux list-clients -F '#{client_flags}	#{window_id}' 2>/dev/null \
+        | awk -F'\t' '$1 ~ /(^|,)focused(,|$)/ { print $2 }')
+    known=$(tmux show-options -s -qv '@agent_focus_reporting' 2>/dev/null)
+    if [ -n "$visible" ]; then
+        [ "$known" = 1 ] || tmux set-option -s '@agent_focus_reporting' 1 2>/dev/null || true
+    elif [ "$known" != 1 ]; then
+        visible=$(tmux list-clients -F '#{window_id}' 2>/dev/null)
+    fi
+fi
+
+for win in $visible; do
+    [ -n "$win" ] || continue
+    [ "$(tmux show-options -wt "$win" -qv '@agent_state' 2>/dev/null)" = done ] || continue
+    # @agent_since is deliberately NOT restamped. It answers "how long has this
+    # been sitting here", and noticing a tab does not change when its agent
+    # finished — resetting the clock on a glance would throw away the one number
+    # that says how long you have been ignoring it.
+    tmux set-option -wt "$win" '@agent_state' idle 2>/dev/null || true
+done
+
+exit 0

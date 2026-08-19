@@ -18,10 +18,15 @@ Antigravity alike, so any of them can wait on any other:
 
 | value         | dot      | meaning                                                                      |
 | ------------- | -------- | ---------------------------------------------------------------------------- |
-| `running`     | blue ●   | working — or its turn ended with background work that will auto-resume it     |
+| `running`     | blue ●   | working — or its turn ended with agent-driven work that will auto-resume it   |
 | `needs-input` | red ●    | blocked on the user: permission prompt, plan approval, or turn ended with a question |
-| `idle`        | yellow ○ | turn complete, awaiting a prompt — this is "done"                             |
+| `done`        | yellow ● | turn complete, and the user has not looked at that tab yet                    |
+| `idle`        | yellow ○ | turn complete, and the user has since looked at that tab                      |
 | *(unset)*     | no dot   | no agent has finished a turn in that window, or the session exited            |
+
+`done` and `idle` both mean **finished** — they differ only in whether the user
+has seen it, which is nothing to do with you. When you are waiting on another
+agent, treat the two as one state.
 
 Both windows must be on the same tmux server (always true locally, and on each
 remote VM). Outside tmux this skill does not apply.
@@ -45,7 +50,7 @@ the other agent window is the one with `@agent_state` set.
 Check the current state first: `tmux show-option -wqv -t :3 '@agent_state'`
 
 - `running` → start the wait loop below.
-- `idle` → it already finished; skip the wait and continue.
+- `done` or `idle` → it already finished; skip the wait and continue.
 - `needs-input` → it is already waiting on the user; tell them, then use the
   second loop below.
 - empty → no agent is running there (or it never finished a turn). Re-check
@@ -64,7 +69,7 @@ echo "target now: $(tmux show-option -wqv -t "$t" '@agent_state')"
 
 When you are resumed, branch on the landing state:
 
-- `idle` — the agent finished; continue with the follow-up task.
+- `done` or `idle` — the agent finished; continue with the follow-up task.
 - empty — the session exited. Usually also "done", but say so when reporting.
 - `needs-input` — **not done**: it stopped to ask the user something. Report
   that to the user right away, then keep waiting for full completion:

@@ -2,16 +2,24 @@
 # Set the @agent_state user option on the current tmux window. The tmux
 # window-status-format reads it to render a per-tab agent indicator dot:
 #
-#   running     → blue   ●  (agent is working: producing output, or its turn
-#                            ended with in-flight background work — a
-#                            run_in_background shell, subagent, … — that will
-#                            auto-resume it; either way, don't expect a prompt)
 #   needs-input → red    ●  (agent is blocked on a question / approval)
-#   idle        → yellow ○  (turn complete, awaiting a prompt — "your turn")
+#   running     → blue   ●  (agent is working: producing output, or its turn
+#                            ended with agent-driven work still attached — a
+#                            subagent, workflow, monitor — that will auto-resume
+#                            it; either way, don't expect a prompt)
+#   done        → yellow ●  (turn complete and you have NOT looked at the tab
+#                            yet — something is waiting to be collected)
+#   idle        → yellow ○  (turn complete and you have looked; nothing to do)
 #   none        → (no dot) (clears the option: a fresh session that hasn't
 #                            finished a turn yet looks like a plain shell tab.
 #                            Set on SessionStart so a new session isn't yellow
 #                            and a reused window drops any stale prior state.)
+#
+# Filled means it wants something from you, hollow means it doesn't — which is
+# why done and idle share a colour but not a glyph. The four read as one
+# escalation: red now, yellow-filled when you get a moment, blue nothing, hollow
+# nothing at all. Everything that ends a turn sets done; `agent-seen` is the only
+# thing that clears it, when the tab has actually been in front of you.
 #
 # Driven by the Claude Code and Codex lifecycle hooks (see
 # dot_claude/modify_settings.json and dot_codex/private_hooks.json), plus
@@ -22,7 +30,7 @@
 # Alongside the dot it stamps @agent_since, the epoch second the state last
 # changed, which is where the overview's "blocked · 6m12s" comes from.
 #
-# Usage: agent-state running|idle|needs-input|none
+# Usage: agent-state needs-input|running|done|idle|none
 #
 # No-op outside tmux. Always exits 0 so the agent doesn't surface an error.
 
@@ -76,6 +84,11 @@ if [ -n "${TMUX_PANE:-}" ]; then
             tmux set-option -wt "$win" -u '@agent_bg' 2>/dev/null || true
             tmux set-option -wt "$win" '@agent_state' "$state" 2>/dev/null || true
             : > "$sentinel" 2>/dev/null || true
+            # A tab you are already watching has nothing to notify you about, so
+            # done resolves straight to idle here rather than flashing filled
+            # until the next status tick. Delegated to agent-seen instead of
+            # repeating its focus test, so "in front of you" has one definition.
+            [ "$state" = done ] && "$(dirname "$0")/agent-seen"
         fi
     fi
 fi

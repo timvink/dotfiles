@@ -21,11 +21,15 @@
 #                                               question and a reporting turn with
 #                                               a statement, which makes this
 #                                               heuristic reliable in practice.
-#   otherwise                   → idle ○        yellow: turn done, your turn.
+#   otherwise                   → done ●        yellow filled: the turn is over
+#                                               and you have not looked yet.
+#                                               agent-seen opens the dot to idle
+#                                               ○ once the tab has been on your
+#                                               screen.
 #
 # The final assistant text comes from the payload's `last_assistant_message`
 # field when present, else from the last text block of the JSONL transcript at
-# `.transcript_path` (older builds). Any parse failure falls through to idle, so
+# `.transcript_path` (older builds). Any parse failure falls through to done, so
 # a finished tab is never wrongly stuck red. No-op outside tmux (agent-state is).
 #
 # Same payload also feeds @agent_subagents (see agent-subagents), the count of
@@ -104,7 +108,7 @@ fi
 last=$(printf '%s' "$msg" | awk 'NF {l = $0} END {print l}' | sed 's/[[:space:]]*$//')
 case "$last" in
     *\?) "$dir/agent-state" needs-input ;;
-    *)   "$dir/agent-state" idle ;;
+    *)   "$dir/agent-state" done ;;
 esac
 
 exit 0

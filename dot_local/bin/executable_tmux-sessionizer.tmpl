@@ -93,13 +93,14 @@ open_names=$(
 )
 
 # Aggregate @agent_state to a numeric rank per session in ONE awk pass over all
-# windows (precedence needs-input 3 > running 2 > idle 1 > none/unset 0) — the
+# windows (precedence needs-input 4 > done 3 > running 2 > idle 1 > none/unset 0,
+# same order as tmux-session-dots: how much each state wants from you) — the
 # previous version re-scanned this whole table once per session (O(sessions ×
 # windows) on the popup's paint path). Emits "<session>\t<rank>"; a session whose
 # windows are all none/unset is simply absent → rank 0 on the lookup below.
 win_states=$(tmux list-windows -a -F "#{session_name}${TAB}#{@agent_state}" 2>/dev/null || true)
 session_ranks=$(printf '%s\n' "$win_states" | awk -F"$TAB" '
-  { r = $2=="needs-input" ? 3 : $2=="running" ? 2 : $2=="idle" ? 1 : 0 }
+  { r = $2=="needs-input" ? 4 : $2=="done" ? 3 : $2=="running" ? 2 : $2=="idle" ? 1 : 0 }
   r > seen[$1] { seen[$1] = r }
   END { for (s in seen) print s "\t" seen[s] }
 ')
@@ -109,9 +110,10 @@ ranks_nl=$'\n'"$session_ranks"$'\n'   # \n<name>\t<rank>\n … for fork-free loo
 # Assigns a var rather than printing so the emit loop needs no $() per session.
 rank_dot() {
   case "$1" in
-    3) _dot=$'\033[38;2;243;139;168m●\033[0m' ;;  # needs-input  #f38ba8
+    4) _dot=$'\033[38;2;243;139;168m●\033[0m' ;;  # needs-input  #f38ba8
+    3) _dot=$'\033[38;2;249;226;175m●\033[0m' ;;  # done         #f9e2af filled
     2) _dot=$'\033[38;2;137;180;250m●\033[0m' ;;  # running      #89b4fa
-    1) _dot=$'\033[38;2;249;226;175m○\033[0m' ;;  # idle         #f9e2af
+    1) _dot=$'\033[38;2;249;226;175m○\033[0m' ;;  # idle         #f9e2af hollow
     *) _dot=$'\033[38;2;108;112;134m●\033[0m' ;;  # none / unset #6c7086
   esac
 }

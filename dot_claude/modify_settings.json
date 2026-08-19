@@ -23,15 +23,17 @@
 #   Stop                             → delegated to `agent-stop-state`, which
 #                                                     reads the Stop payload and
 #                                                     picks: "running" ● if the
-#                                                     turn ended with in-flight
-#                                                     background work that will
+#                                                     turn ended with agent-driven
+#                                                     work still attached that will
 #                                                     auto-resume the agent;
 #                                                     "needs-input" red ● if the
 #                                                     final message ends with a
 #                                                     question (turn ended asking
 #                                                     the user something — see
 #                                                     ~/.claude/CLAUDE.md); else
-#                                                     "idle" ○.
+#                                                     "done" yellow ●, which
+#                                                     agent-seen opens to "idle" ○
+#                                                     once you've looked at the tab.
 #   UserPromptSubmit / PostToolUse   → "running"     blue ●  (Claude is working)
 #   PreToolUse                       → "running"     blue ● — EXCEPT the two tools
 #                                                     that block mid-turn waiting on
@@ -47,8 +49,8 @@
 #   Notification[permission_prompt]  → "needs-input" red ●   (blocked on an
 #                                                     approval). idle_prompt does
 #                                                     NOT touch a finished tab
-#                                                     (stays yellow ○, never red);
-#                                                     it only backstops the ESC-
+#                                                     (stays yellow, never red); it
+#                                                     only backstops the ESC-
 #                                                     interrupt case below.
 #   ESC interrupt                    → no hook fires AT ALL (anthropics/
 #                                                     claude-code#9516), so the dot
@@ -107,9 +109,8 @@ failed_hook=$(mk_hook "needs-input")
 # worker_permission_prompt is its equivalent inside a worker; and the two
 # elicitation types are an MCP server asking a question through Claude, which
 # blocks the turn just as hard while firing nothing else. idle_prompt (the ~60s
-# "waiting for your input" nudge) must NOT turn a finished tab red — but it IS
-# the backstop
-# for the one turn end that fires no hook at all: a user ESC interrupt (see
+# "waiting for your input" nudge) must NOT turn a finished tab red — but it IS the
+# backstop for the one turn end that fires no hook at all: a user ESC interrupt (see
 # agent-interrupt-state, primary trigger in executable_statusline-command.sh).
 # That helper only flips the dot to idle when the transcript tail proves the
 # interrupt, so a legitimately yellow, red, or background-running blue tab is

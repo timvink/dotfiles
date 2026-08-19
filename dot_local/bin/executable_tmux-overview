@@ -30,7 +30,7 @@ Both views share the same keys:
                ran an agent. Sessions left with nothing are hidden too.
   q / Esc      close
 
-  blue ● working   red ● blocked   yellow ○ your turn   green ■ server   · other
+  red ● blocked   blue ● working   yellow ● done   yellow ○ seen   green ■ server
 
 State lives in tmux options, not a dotfile of ours: @overview_view, @overview_detail,
 @overview_panes and @overview_agents on the server, and @overview_fold per session
@@ -38,6 +38,9 @@ for what's folded. The per-window inputs are @agent_state / @agent_note (see the
 agent-state and agent-note scripts), @agent_since, the epoch second the state last
 changed, which is what "2m14s" counts from, and @agent_subagents (agent-subagents),
 how many subagents that tab has in flight.
+
+Both views open with the cursor on the tab you pressed prefix+o in, so the
+first thing under it is where you came from and ↵ is the way back.
 
 Redraws in place each tick (~1s) without clearing, so it stays current with
 minimal flicker. Opened with -E so the script exiting closes the popup.
@@ -72,8 +75,11 @@ INK = (30, 30, 46)
 SNOW = (235, 235, 245)
 SUB = (166, 173, 200)
 
-STATE = {"running": BLUE, "needs-input": RED, "idle": YELLOW}
-STATE_WORD = {"running": "working", "needs-input": "blocked", "idle": "your turn"}
+# done and idle are the same yellow on purpose: same fact about the agent, and
+# only the glyph says whether you have seen it yet (filled ● vs hollow ○).
+STATE = {"running": BLUE, "needs-input": RED, "done": YELLOW, "idle": YELLOW}
+STATE_WORD = {"running": "working", "needs-input": "blocked",
+              "done": "done · not seen yet", "idle": "done · seen"}
 OTHER = DIM
 INTERVAL = 1.0
 NOTE_LINES = 2          # most an @agent_note wraps to in the grid's label boxes
@@ -192,6 +198,28 @@ def opt(name, default=""):
 
 def set_opt(name, value):
     tmux("set-option", "-s", name, value)
+
+
+def here():
+    """(session, window index) of the tab this popup was opened from, or None.
+
+    Ask with an explicit -t or don't ask at all: a popup runs with no TMUX_PANE,
+    and a bare display-message with nothing to resolve against falls back to the
+    server's most recently active session — which is only sometimes the one you
+    pressed the key in. What a popup does inherit is TMUX, whose third field is
+    the id of the session it was displayed for, and a session has exactly one
+    current window: the tab the key was pressed in. Run straight from a pane
+    instead (no popup) and TMUX_PANE is there and says it more precisely."""
+    target = os.environ.get("TMUX_PANE", "")
+    if not target:
+        field = os.environ.get("TMUX", "").split(",")
+        if len(field) < 3 or not field[2].strip():
+            return None
+        target = "$" + field[2].strip()
+    s, _, idx = tmux(
+        "display-message", "-p", "-t", target, "#{session_name}\t#{window_index}"
+    ).strip().partition("\t")
+    return (s, idx) if s and idx else None
 
 
 def wrap_note(note, width, maxlines):
@@ -379,8 +407,8 @@ def legend(cols, view, detail, agents_only):
                  f"tab {second} · / {filt} · q quit")
     hint_short = f"hjkl · ↵ · space {other} · tab · / · q"
 
-    words = [(BLUE, "● working"), (RED, "● blocked"), (YELLOW, "○ your turn"),
-             (GREEN, "■ server"), (DIM, "· other")]
+    words = [(RED, "● blocked"), (BLUE, "● working"), (YELLOW, "● done"),
+             (YELLOW, "○ seen"), (GREEN, "■ server"), (DIM, "· other")]
     glyphs = [(rgb, txt.split(" ", 1)[0]) for rgb, txt in words]
 
     # Autowrap is off in the live loop, so an over-long legend is silently chopped
@@ -435,15 +463,34 @@ def tree_rows(sessions, wins, folded, agents_only):
     return out
 
 
+def tree_at(where, rowlist):
+    """Row index of a (session, window index) in the tree.
+
+    Falls back to the session's header row when the tab itself has no row — it is
+    folded away, or the / filter dropped it — and to the top when the session
+    isn't on screen at all."""
+    head = 0
+    for i, (kind, sname, payload) in enumerate(rowlist):
+        if not where or sname != where[0]:
+            continue
+        if kind == "s":
+            head = i
+        elif payload.idx == where[1]:
+            return i
+    return head
+
+
 def sess_summary(ws):
     """A session header's right-hand roll-up: a count per state that occurs, in
-    the order that matters when you're triaging — blocked, working, your turn.
+    the order that matters when you're triaging — blocked, finished-and-unseen,
+    working, seen.
 
     The subagent total rides on the end as "+11", so a folded session still says
     how much work is under it. It hangs off the working count it belongs to, and
     is the only entry here that counts tasks rather than tabs."""
     counts = [
         (RED, "●", sum(1 for w in ws if w.state == "needs-input")),
+        (YELLOW, "●", sum(1 for w in ws if w.state == "done")),
         (BLUE, "●", sum(1 for w in ws if w.state == "running")),
         (YELLOW, "○", sum(1 for w in ws if w.state == "idle")),
         (GREEN, "■", sum(1 for w in ws if w.server == "running")),
@@ -870,6 +917,17 @@ def grid_move(sel, nav, grid):
     return (r, c)
 
 
+def grid_at(where, sessions, wins):
+    """(band, col) of a (session, window index) in the grid, against the FILTERED
+    bands the caller is about to draw — None when the tab isn't among them."""
+    if not where or where[0] not in wins:
+        return None
+    for c, w in enumerate(wins[where[0]]):
+        if w.idx == where[1]:
+            return sessions.index(where[0]), c
+    return None
+
+
 # ----------------------------------------------------------------------- main
 
 ARROWS = {"\x1b[A": "k", "\x1b[B": "j", "\x1b[C": "l", "\x1b[D": "h",
@@ -925,7 +983,13 @@ def run_live():
     detail = opt(DETAIL_OPT, "on") != "off"
     panes = opt(PANES_OPT, "on") != "off"
     agents_only = opt(AGENTS_OPT, "off") == "on"
-    gsel = None         # grid: (band, col), or None until the first move
+    # Both views open on the tab prefix+o was pressed in. `placed` is what keeps
+    # that a one-shot per view: the opening selection is a starting point, not a
+    # pull, so once a view has taken it, moving away sticks — including when the
+    # cursor lands back on nothing after a session vanishes under it.
+    where = here()
+    placed = set()
+    gsel = None         # grid: (band, col), or None when nothing is selected
     tsel = 0            # tree: index into the visible row list
     top = 0             # tree: first row on screen
     rowlist, grid, folded = [], [], {}
@@ -949,6 +1013,9 @@ def run_live():
                     or gsel[1] >= len(wins.get(sessions[gsel[0]], []))
                 ):
                     gsel = None
+                if "grid" not in placed:
+                    placed.add("grid")
+                    gsel = grid_at(where, sessions, wins)
                 dims = (view, cols, rows, len(sessions), maxcols, panes, agents_only)
                 frame, jumpmap, grid, hitboxes = render_grid(
                     cols, rows, sessions, wins, maxcols, gsel, panes, agents_only,
@@ -956,6 +1023,9 @@ def run_live():
             else:
                 sessions, wins, folded = gather()
                 rowlist = tree_rows(sessions, wins, folded, agents_only)
+                if "tree" not in placed:
+                    placed.add("tree")
+                    tsel = tree_at(where, rowlist)
                 tsel = max(0, min(tsel, len(rowlist) - 1)) if rowlist else 0
                 # Keep the cursor on screen, scrolling only as far as it takes.
                 top = max(0, min(top, max(0, len(rowlist) - body_h)))
