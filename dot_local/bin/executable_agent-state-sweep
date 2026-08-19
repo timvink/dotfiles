@@ -50,11 +50,26 @@
 
 command -v tmux >/dev/null 2>&1 || exit 0
 
-# Claude ≥ 2.1.228 spins through the quarter-circles below. Older builds used
-# braille (U+2800-28FF), which nothing here matches — that costs only the
-# "some pane is working" veto, and a title can't start with a spinner and ✳ at
-# once, so the worst case is a window with two Claude panes where one is on an
-# ancient build. The ✳ test itself is unchanged across versions.
+# The glyph list below is borrowed data, not something we derived, and it is the
+# one part of this script that goes stale — Claude has already changed it once,
+# from braille to half-circles at 2.1.228. Upstream is herdr, which tracks these
+# for a living:
+#
+#   source:  https://herdr.dev/agent-detection/claude.toml
+#            (rules "osc_title_working" and "osc_title_idle"; same bytes as
+#            website/agent-detection/claude.toml in github.com/herdrdev/herdr,
+#            read at v0.8.1 / 5203a5dc0f39a082938ea0f9836d6257ea7e155f, Apache-2.0)
+#   check:   curl -s https://herdr.dev/agent-detection/claude.toml | awk '/osc_title/,/^$/'
+#
+# Upstream matches ^[\x{2800}-\x{28FF}\x{25D0}-\x{25D3}] for working and ^\x{2733}
+# for idle. We deliberately implement a subset: the quarter-circles only, and no
+# trailing-space requirement. Dropping braille costs only the "some pane is
+# working" veto — a title can't start with a spinner and ✳ at once, so the worst
+# case is a window with two Claude panes where one is on a pre-2.1.228 build. The
+# ✳ test is unchanged across versions. What a refresh is looking for is a
+# codepoint upstream has ADDED that we don't match; the symptom is a busy tab
+# going yellow while it is plainly still working. See AGENTS.md, "Borrowed from
+# herdr", for the rest of what came from there.
 now=$(date +%s)
 tmux list-panes -a -F '#{window_id}	#{@agent_state}	#{@agent_bg}	#{pane_title}' 2>/dev/null \
     | awk -F'\t' -v idle='✳' -v s1='◐' -v s2='◑' -v s3='◒' -v s4='◓' '

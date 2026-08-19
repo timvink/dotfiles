@@ -158,9 +158,9 @@ up by is `needs-input 4 > done 3 > running 2 > idle 1 > unset 0` — **done outr
 running**, because a finished agent is asking to be collected and a working one is
 asking for nothing.
 
-This mirrors [herdr](https://github.com/herdrdev/herdr)'s five-state model
-(blocked / working / done / idle / unknown) and its ladder, arrived at by reading
-its source. Two deliberate differences. herdr keeps `done` as a derived state —
+This mirrors herdr's five-state model (blocked / working / done / idle / unknown)
+and its ladder, arrived at by reading its source (see "Borrowed from herdr"
+below). Two deliberate differences. herdr keeps `done` as a derived state —
 detection owns a four-variant enum and the view owns a separate `seen` bool,
 because in its architecture those live on different objects with different
 lifetimes; we have one option per window, so the pair is precomputed into
@@ -207,10 +207,47 @@ chose *not* to wait for — which is exactly what makes the turn over. Counting
 shells as work pinned a tab blue for as long as a dev server stayed up. Only
 non-shell tasks hold the dot now.
 
-Credit where due: the pane-title signal and the "never latch, default to idle"
-principle come from reading [herdr](https://github.com/herdrdev/herdr), which
-drove Claude Code from these same lifecycle hooks, hit these same stale-state
-bugs, and removed the hooks entirely in favour of screen detection.
+The pane-title signal and the "never latch, default to idle" principle come from
+reading herdr, which drove Claude Code from these same lifecycle hooks, hit these
+same stale-state bugs, and removed the hooks entirely in favour of screen
+detection. See "Borrowed from herdr" below for what to re-check when Claude
+changes its title glyphs again.
+
+## Borrowed from herdr, and how to refresh it
+
+Parts of the agent-dot design came from reading [herdr](https://github.com/herdrdev/herdr),
+a terminal multiplexer that tracks coding-agent state for a living. **Read at
+v0.8.1, commit `5203a5dc0f39a082938ea0f9836d6257ea7e155f`. Apache-2.0.** No files
+were copied, so there is no licence obligation beyond this credit — but one piece
+is upstream *data* that will go stale, and that is the row to care about.
+
+| what we took | upstream | goes stale? |
+| --- | --- | --- |
+| The pane-title glyphs Claude Code broadcasts — `◐◑◒◓` working, `✳` stopped — used by `agent-state-sweep` | `website/agent-detection/claude.toml`, rules `osc_title_working` / `osc_title_idle` | **Yes.** Claude changed these once already (braille → half-circles at 2.1.228) |
+| "Never latch: an unmatched screen means idle, never working" | `src/detect/manifest.rs`, `DEFAULT_KNOWN_AGENT_IDLE_FALLBACK` | No — a principle |
+| `done` vs `idle` as finished-and-unseen vs finished-and-seen | `src/app/api_helpers.rs` `pane_agent_status`, `src/pane/state.rs` `seen` | No |
+| The attention ladder `blocked > done > working > idle > unknown` | `src/app/api_helpers.rs`, `src/ui/sidebar.rs`, `src/workspace/aggregate.rs` | No |
+| Debounce the working→idle edge (3 checks / 100ms, 700ms cap) — **considered and not taken**, see the note in `agent-state-sweep` | `src/pane/agent_detection.rs` | No |
+
+**To refresh the glyphs**, don't clone the repo — herdr publishes the same
+manifests over HTTP, which is the channel its own binary updates from:
+
+```bash
+curl -s https://herdr.dev/agent-detection/claude.toml | awk '/osc_title/,/^$/'
+```
+
+Compare the `regex` lines against the glyph list in
+`~/.local/bin/agent-state-sweep`. We implement a deliberate subset — the
+half-circles only, not the pre-2.1.228 braille range, and without upstream's
+trailing-space requirement — so a diff is expected; what matters is whether
+upstream has *added* a codepoint we don't match. The catalog at
+`https://herdr.dev/agent-detection/index.toml` lists every agent they track,
+including `codex.toml` and `antigravity.toml`, if the title trick is ever wanted
+for those tabs too.
+
+The symptom of a stale glyph list is a working tab going yellow while it is
+plainly still busy (a new spinner codepoint stops matching, so the sweep reads
+"not working"), or a finished tab staying blue (a new idle marker stops matching).
 
 ## The prefix+o overview, and its two views
 

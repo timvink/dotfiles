@@ -4,7 +4,8 @@
 # that session's aggregate agent state: the highest-priority @agent_state across
 # its windows, precedence needs-input > done > running > idle > none — the order
 # of how much each wants from you, which puts a finished-but-unseen agent above a
-# working one, since only the first is asking to be collected. So at a glance you
+# working one, since only the first is asking to be collected. (Same ladder herdr
+# rolls a workspace up by; see AGENTS.md, "Borrowed from herdr".) So at a glance you
 # can count how many workspaces are working (blue ●), blocked on you (red ●), or
 # done and waiting (yellow ○) — without opening the alt+f finder.
 #
