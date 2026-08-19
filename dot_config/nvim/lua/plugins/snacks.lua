@@ -96,6 +96,7 @@ return {
         explorer = {
           hidden = true, -- show dotfiles in the file tree
           ignored = true, -- show gitignored paths too; toggle off in-tree with I
+          regex = true, -- filter as regex by default (e.g. `resend$`); toggle off with <A-r>
           win = {
             list = {
               keys = {
