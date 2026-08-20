@@ -5,6 +5,11 @@ README.md
 AGENTS.md
 CLAUDE.md
 
+# Python bytecode caches. tmux-overview is a python script, so running it from
+# the source dir drops a __pycache__ next to it; chezmoi would then treat that
+# as a managed file and prompt on every apply.
+**/__pycache__
+
 # Canonical cross-tool agent config (AGENTS.md + skills/) lives here but is
 # symlinked into ~/.claude and ~/.codex (see agents/README.md), so chezmoi must
 # NOT also copy it to ~/agents.
