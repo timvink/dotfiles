@@ -19,7 +19,7 @@
 # in place at the moment the lid shuts.
 #
 # Counts ONLY "running", deliberately. A "needs-input" (red ●) agent is blocked
-# on a question and will never finish on its own, so holding the machine awake
+# on a prompt and will never finish on its own, so holding the machine awake
 # for it just cooks the laptop in your bag for nothing.
 #
 # Three guards, because a stuck hold means a hot, flat MacBook:

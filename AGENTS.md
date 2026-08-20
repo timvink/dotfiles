@@ -56,7 +56,7 @@ window option that `window-status-format` reads (`dot_tmux.conf`). It's set by
 
 | state | dot | meaning |
 | --- | --- | --- |
-| `needs-input` | red ● | blocked on you: a permission prompt, a plan approval, or a turn that ended with a question |
+| `needs-input` | red ● | blocked on you: a permission prompt, a plan approval, an MCP elicitation, a turn that died |
 | `running` | blue ● | working, or its turn ended with agent-driven work still attached |
 | `done` | yellow ● | the turn is over and you have not looked at the tab yet |
 | `idle` | yellow ○ | the turn is over and you have looked |
@@ -67,6 +67,19 @@ Filled means it wants something from you and hollow means it doesn't, which is w
 red now, yellow-filled when you get a moment, blue nothing, hollow nothing at all.
 Everything that ends a turn sets `done`; the only thing that clears it is
 `agent-seen`, covered below.
+
+Red is reserved for an **interactive blocker**: something on screen the session
+cannot move past until you answer it — a permission prompt, `AskUserQuestion`,
+`ExitPlanMode`, an MCP elicitation, or a `StopFailure`. A turn that simply ends
+by asking you a question is `done` like every other ending. It used to be red,
+inferred from a trailing `?` on the final line, which forced `agents/AGENTS.md`
+to tell every agent to punctuate its closing sentence according to whether it was
+waiting — a rule in the prompt propping up a signal in the status bar, and a tax
+on the writing besides. Splitting finished into `done` ● / `idle` ○ removed the
+need for it: an unread finished turn already stays filled until the tab has been
+in front of you, so a closing question gets collected without a colour of its
+own. Dropped 2026-08-20 from `agent-stop-state`, from agy's statusline, and from
+the prompt.
 
 - **Claude Code / Codex** drive it from lifecycle hooks (`dot_claude/modify_settings.json`,
   `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`). Two turn

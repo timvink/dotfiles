@@ -25,15 +25,14 @@
 #                                                     picks: "running" ● if the
 #                                                     turn ended with agent-driven
 #                                                     work still attached that will
-#                                                     auto-resume the agent;
-#                                                     "needs-input" red ● if the
-#                                                     final message ends with a
-#                                                     question (turn ended asking
-#                                                     the user something — see
-#                                                     ~/.claude/CLAUDE.md); else
+#                                                     auto-resume the agent; else
 #                                                     "done" yellow ●, which
 #                                                     agent-seen opens to "idle" ○
 #                                                     once you've looked at the tab.
+#                                                     A turn that ended by asking
+#                                                     you something is "done" too —
+#                                                     red is for the blockers below,
+#                                                     which fire their own hook.
 #   UserPromptSubmit / PostToolUse   → "running"     blue ●  (Claude is working)
 #   PreToolUse                       → "running"     blue ● — EXCEPT the two tools
 #                                                     that block mid-turn waiting on
@@ -154,14 +153,12 @@ prompt_hook=$(jq -n --arg cmd "$prompt_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
 
-# Stop: the turn ended — delegated to `agent-stop-state` because the decision now
-# needs the payload read twice (background_tasks AND the final message text), and
-# a single jq can only consume stdin once. That script picks running ● (in-flight
-# background work will auto-resume the agent), needs-input red ● (final message
-# ends with a question — the agent ended its turn asking the user something, the
-# one waiting-on-user case Claude Code exposes no native signal for), or idle ○
-# otherwise. $HOME stays literal so /bin/sh expands it when Claude Code runs the
-# hook; the script reads the payload from stdin itself.
+# Stop: the turn ended — delegated to `agent-stop-state`, which reads the payload
+# once and gets two things out of it: the dot (running ● when in-flight
+# background work will auto-resume the agent, done ● otherwise) and
+# @agent_subagents, the fan-out count the status bar's "6+11" adds up. $HOME
+# stays literal so /bin/sh expands it when Claude Code runs the hook; the script
+# reads the payload from stdin itself.
 stop_cmd='$HOME/.local/bin/agent-stop-state'
 stop_hook=$(jq -n --arg cmd "$stop_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }

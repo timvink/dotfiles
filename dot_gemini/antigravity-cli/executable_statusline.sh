@@ -23,10 +23,9 @@
 #   idle + a background task runs   → running blue ●      (the task will resume it)
 #   idle + nothing produced yet    → none (no dot)       (fresh session, or a reused
 #                                                         tmux window's stale dot cleared)
-#   idle + final line ends with ?  → needs-input red ●   (turn ended asking you
-#                                                         something — the end-of-turn
-#                                                         signal; see ~/.claude/CLAUDE.md)
-#   idle otherwise                 → idle yellow ○        (turn done — your turn)
+#   idle otherwise                 → done yellow ●        (turn over — filled until the
+#                                                         tab has been in front of you,
+#                                                         then agent-seen opens it to ○)
 #
 # The dot side-effect is a no-op outside tmux (agent-state handles that). Any jq
 # failure falls through to a clean state, so a finished tab is never wrongly stuck
@@ -46,8 +45,7 @@ mapfile -t F < <(printf '%s' "$input" | jq -r '
     (.workspace.current_dir // .cwd // ""),
     (.tool_confirmation_pending // false),
     (.task_count // (.background_tasks | length) // 0),
-    (.context_window.total_output_tokens // 0),
-    (.conversation_id // "")
+    (.context_window.total_output_tokens // 0)
   ' 2>/dev/null)
 
 state=${F[0]:-idle}
@@ -59,7 +57,6 @@ cwd=${F[5]-}
 confirm=${F[6]:-false}
 tasks=${F[7]:-0}
 out_tokens=${F[8]:-0}
-conv=${F[9]-}
 
 # ── drive the tmux dot ───────────────────────────────────────────────────────
 set_dot() { "$HOME/.local/bin/agent-state" "$1" 2>/dev/null || true; }
@@ -76,20 +73,11 @@ else
             elif [ "${out_tokens:-0}" -eq 0 ] 2>/dev/null; then
                 set_dot none                          # fresh / nothing produced yet
             else
-                # Idle with output: red if the final assistant line ends with "?",
-                # else "your turn". The final message is the last MODEL planner
-                # response in the documented transcript path; any failure leaves us
-                # at idle (never wrongly stuck red).
-                last=""
-                tp="$HOME/.gemini/antigravity-cli/brain/$conv/.system_generated/logs/transcript.jsonl"
-                if [ -n "$conv" ] && [ -f "$tp" ]; then
-                    last=$(jq -rc 'select(.type == "PLANNER_RESPONSE" and .source == "MODEL") | .content' "$tp" 2>/dev/null \
-                        | tail -1 | awk 'NF {l = $0} END {print l}' | sed 's/[[:space:]]*$//')
-                fi
-                case "$last" in
-                    *\?) set_dot needs-input ;;
-                    *)   set_dot done ;;
-                esac
+                # Idle with output: the turn is over and unread. This used to read
+                # the last MODEL planner response out of agy's transcript and go red
+                # on a trailing "?" — dropped along with the Claude-side heuristic,
+                # since done ● already holds the tab until you have looked at it.
+                set_dot done
             fi
             ;;
     esac

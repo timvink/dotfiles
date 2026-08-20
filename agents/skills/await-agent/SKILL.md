@@ -19,7 +19,7 @@ Antigravity alike, so any of them can wait on any other:
 | value         | dot      | meaning                                                                      |
 | ------------- | -------- | ---------------------------------------------------------------------------- |
 | `running`     | blue ●   | working — or its turn ended with agent-driven work that will auto-resume it   |
-| `needs-input` | red ●    | blocked on the user: permission prompt, plan approval, or turn ended with a question |
+| `needs-input` | red ●    | blocked on the user: a permission prompt, a plan approval, or another dialog only they can answer |
 | `done`        | yellow ● | turn complete, and the user has not looked at that tab yet                    |
 | `idle`        | yellow ○ | turn complete, and the user has since looked at that tab                      |
 | *(unset)*     | no dot   | no agent has finished a turn in that window, or the session exited            |
@@ -71,8 +71,9 @@ When you are resumed, branch on the landing state:
 
 - `done` or `idle` — the agent finished; continue with the follow-up task.
 - empty — the session exited. Usually also "done", but say so when reporting.
-- `needs-input` — **not done**: it stopped to ask the user something. Report
-  that to the user right away, then keep waiting for full completion:
+- `needs-input` — **not done**: it is sitting on a prompt only the user can
+  answer. Report that to the user right away, then keep waiting for full
+  completion:
 
   ```sh
   while s=$(tmux show-option -wqv -t "$t" '@agent_state'); [ "$s" = running ] || [ "$s" = needs-input ]; do sleep 5; done

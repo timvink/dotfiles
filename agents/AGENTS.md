@@ -38,17 +38,6 @@ one-off preview/report files: they're disposable, don't clutter tracked or
 working trees with them. Always tell me the full path — the scratchpad is
 per-session, so I can't guess where it went.
 
-## End-of-turn input signal
-A tmux hook reads your final line: ending in "?" flips my tab to red ("input
-needed"), else to a filled yellow dot ("done, and I haven't read it yet"; it
-hollows out once I've looked at the tab). End with "?" only when you genuinely
-can't proceed without my answer. Optional next steps — even interesting ones —
-get stated, not asked: not "Want me to pull the slowest turns?" but "Next if
-useful: pull the slowest turns." Litmus: if you'd be fine stopping here, state
-it. Don't contort your writing or tack a reflexive "Want me to…?" onto finished
-work. Tool prompts (AskUserQuestion, ExitPlanMode, permissions) signal
-separately — no question needed.
-
 ## Per-tab progress note (tmux)
 The tab dot says *whether* you are working; a note next to it says *what*. That
 note is the only thing separating five simultaneously-working agents in my

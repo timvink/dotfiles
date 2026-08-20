@@ -2,7 +2,7 @@
 # Set the @agent_state user option on the current tmux window. The tmux
 # window-status-format reads it to render a per-tab agent indicator dot:
 #
-#   needs-input → red    ●  (agent is blocked on a question / approval)
+#   needs-input → red    ●  (agent is blocked on a prompt / approval on screen)
 #   running     → blue   ●  (agent is working: producing output, or its turn
 #                            ended with agent-driven work still attached — a
 #                            subagent, workflow, monitor — that will auto-resume

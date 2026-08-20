@@ -11,8 +11,8 @@
 #
 # Everything that ends a turn sets done; this is the only thing that clears it,
 # and it clears it for exactly one reason — the tab was in front of you. Only
-# ever done → idle: looking at a tab is not answering its question, so running
-# and needs-input are left alone and a red dot survives being glanced at.
+# ever done → idle: looking at a tab is not answering its prompt, so running and
+# needs-input are left alone and a red dot survives being glanced at.
 #
 # Two ways to be in front of you, because they are believable for different
 # reasons:
