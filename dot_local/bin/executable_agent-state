@@ -62,6 +62,12 @@ if [ -n "${TMUX_PANE:-}" ]; then
             tmux set-option -wt "$win" -u '@agent_since' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_bg' 2>/dev/null || true
+            # agent-state-sweep's two per-window memories go the same way. A
+            # reused window must start unproven: @agent_title_spins is the
+            # evidence that THIS session's Claude drives the pane title, and a
+            # new session in an old window has not shown that yet.
+            tmux set-option -wt "$win" -u '@agent_title_spins' 2>/dev/null || true
+            tmux set-option -wt "$win" -u '@agent_sweep_stopped' 2>/dev/null || true
             rm -f "$sentinel" 2>/dev/null || true
         else
             # @agent_since: the epoch second this state began, which is what the
@@ -82,6 +88,11 @@ if [ -n "${TMUX_PANE:-}" ]; then
             # re-adds it if the next turn ends the same way. Setting it that way
             # round is what stops it outliving the reason it was set.
             tmux set-option -wt "$win" -u '@agent_bg' 2>/dev/null || true
+            # Same for the sweep's debounce: it counts consecutive readings of
+            # ONE unchanged state, so a real transition resets it. Dropped here
+            # rather than in the sweep for the reason above — the state that
+            # armed it is gone.
+            tmux set-option -wt "$win" -u '@agent_sweep_stopped' 2>/dev/null || true
             tmux set-option -wt "$win" '@agent_state' "$state" 2>/dev/null || true
             : > "$sentinel" 2>/dev/null || true
             # A tab you are already watching has nothing to notify you about, so

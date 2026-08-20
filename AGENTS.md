@@ -200,10 +200,12 @@ Whatever sequence of missed events got the option into that state, the next swee
 sets it right, because the title says what is true now rather than what happened
 once. It runs from `tmux-agent-count` on the status-interval tick: the status bar
 is the only thing tmux ticks on a timer, and a stale dot corrupts the count that
-script renders anyway. It demotes `running` → `idle` only:
+script renders anyway. It demotes `running` → `done` and promotes `done`/`idle`
+→ `running`, both off the same premise, with three limits:
 
-- **red is never touched.** A tab blocked on a permission prompt also shows `✳`,
-  and turning "answer me" into "nothing to see here" is worse than a stale dot.
+- **red is never touched**, either way. A tab blocked on a permission prompt also
+  shows `✳`, and turning "answer me" into "nothing to see here" is worse than a
+  stale dot.
 - **`@agent_bg` is honoured.** `agent-stop-state` sets it when a turn ends with
   agent-driven work still attached; that blue is deliberate, and Claude sits at
   the prompt showing `✳` the whole time — the exact shape the sweep demotes.
@@ -211,6 +213,42 @@ script renders anyway. It demotes `running` → `idle` only:
   its reason.
 - **non-Claude tabs are invisible to it.** Codex and Antigravity never write these
   titles, so nothing matches and their dots are left to their own hooks.
+
+### The `✳` that doesn't mean "stopped"
+
+The demotion first shipped as a bare `✳` test with no debounce, on the strength
+of a working tab sampled every 250ms for 22s never once dropping its spinner.
+That sample was taken mid-turn, and the failure lives at the edges of a turn:
+**a busy tab going yellow while it is plainly still working**, roughly a second
+in, and staying yellow until some later hook happened to set `running` again.
+Measured on a fresh session — turn starts at t=2.5s, sweep demotes at t=4.5s,
+model still thinking 35s later.
+
+Two things were wrong. **A session that has not written a title yet** holds the
+boot title `✳ Claude Code`: Claude only starts driving the title once the
+conversation has a summary, so that `✳` means "no summary yet", not "at the
+prompt". Every new session's first turn hit this, and a session nobody has
+attached to may never spin at all. And **the false demotion latched**, because
+the sweep only ever demoted — one bad reading poisoned the rest of the turn.
+
+Three guards, one per part:
+
+- **`@agent_title_spins`** — a window becomes demotable only once a spinner has
+  actually been seen in it, which is that window's own proof its Claude drives the
+  title. Until then, `✳` is not evidence and the window is left alone. Same shape
+  as `@agent_focus_reporting` in `agent-seen`: find out whether the signal is ever
+  reported before reading meaning into its absence. `agent-state none` clears it,
+  so a new session in a reused window starts unproven.
+- **`@agent_sweep_stopped`** — the debounce: `✳` has to survive two consecutive
+  sweeps. Costs up to 5s on a genuine stale-blue fix, which nobody is timing.
+- **the promotion** — a spinner over a `done` ● dot is the same lie in the other
+  direction, so anything that still slips through heals on the next tick instead
+  of lasting the turn. It also covers a `running` that was never set at all.
+
+The synthetic matrix that pins this down (fresh-session `✳`, mature-session `✳`,
+spinner over `done`, red, `@agent_bg`, spinner over `running`) is worth
+re-running whenever the sweep changes; it needs no Claude, just tmux windows with
+`select-pane -T` titles and hand-set options.
 
 The same pass fixed a stale blue that had nothing to do with missing events.
 `background_tasks` entries are typed, and a `shell` means the opposite of the
@@ -236,7 +274,7 @@ is upstream *data* that will go stale, and that is the row to care about.
 
 | what we took | upstream | goes stale? |
 | --- | --- | --- |
-| The pane-title glyphs Claude Code broadcasts — `◐◑◒◓` working, `✳` stopped — used by `agent-state-sweep` | `website/agent-detection/claude.toml`, rules `osc_title_working` / `osc_title_idle` | **Yes.** Claude changed these once already (braille → half-circles at 2.1.228) |
+| The pane-title glyphs Claude Code broadcasts — `◐◑◒◓` working, `✳` stopped — used by `agent-state-sweep` | `website/agent-detection/claude.toml`, rules `osc_title_working` / `osc_title_idle` | **Yes.** Claude changed these once already (braille → half-circles at 2.1.228). Verified current at 2.1.237 |
 | "Never latch: an unmatched screen means idle, never working" | `src/detect/manifest.rs`, `DEFAULT_KNOWN_AGENT_IDLE_FALLBACK` | No — a principle |
 | `done` vs `idle` as finished-and-unseen vs finished-and-seen | `src/app/api_helpers.rs` `pane_agent_status`, `src/pane/state.rs` `seen` | No |
 | The attention ladder `blocked > done > working > idle > unknown` | `src/app/api_helpers.rs`, `src/ui/sidebar.rs`, `src/workspace/aggregate.rs` | No |
@@ -261,6 +299,10 @@ for those tabs too.
 The symptom of a stale glyph list is a working tab going yellow while it is
 plainly still busy (a new spinner codepoint stops matching, so the sweep reads
 "not working"), or a finished tab staying blue (a new idle marker stops matching).
+Check the glyphs against a live pane before believing the first symptom, though —
+it has a second cause that has nothing to do with upstream, and that one turned
+out to be the real one the first time it appeared: see "The `✳` that doesn't mean
+stopped" above.
 
 ## The prefix+o overview, and its two views
 

@@ -24,12 +24,15 @@
 # what happened once, so nothing can latch: whatever sequence of events got the
 # option wrong, the next sweep sets it right.
 #
-# It only ever demotes running → done. Three deliberate limits:
+# It demotes running → done, and promotes done/idle → running. Both directions
+# come from the same premise — the title says what is true NOW — so trusting it
+# one way and not the other is what let a single bad reading latch for a whole
+# turn. Three deliberate limits:
 #
-#   - needs-input is never touched. A tab blocked on a permission prompt also
-#     shows ✳ (Claude isn't working, it's waiting on you), so demoting red would
-#     turn "answer me" into "nothing to see here" — the one direction worse than
-#     a stale dot.
+#   - needs-input is never touched, in either direction. A tab blocked on a
+#     permission prompt also shows ✳ (Claude isn't working, it's waiting on you),
+#     so demoting red would turn "answer me" into "nothing to see here" — the one
+#     direction worse than a stale dot.
 #   - @agent_bg is honoured. agent-stop-state sets it when a turn ended with
 #     agent-driven work still attached that will re-wake the session on its own;
 #     that blue is deliberate, and Claude is legitimately at the prompt meanwhile.
@@ -37,11 +40,40 @@
 #     never write these titles, so nothing matches and their dots are left to
 #     their own hooks.
 #
-# No debounce on the demotion, which is a measured decision rather than an
-# assumption: a working tab sampled every 250ms for 22s never once dropped its
-# spinner, so there is no mid-turn flicker to ride out. If that ever changes the
-# fix is to require the ✳ across two consecutive sweeps — and the symptom to
-# watch for is a tab briefly going yellow while it is plainly still working.
+# ── the ✳ that does not mean "stopped" ───────────────────────────────────────
+#
+# The demotion used to run on the bare ✳ test, with no debounce, on the strength
+# of a working tab sampled every 250ms for 22s never once dropping its spinner.
+# That measurement was taken mid-turn, and both ways this goes wrong live at the
+# edges of a turn instead:
+#
+#   1. A session that has not written a title yet. Claude only starts driving
+#      the title once the conversation has a summary; before that the pane holds
+#      the boot title, "✳ Claude Code" — a ✳ that means "no summary yet", not
+#      "at the prompt". Measured on a fresh session: the turn began at t=2.5s
+#      and the sweep demoted it at t=4.5s, one status tick in, with the model
+#      still working 35s later. That is EVERY new session's first turn, which is
+#      why this was worth chasing rather than tolerating.
+#   2. The title lags the hook at the start of a turn. UserPromptSubmit sets
+#      running the instant you press enter; the first spinner frame arrives some
+#      time after. A tick landing in that gap reads the previous turn's ✳.
+#
+# Three guards, each aimed at one part of that:
+#
+#   - @agent_title_spins — a window is only demotable once a spinner has ACTUALLY
+#     been seen in it, which is this window's own proof that its Claude drives
+#     the title. Until then the ✳ is not evidence of anything and the window is
+#     left alone. (Same shape as @agent_focus_reporting in agent-seen: remember
+#     whether the signal has ever been observed before reading meaning into its
+#     absence.) agent-state clears it with the rest, so a new session in a reused
+#     window starts unproven again.
+#   - @agent_sweep_stopped — the debounce the old comment prescribed: the ✳ has
+#     to survive two consecutive sweeps before it counts. Costs 5s on a genuine
+#     stale-blue fix, which is a backstop nobody is watching the clock on.
+#   - the promotion — whatever still slips through heals on the next tick, since
+#     a spinner over a done ● dot is the same kind of lie in the other direction.
+#     It also covers a running that was never set at all, if a turn-start hook
+#     ever fails to fire.
 #
 # Run from tmux-agent-count, on the status-interval tick — see the note there on
 # why the counter is the right place to hang a reconciler.
@@ -68,13 +100,18 @@ command -v tmux >/dev/null 2>&1 || exit 0
 # case is a window with two Claude panes where one is on a pre-2.1.228 build. The
 # ✳ test is unchanged across versions. What a refresh is looking for is a
 # codepoint upstream has ADDED that we don't match; the symptom is a busy tab
-# going yellow while it is plainly still working. See AGENTS.md, "Borrowed from
-# herdr", for the rest of what came from there.
+# going yellow while it is plainly still working. Check a live pane before
+# believing that symptom, though — it has a second cause with nothing to do with
+# upstream, and that one turned out to be the real one the first time it showed
+# up (see "the ✳ that does not mean stopped" above). Glyphs verified against a
+# live 2.1.237 pane. See AGENTS.md, "Borrowed from herdr", for the rest of what
+# came from there.
 now=$(date +%s)
-tmux list-panes -a -F '#{window_id}	#{@agent_state}	#{@agent_bg}	#{pane_title}' 2>/dev/null \
+tmux list-panes -a -F '#{window_id}	#{@agent_state}	#{@agent_bg}	#{@agent_title_spins}	#{@agent_sweep_stopped}	#{pane_title}' 2>/dev/null \
     | awk -F'\t' -v idle='✳' -v s1='◐' -v s2='◑' -v s3='◒' -v s4='◓' '
         {
-            win = $1; state[win] = $2; bg[win] = $3; t = $4
+            win = $1; state[win] = $2; bg[win] = $3
+            spins[win] = $4; armed[win] = $5; t = $6
             # index(…) == 1 is "starts with" whether this awk counts bytes or
             # characters, which keeps the test independent of the locale.
             if (index(t, idle) == 1) stopped[win] = 1
@@ -82,27 +119,69 @@ tmux list-panes -a -F '#{window_id}	#{@agent_state}	#{@agent_bg}	#{pane_title}' 
                      index(t, s3) == 1 || index(t, s4) == 1) working[win] = 1
         }
         END {
-            for (w in state)
-                if (state[w] == "running" && bg[w] == "" && stopped[w] && !working[w])
-                    print w
+            for (w in state) {
+                # First spinner ever seen here: this window has now proved its
+                # Claude drives the title, which is what makes a later ✳ mean
+                # something. One write, once per session per window.
+                if (working[w] && spins[w] == "") print "spins	" w
+
+                # A blue dot the title contradicts — but only where the title is
+                # known to be driven, and only on the second sweep in a row.
+                if (state[w] == "running" && bg[w] == "" && spins[w] != "" \
+                    && stopped[w] && !working[w])
+                    print (armed[w] == "" ? "arm	" : "demote	") w
+                else if (armed[w] != "")
+                    print "disarm	" w
+
+                # A yellow dot the title contradicts. No @agent_title_spins gate:
+                # the spinner IS the evidence here, so there is nothing to prove
+                # first. !stopped keeps a two-Claude-pane window honest — one
+                # finished and one working stays on the finished dot, matching
+                # the done-outranks-running ladder.
+                if ((state[w] == "done" || state[w] == "idle") \
+                    && working[w] && !stopped[w])
+                    print "promote	" w
+            }
         }
     ' 2>/dev/null \
-    | while IFS= read -r win; do
+    | while IFS='	' read -r verb win; do
         [ -n "$win" ] || continue
-        # Written straight rather than through agent-state, which only ever acts
-        # on its own $TMUX_PANE and so can't reach another window. @agent_since
-        # is restamped because this IS a state change, and it feeds the
-        # overview's "your turn · 4m11s".
-        tmux set-option -wt "$win" '@agent_since' "$now" 2>/dev/null || true
-        tmux set-option -wt "$win" '@agent_state' done 2>/dev/null || true
-        # The subagent count goes too. It is stale here by construction: reaching
-        # this line means @agent_bg was unset, so the last Stop found no
-        # agent-driven work attached, and @agent_subagents can only be non-zero
-        # when there was some. The two disagree, and the dot was the one that
-        # turned out to be wrong. Left alone, a turn that died without a Stop
-        # would keep adding its dead fan-out to the bar's "6+11" until the
-        # session ended.
-        tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
+        case "$verb" in
+            spins)
+                tmux set-option -wt "$win" '@agent_title_spins' 1 2>/dev/null || true
+                ;;
+            arm)
+                tmux set-option -wt "$win" '@agent_sweep_stopped' 1 2>/dev/null || true
+                ;;
+            disarm)
+                tmux set-option -wt "$win" -u '@agent_sweep_stopped' 2>/dev/null || true
+                ;;
+            demote)
+                # Written straight rather than through agent-state, which only
+                # ever acts on its own $TMUX_PANE and so can't reach another
+                # window. @agent_since is restamped because this IS a state
+                # change, and it feeds the overview's "your turn · 4m11s".
+                tmux set-option -wt "$win" '@agent_since' "$now" 2>/dev/null || true
+                tmux set-option -wt "$win" '@agent_state' done 2>/dev/null || true
+                tmux set-option -wt "$win" -u '@agent_sweep_stopped' 2>/dev/null || true
+                # The subagent count goes too. It is stale here by construction:
+                # reaching this line means @agent_bg was unset, so the last Stop
+                # found no agent-driven work attached, and @agent_subagents can
+                # only be non-zero when there was some. The two disagree, and the
+                # dot was the one that turned out to be wrong. Left alone, a turn
+                # that died without a Stop would keep adding its dead fan-out to
+                # the bar's "6+11" until the session ended.
+                tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
+                ;;
+            promote)
+                tmux set-option -wt "$win" '@agent_since' "$now" 2>/dev/null || true
+                tmux set-option -wt "$win" '@agent_state' running 2>/dev/null || true
+                # @agent_bg would be stale on anything we promote (agent-state
+                # drops it on every transition, so a done dot cannot carry one),
+                # and left behind it would veto the next honest demotion.
+                tmux set-option -wt "$win" -u '@agent_bg' 2>/dev/null || true
+                ;;
+        esac
     done
 
 # Whatever the sweep just demoted, plus anything an earlier turn left on done,
