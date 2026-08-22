@@ -58,6 +58,15 @@ the prompt.
   are wired into `~/.gemini/antigravity-cli/settings.json` by
   `modify_private_settings.json`. agy ≥ 1.0.8 is required (statusline/title/hooks);
   the package script installs latest, older installs need `agy update`.
+- **pi** has no shell-out hooks either, but its extension events map cleanly:
+  `~/.pi/agent/extensions/agent-dot.ts` (source:
+  `private_dot_pi/private_agent/extensions/agent-dot.ts`) runs `agent-state` on
+  `session_start` → `none`, `before_agent_start` → `running`, `agent_settled`
+  → `done`, `session_shutdown` → `none`. Settled, not `agent_end` — pi may
+  auto-retry, auto-compact or drain queued follow-ups after a run ends, and
+  only settled means it won't. No red (pi exposes no permission-prompt event)
+  and no pane-title glyphs, so agent-state-sweep is blind to pi tabs by design;
+  the zsh precmd reaper is the backstop, same as for Codex.
 
 A companion `@agent_note` window option carries **what** the agent is doing, since
 the dot only says whether it is doing anything — five working agents are five
