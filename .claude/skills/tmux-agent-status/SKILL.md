@@ -206,12 +206,17 @@ re-running whenever the sweep changes; it needs no Claude, just tmux windows wit
 `select-pane -T` titles and hand-set options.
 
 The same pass fixed a stale blue that had nothing to do with missing events.
-`background_tasks` entries are typed, and a `shell` means the opposite of the
-rest: a subagent, workflow or monitor is the agent's own work continuing and will
-re-wake the session, while a `run_in_background` shell is the thing the agent
-chose *not* to wait for — which is exactly what makes the turn over. Counting
-shells as work pinned a tab blue for as long as a dev server stayed up. Only
-non-shell tasks hold the dot now.
+`background_tasks` entries are typed and *statused* (running / pending /
+completed / failed / killed), and two of the types mean the opposite of the
+rest. A `run_in_background` shell is work the agent chose *not* to wait for —
+which is exactly what makes the turn over; counting shells pinned a tab blue for
+as long as a dev server stayed up. A `monitor` joined it after Claude 2.1.238
+began auto-arming one on every published artifact ("live updates for artifact
+…, auto-armed on publish", no ask from anyone): passive watchers that may never
+fire, re-listed in every Stop payload, each listing re-setting `@agent_bg` so
+nothing could ever overturn the blue. Only non-shell, non-monitor entries with
+a live status hold the dot now; when a monitor does fire, the session wakes and
+the hooks speak for themselves.
 
 The pane-title signal and the "never latch, default to idle" principle come from
 reading herdr, which drove Claude Code from these same lifecycle hooks, hit these
