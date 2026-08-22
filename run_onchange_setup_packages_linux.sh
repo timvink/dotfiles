@@ -22,6 +22,12 @@ install_if_missing() {
 # tmux — terminal multiplexer (in the default apt repos)
 install_if_missing tmux tmux
 
+# jq — JSON processor. Needed at apply time, not just interactively: the
+# modify_ scripts that merge managed keys into ~/.claude/settings.json and
+# ~/.pi/agent/settings.json shell out to it, and chezmoi fails the file if it's
+# missing.
+install_if_missing jq jq
+
 # bat — shipped as 'batcat' on Debian/Ubuntu; symlink to 'bat' in ~/.local/bin
 install_if_missing batcat bat
 mkdir -p "$HOME/.local/bin"
@@ -231,6 +237,71 @@ fi
 # agy — antigravity CLI
 if ! command -v agy >/dev/null 2>&1; then
     curl -fsSL https://antigravity.google/cli/install.sh | bash
+fi
+
+# node — needed by pi below, which ships as an npm global package and wants
+# >= 22.19. Ubuntu 24.04's apt nodejs is 18.x, so install the upstream prebuilt
+# tarball into ~/.local/opt and symlink node/npm/npx into ~/.local/bin (same
+# vendoring pattern as nvim / imagemagick / diff-so-fancy above). Follows the
+# v24 LTS *line* rather than a pinned patch, so reapplying picks up security
+# releases; the version gate below means that only happens on a box whose node
+# is missing or too old, never as a surprise upgrade.
+NODE_MIN_MAJOR=22
+NODE_MIN_MINOR=19
+NODE_LTS_DIST=https://nodejs.org/dist/latest-v24.x
+node_ok=0
+if command -v node >/dev/null 2>&1; then
+    ver=$(node --version | sed -E 's/^v([0-9]+)\.([0-9]+).*/\1 \2/')
+    maj=${ver% *}; min=${ver#* }
+    if [ "$maj" -gt "$NODE_MIN_MAJOR" ] || { [ "$maj" -eq "$NODE_MIN_MAJOR" ] && [ "$min" -ge "$NODE_MIN_MINOR" ]; }; then
+        node_ok=1
+    fi
+fi
+if [ "$node_ok" -eq 0 ]; then
+    mkdir -p "$HOME/.local/opt" "$HOME/.local/bin"
+    arch=$(uname -m)
+    case "$arch" in
+        x86_64) node_arch=linux-x64 ;;
+        aarch64) node_arch=linux-arm64 ;;
+        *) echo "Unsupported arch for node prebuilt: $arch" >&2; exit 1 ;;
+    esac
+    # The release directory listing names the current patch on the LTS line.
+    node_tarball=$(curl -fsSL "$NODE_LTS_DIST/" \
+        | grep -o "node-v[0-9.]*-${node_arch}\.tar\.gz" | head -1 || true)
+    if [ -z "$node_tarball" ]; then
+        echo "Could not resolve a Node LTS tarball for $node_arch" >&2
+        exit 1
+    fi
+    tmp=$(mktemp -d)
+    curl -fsSL -o "$tmp/node.tar.gz" "$NODE_LTS_DIST/$node_tarball"
+    tar -xzf "$tmp/node.tar.gz" -C "$tmp"
+    rm -rf "$HOME/.local/opt/node"
+    mv "$tmp/${node_tarball%.tar.gz}" "$HOME/.local/opt/node"
+    # ~/.local/bin comes first on PATH, so these shadow any apt-installed node.
+    for node_bin in node npm npx; do
+        ln -sf "$HOME/.local/opt/node/bin/$node_bin" "$HOME/.local/bin/$node_bin"
+    done
+    rm -rf "$tmp"
+fi
+
+# pi — agent harness. The upstream installer wraps `npm install -g
+# @earendil-works/pi-coding-agent` with a Node version check and prefix
+# selection; with no tty it skips its confirmation menu and installs, so it's
+# safe from a chezmoi script. It needs the node above already on PATH: its own
+# Node-install path is interactive and would bail here. Skills and instructions
+# are wired up separately (private_dot_pi/private_agent/); see agents/README.md.
+if ! command -v pi >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/pi" ]; then
+    (
+        export PATH="$HOME/.local/bin:$PATH"
+        curl -fsSL https://pi.dev/install.sh | sh
+    )
+    # With the vendored node, npm's global prefix is ~/.local/opt/node, which
+    # isn't on PATH — so pi lands beside it and would be invisible. Link it in
+    # next to node/npm/npx. (On a box with a new-enough system node the
+    # installer picks the ~/.local prefix itself and this is a no-op.)
+    if [ ! -e "$HOME/.local/bin/pi" ] && [ -x "$HOME/.local/opt/node/bin/pi" ]; then
+        ln -sf "$HOME/.local/opt/node/bin/pi" "$HOME/.local/bin/pi"
+    fi
 fi
 
 # pinentry-curses — TTY pass-phrase prompt used by rbw on this headless box.

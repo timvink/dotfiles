@@ -1,0 +1,55 @@
+#!/bin/sh
+# Point pi at the shared Agent Skills in this repo's agents/skills/, and seed the
+# OpenRouter default on a machine that has no settings.json yet.
+#
+# Unlike Claude Code, Codex and Antigravity — which only scan their own global
+# skills dir, hence the symlink farm in
+# .chezmoiscripts/run_onchange_after_link-agents-skills.sh.tmpl — pi takes a
+# `skills` array of arbitrary paths in settings.json. So pi reads the canonical
+# folder directly: no symlinks, no applied copy, and one entry that stays
+# accurate as skills are added and removed.
+#
+# pi finds the rest on its own: it reads ~/.pi/agent/AGENTS.md natively (a
+# symlink to agents/AGENTS.md, from symlink_AGENTS.md.tmpl next to this file)
+# and already scans ~/.agents/skills/ for skills other installers drop there.
+#
+# This is a chezmoi modify_ script: stdin = current target content, stdout = new
+# content. pi rewrites this file at runtime (/settings, `pi install`, analytics
+# opt-ins), so only the keys below are touched and everything else passes
+# through untouched.
+#
+# The two default keys are SEEDED, not pinned — `//=` writes them only when the
+# key is absent. pi calls setDefaultModelAndProvider() on every in-session model
+# switch (the Ctrl+L picker, Ctrl+P cycling), so hard-setting them would drag me
+# back to the model below on the next apply, every time I deliberately moved
+# off it. Seeding gives a fresh machine the right default and then gets out of
+# the way. `skills` is force-set instead: that path is ours and pi never writes
+# it. To change the seeded default on a machine that already has one, switch
+# models inside pi — don't edit this script expecting it to take.
+#
+# Both keys are required together: pi's resolver only honours a saved default
+# when defaultProvider AND defaultModel are set (core/model-resolver.js), and
+# falls back to "first provider with a configured key" otherwise. The key itself
+# is not here — the `pi` shell wrapper in dot_bash_aliases.tmpl feeds
+# OPENROUTER_API_KEY in from the vault per launch, so no credential ever lands
+# in this file.
+#
+# stealth/ox-alpha is a cloaked OpenRouter model: free, 1M context, tools and
+# reasoning, in exchange for the provider logging the prompts — fine for this,
+# not for client work. Cloaked models are temporary by nature; when it retires,
+# pi's resolver finds no such model and quietly falls back to an available one.
+
+set -eu
+
+src="{{ .chezmoi.sourceDir }}/agents/skills"
+
+input=$(cat)
+[ -z "$input" ] && input='{}'
+
+# Prepend our skills path and drop any duplicate of it, so hand-added entries
+# survive and reapplying never grows the list.
+printf '%s' "$input" | jq --arg src "$src" '
+    .skills = ([$src] + ((.skills // []) | map(select(. != $src))))
+    | .defaultProvider //= "openrouter"
+    | .defaultModel //= "stealth/ox-alpha"
+'

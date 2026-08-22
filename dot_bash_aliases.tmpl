@@ -200,6 +200,26 @@ cca() {
     )
 }
 
+# pi (the Earendil coding agent) against my OpenRouter credits. pi takes the key
+# from OPENROUTER_API_KEY or from ~/.pi/agent/auth.json, and both leave it lying
+# around in plaintext — in the environment of every process pi spawns, or on
+# disk in a file chezmoi can't manage because pi rewrites it at runtime. Reading
+# it from the vault per launch keeps it to pi's own environment, and a new
+# machine needs nothing pasted: `rbw unlock` and it works. Machines off the
+# vault mesh (work devbox — no rbw) fall through to whatever pi finds itself.
+pi() {
+    local key
+    if ! command -v rbw >/dev/null 2>&1; then
+        command pi "$@"
+        return
+    fi
+    if ! key=$(rbw get openrouter_api_key 2>/dev/null); then
+        echo "pi: no OpenRouter key — vault locked? run: rbw unlock" >&2
+        return 1
+    fi
+    OPENROUTER_API_KEY="$key" command pi "$@"
+}
+
 # Toggle the Karabiner variable that switches Ghostty's ⌘V into smart image-paste
 # (clipboard image → uploaded to the remote box's /tmp → its path typed) for the
 # duration of a remote SSH session; plain-text pastes still paste normally. Pass 1

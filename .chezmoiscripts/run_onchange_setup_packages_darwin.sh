@@ -76,6 +76,7 @@ PACKAGES=(
   whisper-cpp # `whisper-cli`, Metal-accelerated; engine behind the transcribe skill
   ffmpeg # transcode to the 16k mono wav whisper-cli wants (transcribe skill)
   imagemagick # `magick` CLI; snacks.image uses it to render .png/.jpg previews in nvim
+  node # pi ships as an npm global package and needs Node >= 22.19
   wireguard-tools # wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn` CLI)
   wireguard-go # userspace WireGuard backend (macOS has no kernel module)
   vde # provides `dpipe`, used by devmount() to reverse-mount ~/Downloads onto the devbox via sshfs
@@ -127,4 +128,15 @@ fi
 # Install agy (antigravity CLI)
 if ! command -v agy >/dev/null 2>&1; then
     curl -fsSL https://antigravity.google/cli/install.sh | bash
+fi
+
+# Install pi (agent harness). The upstream installer wraps `npm install -g
+# @earendil-works/pi-coding-agent` with a Node version check and prefix
+# selection; with no tty it skips its confirmation menu and installs, so it's
+# safe from a chezmoi script. Node comes from the PACKAGES list above, which
+# runs first — without it the installer would want to install Node itself and
+# that path DOES need a tty. Skills and instructions are wired up separately
+# (private_dot_pi/private_agent/); see agents/README.md.
+if ! command -v pi >/dev/null 2>&1; then
+    curl -fsSL https://pi.dev/install.sh | sh
 fi
