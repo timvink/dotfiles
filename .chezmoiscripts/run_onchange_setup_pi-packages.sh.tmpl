@@ -1,0 +1,22 @@
+#!/bin/sh
+# Install the pi packages used on every machine. `pi install` is idempotent —
+# it skips packages already present in ~/.pi/agent/npm — so this is safe to
+# re-run. The onchange_ hash below makes chezmoi re-run it only when the
+# package list changes; edit that list to add or remove packages.
+#
+# Runs after setup_packages (letter ordering) since pi itself is installed
+# there via npm.
+
+set -e
+
+PI_PACKAGES="
+npm:pi-web-access
+npm:pi-mcp-adapter
+npm:pi-subagents
+npm:pi-background-tasks
+"
+
+for pkg in $PI_PACKAGES; do
+	echo "pi install $pkg"
+	pi install "$pkg"
+done
