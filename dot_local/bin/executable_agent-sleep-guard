@@ -23,11 +23,22 @@
 # for it just cooks the laptop in your bag for nothing.
 #
 # Three guards, because a stuck hold means a hot, flat MacBook:
+#   GRACE_MIN     after the LAST running agent finishes, keep the hold this
+#                 many minutes before releasing. Agents work in short turns
+#                 with idle gaps between them (a follow-up prompt, a background
+#                 task waking the session); releasing the instant the count
+#                 hits 0 means closing the lid during a one-minute gap sleeps
+#                 the Mac out from under work that resumes seconds later. The
+#                 buffer costs nothing when you walk away — five extra minutes
+#                 awake — and covers every inter-turn gap.
 #   MAX_HOLD_MIN  caps one continuous hold. On trip it LATCHES off and refuses
-#                 to re-arm until the running count next reaches 0 — otherwise
-#                 the next tick would just re-hold and the cap would be a no-op.
-#   BATT_FLOOR    on battery below this, release regardless. No latch: plug in
-#                 and the hold resumes on the next tick.
+#                 to re-arm until the running count next reaches 0 AND the
+#                 grace period has expired — otherwise the next tick would
+#                 just re-hold and the cap would be a no-op. Grace time counts
+#                 toward the cap: it is all one continuous hold.
+#   BATT_FLOOR    on battery below this, release regardless — including mid-
+#                 grace. No latch: plug in and the hold resumes on the next
+#                 tick.
 #   boot reset    the com.timvink.agent-sleep-guard-reset LaunchDaemon clears
 #                 disablesleep at every boot, so a crash mid-hold can't leave
 #                 the machine permanently unable to sleep.
@@ -38,6 +49,7 @@ set -uo pipefail
 
 MAX_HOLD_MIN=${AGENT_SLEEP_GUARD_MAX_HOLD_MIN:-90}
 BATT_FLOOR=${AGENT_SLEEP_GUARD_BATT_FLOOR:-30}
+GRACE_MIN=${AGENT_SLEEP_GUARD_GRACE_MIN:-5}
 
 # macOS-only; no-op elsewhere. .chezmoiignore already keeps this off Linux, but
 # a stray copy on a devbox should die quietly rather than spew errors.
@@ -47,6 +59,7 @@ state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/agent-sleep-guard"
 mkdir -p "$state_dir" 2>/dev/null || exit 0
 hold_since="$state_dir/hold-since"   # epoch when the current continuous hold began
 latched="$state_dir/capped"          # present = cap tripped, stay off until idle
+last_run="$state_dir/last-running"   # epoch the running count was last > 0
 
 log() { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }
 
@@ -101,6 +114,17 @@ set_disablesleep() {
 release() {
     set_disablesleep 0 "$1"
     rm -f "$hold_since"
+    rm -f "$last_run"
+}
+
+# On AC there is nothing to protect, so only gate on battery. Used on both the
+# working path and the grace path — a dying battery does not owe anyone a
+# buffer.
+battery_under_floor() {
+    pmset -g batt 2>/dev/null | grep -q "'Battery Power'" || return 1
+    local pct
+    pct=$(pmset -g batt 2>/dev/null | grep -o '[0-9]\{1,3\}%' | head -1 | tr -d '%')
+    [ -n "${pct:-}" ] && [ "$pct" -lt "$BATT_FLOOR" ]
 }
 
 # A missing tmux BINARY is a broken install, not an idle machine — say so once
@@ -119,27 +143,51 @@ rm -f "$no_tmux"
 running=$("$tmux_bin" list-windows -a -F "#{@agent_state}" 2>/dev/null | grep -c '^running$')
 running=${running:-0}
 
-if [ "$running" -eq 0 ]; then
-    # Nothing working: release, and re-arm the cap for the next batch of work.
+now=$(date +%s)
+
+if [ "$running" -gt 0 ]; then
+    # Stamp when work was last seen; the grace countdown runs from here. Same
+    # value rewrite-skipped, so the file mtime stays meaningful.
+    [ "$(cat "$last_run" 2>/dev/null)" = "$now" ] || printf '%s' "$now" > "$last_run"
+else
+    # Nothing working right now — but not necessarily done: hold through the
+    # grace buffer counted from the LAST tick that saw a running agent. The
+    # latch clears only once the quiet has outlasted the buffer: clearing it
+    # the moment the count hits 0 would let a batch the cap just killed sneak
+    # straight back into a hold through the grace branch below.
+    last=$(cat "$last_run" 2>/dev/null)
+    if [ -z "$last" ]; then
+        rm -f "$latched"
+        release "no agents running"
+        exit 0
+    fi
+    idle_s=$(( now - last ))
+    if [ "$idle_s" -lt $((GRACE_MIN * 60)) ]; then
+        # Cap tripped during the batch that just went quiet: stay released.
+        [ -e "$latched" ] && exit 0
+        if battery_under_floor; then
+            release "battery under ${BATT_FLOOR}% floor, mid-grace (${idle_s}s since last agent)"
+            exit 0
+        fi
+        set_disablesleep 1 "grace — no agent for ${idle_s}s, holding ${GRACE_MIN}m buffer"
+        exit 0
+    fi
     rm -f "$latched"
-    release "no agents running"
+    release "no agents for ${GRACE_MIN}m — releasing"
     exit 0
 fi
 
-# Cap already tripped for this batch — stay released. Only the branch above,
-# reached when the last agent finishes, clears the latch.
+# Cap already tripped for this batch — stay released. Only the running==0
+# branch above, reached once the quiet outlasts the grace buffer, re-arms.
 [ -e "$latched" ] && exit 0
 
-# Battery floor. On AC there's nothing to protect, so only gate on battery.
-if pmset -g batt 2>/dev/null | grep -q "'Battery Power'"; then
+# Battery floor.
+if battery_under_floor; then
     pct=$(pmset -g batt 2>/dev/null | grep -o '[0-9]\{1,3\}%' | head -1 | tr -d '%')
-    if [ -n "${pct:-}" ] && [ "$pct" -lt "$BATT_FLOOR" ]; then
-        release "battery ${pct}% under ${BATT_FLOOR}% floor, despite $running running agent(s)"
-        exit 0
-    fi
+    release "battery ${pct}% under ${BATT_FLOOR}% floor, despite $running running agent(s)"
+    exit 0
 fi
 
-now=$(date +%s)
 [ -s "$hold_since" ] || printf '%s' "$now" > "$hold_since"
 started=$(cat "$hold_since" 2>/dev/null)
 elapsed_min=$(( (now - ${started:-$now}) / 60 ))

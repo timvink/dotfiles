@@ -321,9 +321,17 @@ idle sleep — doesn't survive it; the only knob that does is pmset's undocument
 - `com.timvink.agent-sleep-guard` LaunchAgent ticks the guard every 30s. It
   polls rather than reacting to the lid because the hold must already be set
   when the lid shuts — there's no usable lid-close hook.
+- A 5-minute grace buffer (`GRACE_MIN`): when the LAST running agent finishes,
+  the hold stays up for five more minutes before releasing. Agents work in
+  short turns with idle gaps between them, and releasing the instant the count
+  hits 0 meant closing the lid during a one-minute gap slept the Mac out from
+  under work that resumed seconds later. Grace time counts toward the cap, and
+  the cap's latch is only cleared once the quiet has outlasted the buffer —
+  otherwise a capped batch could sneak straight back into a hold.
 - Guards against a stuck hold cooking the laptop in a bag: a 90-minute cap that
-  latches off until the running count hits 0, a 30% battery floor, and the
-  boot-reset daemon for the case where the guard dies mid-hold.
+  latches off until the running count hits 0 and stays there past the grace
+  buffer, a 30% battery floor (enforced mid-grace too), and the boot-reset
+  daemon for the case where the guard dies mid-hold.
 
 Only `running` counts — a red `needs-input` agent will never finish unattended.
 Log: `~/Library/Logs/agent-sleep-guard.log`, written on transitions only.
