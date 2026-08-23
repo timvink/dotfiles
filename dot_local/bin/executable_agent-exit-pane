@@ -16,11 +16,13 @@ set -u
 pane="${1:-${TMUX_PANE:-}}"
 [ -n "$pane" ] || exit 0
 
-cmd=$(tmux display-message -p -t "$pane" '#{pane_current_command}')
-case "$cmd" in
-    claude|codex|codex-*|agy|antigravity|gemini|pi)
-        "$HOME/.local/bin/agent-state" idle 2>/dev/null || true
-        exec tmux kill-pane -t "$pane"
-        ;;
-esac
+# Don't trust #{pane_current_command}: tmux reports the process *title*, which
+# agents rewrite (pi shows as "node", Claude Code as its version string). Scan
+# every process attached to the pane's tty instead — ps reports the real comm.
+tty=$(tmux display-message -p -t "$pane" '#{pane_tty}')
+[ -n "$tty" ] || exit 0
+if ps -t "$tty" -o comm= 2>/dev/null | grep -qE '^(claude|codex|codex-.+|agy|antigravity|gemini|pi)$'; then
+    "$HOME/.local/bin/agent-state" idle 2>/dev/null || true
+    exec tmux kill-pane -t "$pane"
+fi
 exit 0
