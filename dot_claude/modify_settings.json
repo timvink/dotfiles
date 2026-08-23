@@ -177,6 +177,10 @@ status_cmd="bash $HOME/.claude/statusline-command.sh"
 # model actually uses what's in context.
 autocompact_pct=65
 
+# Concise output style: trims the prose Claude Code wraps around answers
+# (explanatory commentary, preamble) in favour of short, direct responses.
+output_style=Concise
+
 # Default permission mode: "auto" delegates each permission decision to a safety
 # classifier instead of prompting for every action. It must live in the USER
 # settings file (this one) — Claude Code deliberately ignores an "auto" default
@@ -196,6 +200,7 @@ printf '%s' "$input" | jq \
     --arg     statuscmd "$status_cmd" \
     --arg     autocompactpct "$autocompact_pct" \
     --arg     defaultmode "$default_permission_mode" \
+    --arg     outstyle "$output_style" \
     '.hooks.SessionStart     = $none
    | .hooks.SessionEnd       = $none
    | .hooks.UserPromptSubmit = $prompt
@@ -206,4 +211,5 @@ printf '%s' "$input" | jq \
    | .hooks.StopFailure      = $failed
    | .statusLine             = { "type": "command", "command": $statuscmd }
    | .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $autocompactpct
-   | .permissions.defaultMode = $defaultmode'
+   | .permissions.defaultMode = $defaultmode
+   | .outputStyle             = $outstyle'
