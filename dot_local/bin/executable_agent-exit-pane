@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# Alt+e handler for tmux: exit the agent in the CURRENT PANE and close its tab,
+# but only when an agent actually runs there. Bound root-level in dot_tmux.conf
+# (`bind -n M-e run-shell -b ...`).
+#
+# Why tmux-level: Claude Code, Codex and Antigravity expose no user-configurable
+# key bindings, so a uniform alt+e has to live above them. The gate below keeps
+# the keypress inert in plain shells and other panes — it only fires on panes
+# whose foreground process is an agent we recognize.
+#
+# Teardown mirrors agent-exit's tmux path: clear the tab dot, then kill-pane the
+# whole tree (agent + launching shell). SIGHUP semantics, same as the old bare-`e`
+# hook had — pi additionally offers a graceful /exit via its extension.
+set -u
+
+pane="${1:-${TMUX_PANE:-}}"
+[ -n "$pane" ] || exit 0
+
+cmd=$(tmux display-message -p -t "$pane" '#{pane_current_command}')
+case "$cmd" in
+    claude|codex|codex-*|agy|antigravity|gemini|pi)
+        "$HOME/.local/bin/agent-state" idle 2>/dev/null || true
+        exec tmux kill-pane -t "$pane"
+        ;;
+esac
+exit 0

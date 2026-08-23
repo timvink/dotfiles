@@ -133,22 +133,14 @@ pretool_hook=$(jq -n --arg cmd "$pretool_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
 
-# UserPromptSubmit: mark the tab running, except a bare `e` prompt exits — a
-# shell-style `e`=exit. This is one sequential script rather than a separate
-# exit hook on purpose: Claude Code may run an event's hooks concurrently, so a
-# standalone exit hook would race the `running` set above and could leave the
-# tab stuck on the running dot.
+# UserPromptSubmit: mark the tab running. One sequential script rather than a
+# separate hook on purpose: Claude Code may run an event's hooks concurrently,
+# so a standalone running-setter would race other event hooks.
 #
-# The exit itself is delegated to `agent-exit` (also used by the /oneoff
-# command), so there's a single source of truth for "leave this session". Inside
-# tmux it kill-panes the whole tree; outside tmux (e.g. a Ghostty tab) it
-# SIGTERMs Claude and SIGHUPs the launching shell so the tab closes too; and if
-# the tmux server is unreachable (orphaned /tmp socket) it falls through to that
-# same kill path. We pipe the hook payload into it (capture once into $p, reuse
-# for the .prompt test) so it can read .transcript_path and scrub the bare `e`
-# line from this session's log on the way out. $HOME stays literal so /bin/sh
-# expands it at hook runtime.
-prompt_cmd='p=$(cat); if [ "$(printf "%s" "$p" | jq -r .prompt)" = e ]; then printf "%s" "$p" | $HOME/.local/bin/agent-exit; else $HOME/.local/bin/agent-state running; fi'
+# (A bare-`e`-to-exit hack used to live here, delegating to `agent-exit`; it was
+# removed in favour of alt+e → app.exit in pi-style tools and Ctrl+C-twice /
+# Ctrl+D natively in Claude Code. `agent-exit` itself stays — /oneoff uses it.)
+prompt_cmd='$HOME/.local/bin/agent-state running'
 prompt_hook=$(jq -n --arg cmd "$prompt_cmd" '[
     { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
 ]')
