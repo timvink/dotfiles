@@ -15,18 +15,35 @@ CLAUDE.md
 # NOT also copy it to ~/agents.
 agents
 
-# Vault-backed files render only where the machine can reach the home vault
-# (rbw). Gated by `vaultAccess` (prompted in .chezmoi.toml.tmpl); machines off
-# the mesh — work devbox, throwaway VMs — leave it false, so `chezmoi apply`
-# never calls `rbw get` and never prompts to unlock. `dig` defaults it to false
-# on a machine whose config predates the flag, so they're safe before re-init.
-{{ if not (dig "vaultAccess" false .) }}
+# Machine-class gates, prompted at `chezmoi init` (see .chezmoi.toml.tmpl):
+#
+# includePrivate — private data: rbw/vault access, Proton VPN, ssh config with
+#   my home hosts. Work machines answer "no": installing rbw is cheap, but my
+#   home network topology is not something a work box should hold. OS suffixes
+#   stay for the rbw config paths only because rbw looks in a different place
+#   on each platform.
+#
+# includeDesktop — full desktop tier: GUI applications and experimental agent
+#   harnesses like pi. Headless boxes (homelab, throwaway VMs) answer "no".
+#
+# Both default to false via `dig`, so a machine whose config predates a flag is
+# safe until it re-inits.
+{{ if not (dig "includePrivate" false .) }}
 .config/wireguard/protonvpn.conf
+{{ end }}
+{{ if not (dig "includePrivate" false .) }}
+.ssh/config
+{{ end }}
+{{ if not (dig "includeDesktop" false .) }}
+private_dot_pi
+.chezmoiscripts/setup_pi-packages.sh
 {{ end }}
 
 {{ if ne .chezmoi.os "darwin" }}
 Library/Application Support/Code/User/settings.json
+{{ if not (dig "includePrivate" false .) }}
 Library/Application Support/rbw/config.json
+{{ end }}
 .chezmoiscripts/setup_applications_darwin.sh
 .chezmoiscripts/setup_firefox_darwin.sh
 .chezmoiscripts/setup_packages_darwin.sh
@@ -39,7 +56,6 @@ Library/Application Support/rbw/config.json
 Library/LaunchAgents/com.timvink.openurl.plist
 Library/LaunchAgents/com.timvink.agent-sleep-guard.plist
 Library/LaunchAgents/com.timvink.codexbar.plist
-.ssh/config
 # Karabiner-Elements is macOS-only, so its config is dead weight elsewhere.
 .config/karabiner
 # CodexBar is a macOS menu bar app (cask, not in the Linux package script), so
@@ -51,5 +67,7 @@ setup_packages_linux.sh
 setup_ghostty_terminfo.sh
 remove-devbox-browser-cruft_linux.sh
 .local/bin/xdg-open
+{{ if not (dig "includePrivate" false .) }}
 .config/rbw/config.json
+{{ end }}
 {{ end }}
