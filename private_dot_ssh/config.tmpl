@@ -1,0 +1,33 @@
+# ~/.ssh/config — rendered by chezmoi. This repo is public, so the homelab's
+# LAN address and my login name live in the vault, not here: they're injected
+# at `chezmoi apply` time from the rbw entry "homelab-ssh" (username field =
+# login user, password field = LAN IP or hostname). Create it once with:
+#   rbw add homelab-ssh <lan-ip> --username timvink
+Host github.com
+  AddKeysToAgent yes
+  IdentityFile ~/.ssh/id_ed25519
+
+Host homelab
+    HostName {{ (rbw "homelab-ssh").data.password }}
+    User {{ (rbw "homelab-ssh").data.username }}
+    IdentityFile ~/.ssh/id_ed25519
+    # Reverse tunnel so the headless homelab can open URLs in this Mac's browser:
+    # its xdg-open shim sends the URL back down this to open-url-listener here.
+    # (Harmless on non-dev `ssh homelab` sessions — at worst a "remote port
+    # forwarding failed" notice if the port's already in use by another session.)
+    RemoteForward 2489 127.0.0.1:2489
+    # SOCKS proxy → view any dev server as http://homelab:<port> (its own port,
+    # routed by ~/.config/proxy.pac). Needs homelab to resolve `homelab` -> loopback.
+    DynamicForward 1081
+    # Drop "channel N: open failed: connect failed: Connection refused" spam: the
+    # forwards above print that error-level line to the master's terminal (the
+    # interactive session) whenever a browser tab keeps hitting a homelab:<port>
+    # whose dev server has stopped. FATAL still surfaces fatal failures.
+    LogLevel FATAL
+    # Reusable authenticated connection. `ssh-image-paste` rides this same socket
+    # to stream a clipboard image into the box's /tmp on ⌘V (no re-auth); 30m
+    # persistence keeps it warm between pastes. The devbox session sets the
+    # equivalent -o flags inline in its launcher (it has no Host block here).
+    ControlMaster auto
+    ControlPath ~/.ssh/cm-homelab.sock
+    ControlPersist 30m
