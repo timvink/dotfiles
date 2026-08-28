@@ -99,6 +99,12 @@ model_reasoning_effort = "''' + stored("model_reasoning_effort", SEED_EFFORT) + 
 
 COMMON = '''approval_policy = "on-request"
 sandbox_mode = "workspace-write"
+
+# Let Codex delegate independent work to subagents while bounding the number
+# of spawned threads. Codex does not expose a configurable nesting-depth limit.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 6
 '''
 
 AZURE_PROVIDER = '''
