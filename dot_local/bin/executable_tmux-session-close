@@ -8,11 +8,11 @@
 # left after a polite :qa. Idle agents + shells then exit via kill-session's
 # SIGHUP (clean for them). On any refusal we keep the session and flash why.
 #
-# Editors are found by walking each pane's *process tree*, not by reading
-# `pane_current_command` — that names only the foreground job, so an nvim
-# suspended with Ctrl+Z reported as "zsh", sailed past this guard, and had its
-# unsaved buffers thrown away by the kill-session below. Suspended editors are
-# resumed with `fg` so they can actually receive the :qa.
+# Editors are found by walking each pane's *process tree* (tmux-editor-panes,
+# shared with the Alt+e path), not by reading `pane_current_command` — that
+# names only the foreground job, so an nvim suspended with Ctrl+Z reported as
+# "zsh", sailed past this guard, and had its unsaved buffers thrown away by the
+# kill-session below.
 #
 # Cosmetic note: with multiple nvim tabs and one dirty, the clean ones exit (to
 # shells) before we detect the dirty holdout and abort. Data-safe; the default
@@ -48,42 +48,10 @@ if [ -n "$busy" ]; then
   exit 0
 fi
 
-# 3. Find the panes holding an nvim/vim, foreground or not, by walking the
-#    descendants of each pane's process. One line per *pane* — "<pane_id>\t<0|1>",
-#    the flag marking a suspended (ps state "T") editor — because a single editor
-#    is several processes (the TUI plus its `--embed` server) and they must not
-#    each draw their own round of keystrokes.
+# 3. Find the panes holding an nvim/vim, foreground or not. One line per pane,
+#    "<pane_id>\t<0|1>", the flag marking a suspended (ps state "T") editor.
 editors_in_session() {
-  local snapshot panes
-  snapshot=$(ps -axo pid=,ppid=,stat=,comm= 2>/dev/null) || return 0
-  panes=$(tmux list-panes -s -t "=$session" -F '#{pane_id} #{pane_pid}' 2>/dev/null) || return 0
-  printf '%s\n' "$panes" | while read -r pane root; do
-    [ -n "$root" ] || continue
-    printf '%s\n' "$snapshot" | awk -v root="$root" -v pane="$pane" '
-      { id[NR]=$1; parent[$1]=$2; state[$1]=$3; comm[$1]=$4; n=NR }
-      END {
-        desc[root]=1
-        # the process table is unordered, so grow the descendant set to a fixpoint
-        changed=1
-        while (changed) {
-          changed=0
-          for (i=1;i<=n;i++) {
-            p=id[i]
-            if (!desc[p] && desc[parent[p]]) { desc[p]=1; changed=1 }
-          }
-        }
-        found=0; susp=0
-        for (i=1;i<=n;i++) {
-          p=id[i]
-          if (desc[p] && comm[p] ~ /(^|\/)n?vim$/) {
-            found=1
-            if (state[p] ~ /T/) susp=1
-          }
-        }
-        if (found) print pane "\t" susp
-      }'
-  done
-  return 0
+  "$HOME/.local/bin/tmux-editor-panes" -s "$session" 2>/dev/null || true
 }
 
 # 4. Ask every *foreground* editor to quit (no force). Escape first in case it's

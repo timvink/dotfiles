@@ -1,0 +1,6 @@
+# Paths chezmoi deletes from $HOME on every apply. Entries stay here so that a
+# machine still running an older checkout gets cleaned up whenever it catches up.
+
+# Renamed to tmux-pane-close: Alt+e now closes agent, nvim and shell tabs alike,
+# so "agent-exit-pane" no longer described it.
+.local/bin/agent-exit-pane

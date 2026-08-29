@@ -1,0 +1,104 @@
+#!/usr/bin/env bash
+# tmux-pane-close — Alt+e: close THIS tab, but only when nothing is lost. The
+# one-tab twin of tmux-session-close (Alt+q, the whole workspace). Bound
+# root-level in dot_tmux.conf (`bind -n M-e run-shell -b ...`), backgrounded so
+# the polling below can't block the tmux server.
+#
+# Three kinds of pane, tried in order:
+#   agent   — claude/codex/agy/pi/… : clear the tab dot, then kill the pane.
+#             Lives at the tmux level because none of those tools expose
+#             configurable key bindings, so a uniform alt+e has to sit above
+#             them. SIGHUP semantics, same as the old bare-`e` hook had — pi
+#             additionally offers a graceful /exit via its extension.
+#   nvim    — a polite :qa. Unsaved buffers refuse it and the tab stays open
+#             with a flash saying why: the Alt+q contract, one tab wide.
+#   shell   — send `exit`, so the shell winds itself down (history flush, exit
+#             hooks) and the pane — and with it the tab — closes.
+# Any other pane (a running command, a pager, an ssh) swallows the keypress.
+set -u
+
+pane="${1:-${TMUX_PANE:-}}"
+client="${2:-}"
+[ -n "$pane" ] || exit 0
+
+# Debounce (~1s, per client) — swallow accidental repeat presses. Closing a tab
+# focuses the next one, so without this a held alt+e walks along the tab bar
+# closing idle shells. Stamp file keyed by sanitised client name; non-atomic,
+# which at worst lets a genuine rapid double-tap through.
+if [ -n "$client" ]; then
+  key=$(printf '%s' "$client" | tr -c 'A-Za-z0-9' '_')
+  stamp="${TMPDIR:-/tmp}/tmux-pane-close.${key}"
+  now=$(perl -MTime::HiRes=time -e 'printf "%d", time()*1000')   # ms since epoch
+  last=$(cat "$stamp" 2>/dev/null || echo 0)
+  [ $((now - last)) -lt 1000 ] && exit 0
+  printf '%s' "$now" > "$stamp"
+fi
+
+# 1. Agent pane. Don't trust #{pane_current_command} here: tmux reports the
+#    process *title*, which agents rewrite (pi shows as "node", Claude Code as
+#    its version string). Scan every process attached to the pane's tty instead
+#    — ps reports the real comm.
+tty=$(tmux display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null)
+[ -n "$tty" ] || exit 0
+if ps -t "$tty" -o comm= 2>/dev/null | grep -qE '^(claude|codex|codex-.+|agy|antigravity|gemini|pi)$'; then
+  "$HOME/.local/bin/agent-state" idle 2>/dev/null || true
+  exec tmux kill-pane -t "$pane"
+fi
+
+# 2. Editor pane — foreground or suspended, found by process tree (see
+#    tmux-editor-panes for why that and not #{pane_current_command}).
+quit_editor=0
+editor=$("$HOME/.local/bin/tmux-editor-panes" -p "$pane" 2>/dev/null || true)
+if [ -n "$editor" ]; then
+  if [ "$(printf '%s' "$editor" | cut -f2)" = "1" ]; then
+    # A suspended editor can't read the tty, and `fg`-ing it from here would
+    # mean typing into whatever the pane is running. Same "refuse and flash why"
+    # contract as a dirty buffer. Rare: `autowrite` means :suspend already wrote
+    # modified *named* buffers, so only a nameless scratch buffer is at risk —
+    # which is exactly what must not be discarded.
+    tmux display-message "tab kept open — nvim suspended here (fg, then quit it)"
+    exit 0
+  fi
+  # Escape first in case it's in insert mode, so the :qa lands as a command and
+  # not as inserted text. Sent exactly once: a refused :qa still flushes the
+  # buffer to disk, so a second one would find it clean and close the tab —
+  # turning "refuse and show me" into "save and close", the opposite of the
+  # guard's purpose.
+  case "$(tmux display-message -p -t "$pane" '#{pane_current_command}' 2>/dev/null)" in
+    nvim|vim) tmux send-keys -t "$pane" Escape
+              tmux send-keys -t "$pane" ':qa' Enter ;;
+  esac
+  for _ in 1 2 3 4 5 6; do                     # ~1.5s at 0.25s
+    editor=$("$HOME/.local/bin/tmux-editor-panes" -p "$pane" 2>/dev/null || true)
+    [ -n "$editor" ] || break
+    sleep 0.25
+  done
+  if [ -n "$editor" ]; then
+    tmux display-message "tab kept open — unsaved changes in nvim"
+    exit 0
+  fi
+  quit_editor=1
+fi
+
+# 3. Shell at a prompt. `exit` rather than kill-pane so the shell exits cleanly,
+#    and so zsh gets its say when it has suspended jobs. C-c first to discard a
+#    half-typed command line, which would otherwise swallow the `exit` into
+#    itself. #{pane_current_command} *is* trustworthy here — a shell doesn't
+#    rewrite its title.
+#
+#    Retried only after quitting an editor, where the shell needs a moment to
+#    surface as the foreground process; an ordinary non-shell pane is checked
+#    once and left alone.
+tries=1
+[ "$quit_editor" = "1" ] && tries=6
+while [ "$tries" -gt 0 ]; do
+  case "$(tmux display-message -p -t "$pane" '#{pane_current_command}' 2>/dev/null)" in
+    zsh|bash|fish|sh|dash|ksh)
+      tmux send-keys -t "$pane" C-c
+      tmux send-keys -t "$pane" 'exit' Enter
+      exit 0 ;;
+  esac
+  tries=$((tries - 1))
+  [ "$tries" -gt 0 ] && sleep 0.25
+done
+exit 0

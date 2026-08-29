@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+# tmux-editor-panes — print "<pane_id>\t<0|1>" for every pane that holds an
+# nvim/vim, the flag marking a *suspended* one (ps state "T", i.e. Ctrl+Z'd).
+# Prints nothing when there is no editor.
+#
+#   tmux-editor-panes -s <session>    # every pane in the workspace
+#   tmux-editor-panes -p <pane_id>    # one pane
+#
+# Shared by the two close paths that must never throw away unsaved work:
+# tmux-session-close (Alt+q, the whole workspace) and tmux-pane-close (Alt+e,
+# one tab). The walk lives here so it exists once.
+#
+# Editors are found by walking each pane's *process tree*, not by reading
+# `pane_current_command` — that names only the foreground job, so an nvim
+# suspended with Ctrl+Z reported as "zsh", sailed past the guard, and had its
+# unsaved buffers thrown away by the kill that followed.
+#
+# One line per *pane*, not per process: a single editor is several processes
+# (the TUI plus its `--embed` server), and callers must not send each of them
+# its own round of keystrokes.
+#
+# Written bash-3.2-safe (macOS /usr/bin/bash): no associative arrays.
+set -u
+
+case "${1:-}" in
+  -s) panes=$(tmux list-panes -s -t "=${2:-}" -F '#{pane_id} #{pane_pid}' 2>/dev/null) || exit 0 ;;
+  -p) panes=$(tmux display-message -p -t "${2:-}" '#{pane_id} #{pane_pid}' 2>/dev/null) || exit 0 ;;
+  *)  echo "usage: ${0##*/} -s <session> | -p <pane_id>" >&2; exit 2 ;;
+esac
+
+snapshot=$(ps -axo pid=,ppid=,stat=,comm= 2>/dev/null) || exit 0
+
+printf '%s\n' "$panes" | while read -r pane root; do
+  [ -n "${root:-}" ] || continue
+  printf '%s\n' "$snapshot" | awk -v root="$root" -v pane="$pane" '
+    { id[NR]=$1; parent[$1]=$2; state[$1]=$3; comm[$1]=$4; n=NR }
+    END {
+      desc[root]=1
+      # the process table is unordered, so grow the descendant set to a fixpoint
+      changed=1
+      while (changed) {
+        changed=0
+        for (i=1;i<=n;i++) {
+          p=id[i]
+          if (!desc[p] && desc[parent[p]]) { desc[p]=1; changed=1 }
+        }
+      }
+      found=0; susp=0
+      for (i=1;i<=n;i++) {
+        p=id[i]
+        if (desc[p] && comm[p] ~ /(^|\/)n?vim$/) {
+          found=1
+          if (state[p] ~ /T/) susp=1
+        }
+      }
+      if (found) print pane "\t" susp
+    }'
+done
+
+exit 0
