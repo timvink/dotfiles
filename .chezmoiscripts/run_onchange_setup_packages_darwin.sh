@@ -66,6 +66,7 @@ PACKAGES=(
   pinentry-mac
   rbw # Bitwarden/Vaultwarden CLI; config managed by chezmoi (Library/Application Support/rbw on macOS, ~/.config/rbw on Linux)
   supabase/tap/supabase
+  bjarneo/cliamp/cliamp # terminal music player: playlists, EQ, lyrics, streaming (Spotify/Qobuz/YT Music/Plex/Jellyfin)
   databricks/tap/databricks # Databricks CLI
   j178/tap/prek # prek: fast pre-commit runner (Rust); see the pre-commit skill
   resend/cli/resend # Resend email-API CLI
