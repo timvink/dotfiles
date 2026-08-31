@@ -1,17 +1,31 @@
 #!/bin/sh
-# ssh-image-paste — smart ⌘V for terminal SSH sessions, invoked by Karabiner when
-# ⌘V is pressed in Ghostty during a remote session (the Azure devbox or the
-# homelab). See the `devbox`/`homelab` functions in ~/.bash_aliases and the
-# matching rule in ~/.config/karabiner/karabiner.json.
+# ssh-image-paste — smart ⌘V for Ghostty, invoked by Karabiner on every ⌘V in
+# that app. See the matching rule in ~/.config/karabiner/karabiner.json.
 #
-# Why this exists: pasting an IMAGE into a program running over SSH can't work
-# the normal way — the program reads the *box's* clipboard (headless X11,
-# unreachable), and a terminal ⌘V only sends text keystrokes, never image bytes.
-# So when the Mac clipboard holds an image we stream it as a file into the box's
-# /tmp over the SAME ssh connection (reused via ControlMaster, no re-auth) and
-# type the resulting path. Codex, neovim and Claude Code all accept an image by
-# path, so handing them the path is all they need. Plain-text pastes (and any
-# paste when no remote session is up) are passed straight through as a normal ⌘V.
+# ⌘V is the ONE image-paste key, local and remote, because the two cases need
+# opposite mechanisms and remembering which is which is the bug this fixes:
+#
+#   * Remote. Pasting an IMAGE into a program running over SSH can't work the
+#     normal way — the program reads the *box's* clipboard (headless X11,
+#     unreachable), and a terminal ⌘V only sends text keystrokes, never image
+#     bytes. So we stream the image as a file into the box's /tmp over the SAME
+#     ssh connection (reused via ControlMaster, no re-auth) and type the
+#     resulting path. Codex, neovim and Claude Code all accept an image by path.
+#   * Local. The app reads the Mac clipboard itself and already has a key for
+#     it: ctrl+v. We just send that.
+#
+# Local vs remote takes two signals, and needs both. The flag file says "a remote
+# session is live" (set by devbox()/homelab() in ~/.bash_aliases, cleared on exit
+# and by their signal traps); the ControlMaster socket probe says "which host".
+# The socket alone is not enough: ControlPersist keeps it warm for 30m after you
+# disconnect, and typing a remote /tmp path into a local session helps nobody.
+#
+# Known flaw, unchanged from the previous design: the flag is global, not
+# per-window. With a devbox session open in one Ghostty window, an image ⌘V in
+# another — local — window still uploads. Rare enough to live with.
+#
+# Plain-text pastes are passed straight through as a normal ⌘V, so the only cost
+# of sitting on every ⌘V is one fast pngpaste miss.
 #
 # Managed by chezmoi (macOS only).
 #
@@ -25,16 +39,24 @@ export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 # Known reusable ControlMaster sessions, in priority order: "<host> <socket>".
 # The first one with a live master wins (you'd rarely have both connected in the
 # same Ghostty window; if you do, devbox is preferred). To teach this about a new
-# host, add its ControlPath socket here and have its launcher set the Karabiner
-# remote_ssh_connected flag.
+# host, add its ControlPath socket here — nothing else to register.
 SESSIONS="devbox $HOME/.ssh/cm-devbox.sock
 homelab $HOME/.ssh/cm-homelab.sock"
+
+# Set while a devbox/homelab session is up. Keep in sync with _remote_ssh_flag.
+REMOTE_SSH_FLAG="$HOME/.ssh/remote-session-active"
 
 # Normal paste of whatever's on the clipboard. osascript posts a synthetic ⌘V at
 # the CGEvent layer, which is downstream of Karabiner's HID grab — so it reaches
 # the app directly and does NOT re-trigger this rule (no paste loop).
 paste_now() {
   osascript -e 'tell application "System Events" to keystroke "v" using command down'
+}
+
+# Local image paste: hand the app its own clipboard-image key. Same CGEvent
+# layer as paste_now, so Karabiner's ⌘V grab doesn't see it and can't loop.
+paste_image_local() {
+  osascript -e 'tell application "System Events" to keystroke "v" using control down'
 }
 
 # 1s debounce — belt-and-suspenders against any paste loop.
@@ -52,8 +74,10 @@ if ! pngpaste "$img" 2>/dev/null; then
 fi
 
 # Find the first remote session with a live master to ferry the image over.
-# None up → ordinary paste.
+# No session flag → we're local, so don't even probe the (possibly still-warm)
+# sockets.
 host= sock=
+[ -f "$REMOTE_SSH_FLAG" ] || { rm -f "$img"; paste_image_local; exit 0; }
 while read -r h s; do
   [ -n "$h" ] || continue
   if [ -S "$s" ] && ssh -S "$s" -O check "$h" >/dev/null 2>&1; then
@@ -62,8 +86,10 @@ while read -r h s; do
 done <<EOF
 $SESSIONS
 EOF
+# Flag set but no live master (the session died without clearing it): treat it as
+# local rather than dropping the paste.
 if [ -z "$host" ]; then
-  rm -f "$img"; paste_now; exit 0
+  rm -f "$img"; paste_image_local; exit 0
 fi
 
 # Stream it into the box's /tmp over the existing connection, then type the path.

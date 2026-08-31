@@ -14,13 +14,12 @@
                 },
                 "rules": [
                     {
-                        "description": "Ghostty + remote SSH session (devbox/homelab): ⌘V uploads a clipboard image to the box's /tmp and types its path; plain-text pastes pass through. See ~/.local/bin/ssh-image-paste.",
+                        "description": "Ghostty: ⌘V is the one image-paste key, local and remote. Over SSH it uploads a clipboard image to the box's /tmp and types its path; locally it hands the image to the app as ctrl+v. Plain-text pastes pass through. See ~/.local/bin/ssh-image-paste.",
                         "manipulators": [
                             {
                                 "type": "basic",
                                 "conditions": [
-                                    { "type": "frontmost_application_if", "bundle_identifiers": ["^com\\.mitchellh\\.ghostty$"] },
-                                    { "type": "variable_if", "name": "remote_ssh_connected", "value": 1 }
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["^com\\.mitchellh\\.ghostty$"] }
                                 ],
                                 "from": { "key_code": "v", "modifiers": { "mandatory": ["command"], "optional": ["caps_lock"] } },
                                 "to": [{ "shell_command": "$HOME/.local/bin/ssh-image-paste" }]
