@@ -58,6 +58,23 @@ confirm=${F[6]:-false}
 tasks=${F[7]:-0}
 out_tokens=${F[8]:-0}
 
+# ── cache the model-quota buckets for the `limits` command ───────────────────
+# Second side effect, same reasoning as the dot: this payload is the only place
+# agy hands out the quota buckets it shows in its own UI. It has no `usage`
+# subcommand, and the RPC behind those numbers 403s for anything that isn't the
+# real client — so stash them on every state change and let `limits` read the
+# last known values and print how old they are. Backgrounded, written through a
+# temp file so a half-written cache is never visible.
+{
+    q=$(printf '%s' "$input" | jq -c '.quota // empty' 2>/dev/null)
+    if [ -n "$q" ]; then
+        d="$HOME/.gemini/antigravity-cli/cache"
+        mkdir -p "$d" &&
+            printf '{"at":%s,"quota":%s}\n' "$(date +%s)" "$q" >"$d/quota.json.tmp" &&
+            mv -f "$d/quota.json.tmp" "$d/quota.json"
+    fi
+} >/dev/null 2>&1 &
+
 # ── drive the tmux dot ───────────────────────────────────────────────────────
 set_dot() { "$HOME/.local/bin/agent-state" "$1" 2>/dev/null || true; }
 

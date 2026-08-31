@@ -1,0 +1,625 @@
+#!/usr/bin/env python3
+"""limits — how much of each coding agent's subscription is left, in one place.
+
+Claude Code, Codex and Antigravity each meter you separately and each hide the
+number behind their own TUI, so the only way to know which tank is nearly empty
+used to be opening all three. This prints every window they meter, in the same
+colours the status lines use: green under 50% used, yellow under 80%, red beyond.
+
+    limits              every provider you are signed in to
+    limits claude       just one (claude | codex | agy | openrouter)
+    limits --json       the raw numbers, for scripts and status lines
+
+Where the numbers come from, since none of the CLIs ships a `usage` subcommand:
+
+  claude  GET api.anthropic.com/api/oauth/usage with the OAuth token Claude Code
+          keeps in the login keychain (~/.claude/.credentials.json on Linux).
+          This is the endpoint behind /usage, so it reports the same session and
+          weekly windows, including the per-model weekly cap.
+
+  codex   codex's own app-server, driven over stdio JSON-RPC:
+          initialize, then account/rateLimits/read. Going through the CLI rather
+          than the ChatGPT backend means codex refreshes its own token for us,
+          and chatgpt.com refuses a plain curl anyway.
+
+  agy     a cache the agy status line writes (see dot_gemini/.../statusline.sh).
+          Antigravity's quota lives behind an RPC that 403s for anything but the
+          real client, but agy hands the same buckets to its status line on every
+          state change — so the reading is as fresh as your last agy session and
+          the age is always printed next to it.
+
+  openrouter
+          openrouter.ai/api/v1/credits and /key, with the key from
+          $OPENROUTER_API_KEY or the vault (rbw get openrouter_api_key), the way
+          the pi wrapper takes it. A prepaid balance rather than a window that
+          resets, so its bar is the share of bought credit already spent and the
+          tail is money, not a clock.
+
+Providers whose CLI isn't installed are skipped; ones you aren't signed in to say
+so rather than failing. Nothing here writes, refreshes or spends anything, and
+nothing here will ask you to unlock the vault — a locked one just says so.
+"""
+
+import argparse
+import concurrent.futures
+import datetime as dt
+import json
+import os
+import platform
+import re
+import shutil
+import subprocess
+import sys
+import time
+import urllib.error
+import urllib.request
+
+# ── Catppuccin Mocha, same palette as the status lines ───────────────────────
+R = "\033[0m"
+DIM = "\033[38;2;108;112;134m"  # overlay0  #6c7086
+GREEN = "\033[38;2;166;227;161m"  # green    #a6e3a1
+YEL = "\033[38;2;249;226;175m"  # yellow    #f9e2af
+RED = "\033[38;2;243;139;168m"  # red       #f38ba8
+BLUE = "\033[38;2;137;180;250m"  # blue     #89b4fa
+TEXT = "\033[38;2;205;214;244m"  # text     #cdd6f4
+TRACK = "\033[38;2;69;71;90m"  # surface1   #45475a
+
+# Half-height blocks, not ▓/░: full-height ones tile into a single slab down the
+# column and you can no longer tell one provider's bars from the next one's. A
+# lower half block leaves the top of every cell empty, so each bar reads as its
+# own line. The unused part of the track stays visible in surface1, dark enough
+# to recede but bright enough to show the scale a bar is measured against.
+BAR_CELLS = 12
+BAR_GLYPHS = {True: ("▄", "▄"), False: ("━", "─")}
+
+COLOR = True
+
+
+def paint(s, c):
+    return f"{c}{s}{R}" if COLOR else s
+
+
+def tone(pct):
+    """Green under half used, yellow under 80%, red beyond — as the ctx% does."""
+    if pct >= 80:
+        return RED
+    if pct >= 50:
+        return YEL
+    return GREEN
+
+
+# ── shared helpers ───────────────────────────────────────────────────────────
+
+
+def parse_ts(value):
+    """Epoch seconds from whatever shape a provider used, or None.
+
+    Codex sends epoch ints, Anthropic RFC 3339 with an offset, protobuf
+    timestamps arrive as Z-suffixed strings or as {seconds, nanos}.
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, dict):
+        return parse_ts(value.get("seconds"))
+    if isinstance(value, str):
+        text = value.strip()
+        if text.isdigit():
+            return float(text)
+        try:
+            return dt.datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
+        except ValueError:
+            return None
+    return None
+
+
+def when(epoch):
+    """'21:50' today, 'Wed 05:00' further out, plus how long that is from now."""
+    if not epoch:
+        return "", ""
+    now = time.time()
+    local = dt.datetime.fromtimestamp(epoch)
+    same_day = local.date() == dt.datetime.fromtimestamp(now).date()
+    clock = local.strftime("%H:%M" if same_day else "%a %H:%M")
+
+    left = int(epoch - now)
+    if left <= 0:
+        return clock, "due"
+    if left < 3600:
+        rel = f"in {left // 60}m"
+    elif left < 86400:
+        h, m = divmod(left // 60, 60)
+        rel = f"in {h}h" if m == 0 else f"in {h}h{m:02d}m"
+    else:
+        d, h = divmod(left // 3600, 24)
+        rel = f"in {d}d" if h == 0 else f"in {d}d{h}h"
+    return clock, rel
+
+
+def window_name(minutes):
+    """A rate-limit window as you'd say it out loud: 300 → 5h, 10080 → weekly."""
+    if not minutes:
+        return ""
+    if minutes % 10080 == 0:
+        n = minutes // 10080
+        return "weekly" if n == 1 else f"{n}w"
+    if minutes % 1440 == 0:
+        n = minutes // 1440
+        return "daily" if n == 1 else f"{n}d"
+    if minutes % 60 == 0:
+        return f"{minutes // 60}h"
+    return f"{minutes}m"
+
+
+def row(label, pct, reset=None, note=None):
+    return {"label": label, "percent": pct, "resets_at": reset, "note": note}
+
+
+# ── claude ───────────────────────────────────────────────────────────────────
+
+USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
+KEYCHAIN_SERVICE = "Claude Code-credentials"
+
+CLAUDE_KINDS = {
+    "session": "session",
+    "weekly_all": "weekly",
+    "weekly_scoped": "weekly",
+    "opus_weekly": "weekly",
+}
+
+
+def claude_credentials():
+    """Claude Code's OAuth blob: the login keychain on macOS, a dotfile on Linux."""
+    if platform.system() == "Darwin":
+        try:
+            out = subprocess.run(
+                ["security", "find-generic-password", "-s", KEYCHAIN_SERVICE, "-w"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+            if out.returncode == 0 and out.stdout.strip():
+                return json.loads(out.stdout).get("claudeAiOauth") or {}
+        except (OSError, subprocess.SubprocessError, json.JSONDecodeError):
+            return {}
+        return {}
+
+    path = os.path.expanduser("~/.claude/.credentials.json")
+    try:
+        with open(path) as fh:
+            return json.load(fh).get("claudeAiOauth") or {}
+    except (OSError, json.JSONDecodeError):
+        return {}
+
+
+def fetch_claude():
+    if not shutil.which("claude"):
+        return None
+    creds = claude_credentials()
+    token = creds.get("accessToken")
+    if not token:
+        return {"name": "claude", "error": "not signed in"}
+
+    req = urllib.request.Request(
+        USAGE_URL,
+        headers={
+            "Authorization": f"Bearer {token}",
+            "anthropic-beta": "oauth-2025-04-20",
+            "Accept": "application/json",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            data = json.load(resp)
+    except urllib.error.HTTPError as exc:
+        if exc.code in (401, 403):
+            return {"name": "claude", "error": "token expired — run claude once"}
+        return {"name": "claude", "error": f"HTTP {exc.code}"}
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+        return {"name": "claude", "error": str(exc)[:60]}
+
+    rows = []
+    for limit in data.get("limits") or []:
+        label = CLAUDE_KINDS.get(limit.get("kind"), limit.get("kind") or "?")
+        model = ((limit.get("scope") or {}).get("model") or {}).get("display_name")
+        if model:
+            label = f"{label} · {model}"
+        rows.append(
+            row(label, limit.get("percent"), parse_ts(limit.get("resets_at")))
+        )
+
+    extra = data.get("extra_usage") or {}
+    note = None
+    if extra.get("is_enabled") and extra.get("monthly_limit"):
+        spent = extra.get("used_credits") or 0
+        note = f"extra usage {spent:.0f}/{extra['monthly_limit']:.0f} {extra.get('currency', '')}".strip()
+
+    return {
+        "name": "claude",
+        "plan": creds.get("subscriptionType") or creds.get("rateLimitTier"),
+        "rows": rows,
+        "note": note,
+    }
+
+
+# ── codex ────────────────────────────────────────────────────────────────────
+
+
+def codex_rpc(method, timeout=25):
+    """One app-server round trip: initialize, initialized, then the method."""
+    proc = subprocess.Popen(
+        ["codex", "app-server"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+        bufsize=1,
+    )
+    try:
+        for msg in (
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "initialize",
+                "params": {"clientInfo": {"name": "limits", "version": "1"}},
+            },
+            {"jsonrpc": "2.0", "method": "initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": method},
+        ):
+            proc.stdin.write(json.dumps(msg) + "\n")
+        proc.stdin.flush()
+
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            line = proc.stdout.readline()
+            if not line:
+                break
+            try:
+                reply = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if reply.get("id") == 2:
+                if "error" in reply:
+                    raise RuntimeError(reply["error"].get("message", "rpc error"))
+                return reply.get("result") or {}
+        raise TimeoutError("codex app-server did not answer")
+    finally:
+        proc.kill()
+        proc.wait(timeout=5)
+
+
+def fetch_codex():
+    if not shutil.which("codex"):
+        return None
+    auth = os.path.expanduser("~/.codex/auth.json")
+    if not os.path.exists(auth):
+        return {"name": "codex", "error": "not signed in"}
+
+    try:
+        result = codex_rpc("account/rateLimits/read")
+    except (OSError, RuntimeError, TimeoutError, subprocess.SubprocessError) as exc:
+        return {"name": "codex", "error": str(exc)[:60]}
+
+    limits = result.get("rateLimits") or {}
+    if not limits:
+        return {"name": "codex", "error": "no limits reported yet"}
+
+    rows = []
+    for key in ("primary", "secondary"):
+        window = limits.get(key)
+        if not window:
+            continue
+        rows.append(
+            row(
+                window_name(window.get("windowDurationMins")),
+                window.get("usedPercent"),
+                parse_ts(window.get("resetsAt")),
+            )
+        )
+
+    notes = []
+    credits = limits.get("credits") or {}
+    if credits.get("unlimited"):
+        notes.append("unlimited credits")
+    elif credits.get("hasCredits"):
+        notes.append(f"credits {credits.get('balance')}")
+    resets = (result.get("rateLimitResetCredits") or {}).get("availableCount") or 0
+    if resets:
+        notes.append(f"{resets} reset credit{'s' if resets > 1 else ''} available")
+
+    return {
+        "name": "codex",
+        "plan": limits.get("planType"),
+        "rows": rows,
+        "note": " · ".join(notes) or None,
+    }
+
+
+# ── agy ──────────────────────────────────────────────────────────────────────
+
+AGY_CACHE = os.path.expanduser("~/.gemini/antigravity-cli/cache/quota.json")
+
+
+BUCKET_FIELDS = ("remaining_fraction", "remainingFraction", "remaining_amount")
+WINDOW_TOKEN = re.compile(r"^(\d+[hmd]|weekly|daily|monthly|hourly)$", re.IGNORECASE)
+
+
+def agy_buckets(quota, key=None):
+    """agy's status-line quota as (key, bucket) pairs, however it nested them.
+
+    Today it is a flat map keyed by bucket id — 3p-5h, gemini-weekly — but it has
+    also shipped buckets/groups lists, so handle both rather than pin the shape.
+    """
+    if isinstance(quota, dict):
+        for wrapper in ("buckets", "groups"):
+            if wrapper in quota:
+                return agy_buckets(quota[wrapper])
+        if any(field in quota for field in BUCKET_FIELDS):
+            return [(key, quota)]
+        pairs = []
+        for name, value in quota.items():
+            pairs.extend(agy_buckets(value, name))
+        return pairs
+    if isinstance(quota, list):
+        pairs = []
+        for item in quota:
+            pairs.extend(agy_buckets(item))
+        return pairs
+    return []
+
+
+def agy_label(key, bucket):
+    """'3p-5h' → '5h · 3p', so agy's rows read like claude's 'weekly · Fable'."""
+    for field in ("display_name", "displayName"):
+        if bucket.get(field):
+            return str(bucket[field])
+    if key:
+        model, dash, window = str(key).rpartition("-")
+        if dash and WINDOW_TOKEN.match(window):
+            return f"{window} · {model}"
+        return str(key)
+    return str(bucket.get("window") or "quota")
+
+
+def fetch_agy():
+    if not shutil.which("agy"):
+        return None
+    if not os.path.exists(AGY_CACHE):
+        return {
+            "name": "agy",
+            "error": "nothing cached yet — start agy once",
+        }
+    try:
+        with open(AGY_CACHE) as fh:
+            blob = json.load(fh)
+    except (OSError, json.JSONDecodeError):
+        return {"name": "agy", "error": "cache unreadable"}
+
+    buckets = agy_buckets(blob.get("quota"))
+    if not buckets:
+        return {"name": "agy", "error": "no quota in the last status line"}
+
+    ordered = []
+    for key, bucket in buckets:
+        if bucket.get("disabled"):
+            continue
+        fraction = bucket.get("remaining_fraction", bucket.get("remainingFraction"))
+        pct = round((1 - fraction) * 100) if isinstance(fraction, (int, float)) else None
+        label = agy_label(key, bucket)
+        reset = parse_ts(bucket.get("reset_time") or bucket.get("resetTime"))
+        if reset is None and isinstance(bucket.get("reset_in_seconds"), (int, float)):
+            reset = time.time() + bucket["reset_in_seconds"]
+        left = bucket.get("remaining_amount")
+        # Group a model's windows together, shortest window first, so 3p's 5h and
+        # weekly sit next to each other instead of interleaving with gemini's.
+        model = label.split(" · ")[-1]
+        ordered.append((model, reset or 0, row(label, pct, reset, None if left is None else f"{left} left")))
+
+    rows = [entry[2] for entry in sorted(ordered, key=lambda e: (e[0], e[1]))]
+
+    age = time.time() - (parse_ts(blob.get("at")) or 0)
+    if age < 90:
+        stamp = "just now"
+    elif age < 5400:
+        stamp = f"{int(age // 60)}m ago"
+    elif age < 172800:
+        stamp = f"{int(age // 3600)}h ago"
+    else:
+        stamp = f"{int(age // 86400)}d ago"
+
+    return {"name": "agy", "plan": None, "rows": rows, "note": f"read {stamp}"}
+
+
+# ── openrouter ───────────────────────────────────────────────────────────────
+
+# Not a metered window like the others — a prepaid balance that only ever goes
+# down — but it is the fourth tank that can run dry mid-task, so it belongs on
+# the same screen. The bar is the share of bought credit already spent.
+OPENROUTER_CREDITS = "https://openrouter.ai/api/v1/credits"
+OPENROUTER_KEY_INFO = "https://openrouter.ai/api/v1/key"
+VAULT_ENTRY = "openrouter_api_key"
+
+
+def openrouter_key():
+    """(key, complaint). The environment first, then the vault — as the pi
+    wrapper does, so the key never lands on disk. Gated on `rbw unlocked`: a
+    locked vault should say so, not raise a pinentry prompt to print a balance.
+    """
+    key = os.environ.get("OPENROUTER_API_KEY")
+    if key:
+        return key, None
+    if not shutil.which("rbw"):
+        return None, None
+    try:
+        if subprocess.run(["rbw", "unlocked"], capture_output=True, timeout=10).returncode:
+            return None, "vault locked — run rbw unlock"
+        out = subprocess.run(
+            ["rbw", "get", VAULT_ENTRY], capture_output=True, text=True, timeout=15
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None, None
+    if out.returncode or not out.stdout.strip():
+        return None, None
+    return out.stdout.strip(), None
+
+
+def openrouter_get(url, key):
+    req = urllib.request.Request(
+        url, headers={"Authorization": f"Bearer {key}", "Accept": "application/json"}
+    )
+    with urllib.request.urlopen(req, timeout=20) as resp:
+        return (json.load(resp) or {}).get("data") or {}
+
+
+def money(value):
+    return f"${value:,.2f}"
+
+
+def fetch_openrouter():
+    key, complaint = openrouter_key()
+    if complaint:
+        return {"name": "openrouter", "error": complaint}
+    if not key:
+        return None
+
+    try:
+        credits = openrouter_get(OPENROUTER_CREDITS, key)
+        info = openrouter_get(OPENROUTER_KEY_INFO, key)
+    except urllib.error.HTTPError as exc:
+        problem = "key rejected" if exc.code in (401, 403) else f"HTTP {exc.code}"
+        return {"name": "openrouter", "error": problem}
+    except (urllib.error.URLError, OSError, json.JSONDecodeError) as exc:
+        return {"name": "openrouter", "error": str(exc)[:60]}
+
+    bought, spent = credits.get("total_credits"), credits.get("total_usage")
+    rows = []
+    if isinstance(bought, (int, float)) and bought > 0 and isinstance(spent, (int, float)):
+        note = f"{money(bought - spent)} of {money(bought)} left"
+        rows.append(row("credits", spent / bought * 100, None, note))
+    elif isinstance(spent, (int, float)):
+        rows.append(row("credits", None, None, f"{money(spent)} spent, pay as you go"))
+
+    # A spend cap on the key itself is a real limit, so give it its own bar.
+    cap, used = info.get("limit"), info.get("usage") or 0
+    if isinstance(cap, (int, float)) and cap > 0:
+        note = f"{money(cap - used)} of {money(cap)} left"
+        rows.append(row("key cap", used / cap * 100, None, note))
+
+    if not rows:
+        return {"name": "openrouter", "error": "no balance reported"}
+
+    monthly = info.get("usage_monthly")
+    spent_note = (
+        f"{money(monthly)} spent this month"
+        if isinstance(monthly, (int, float)) and monthly
+        else None
+    )
+    return {"name": "openrouter", "plan": None, "rows": rows, "note": spent_note}
+
+
+# ── rendering ────────────────────────────────────────────────────────────────
+
+FETCHERS = {
+    "claude": fetch_claude,
+    "codex": fetch_codex,
+    "agy": fetch_agy,
+    "openrouter": fetch_openrouter,
+}
+
+
+def render(providers):
+    name_w = max((len(p["name"]) for p in providers), default=6)
+    plan_w = max((len(p.get("plan") or "") for p in providers), default=0)
+    label_w = max(
+        (len(r["label"]) for p in providers for r in p.get("rows") or []), default=0
+    )
+
+    lines = []
+    for provider in providers:
+        head = paint(provider["name"].ljust(name_w), TEXT)
+        plan = paint((provider.get("plan") or "").ljust(plan_w), DIM) if plan_w else ""
+
+        if provider.get("error"):
+            lines.append(f"  {head}  {plan}  {paint(provider['error'], DIM)}".rstrip())
+            continue
+
+        for i, r in enumerate(provider.get("rows") or []):
+            pct = r["percent"]
+            if pct is None:
+                bar, num = " " * BAR_CELLS, "   ?"
+            else:
+                filled = min(BAR_CELLS, max(0, round(pct / 100 * BAR_CELLS)))
+                full, empty = BAR_GLYPHS[COLOR]
+                bar = paint(full * filled, tone(pct)) + paint(
+                    empty * (BAR_CELLS - filled), TRACK
+                )
+                num = paint(f"{round(pct):>3}%", tone(pct))
+
+            clock, rel = when(r["resets_at"])
+            tail = ""
+            if clock:
+                tail = paint(f"resets {clock}", DIM) + paint(f"  {rel}", DIM)
+            elif r["note"]:
+                tail = paint(r["note"], DIM)
+
+            lines.append(
+                f"  {head if i == 0 else ' ' * name_w}  "
+                f"{plan if i == 0 else ' ' * plan_w}  "
+                f"{bar} {num}  {r['label'].ljust(label_w)}  {tail}".rstrip()
+            )
+
+        if provider.get("note"):
+            pad = " " * (name_w + plan_w + 4)
+            lines.append(f"  {pad}{paint(provider['note'], BLUE)}")
+
+    return lines
+
+
+def main():
+    ap = argparse.ArgumentParser(
+        description="Show what is left of your Claude, Codex and Antigravity limits.",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    ap.add_argument(
+        "provider",
+        nargs="?",
+        choices=sorted(FETCHERS),
+        help="show only this one (default: all you are signed in to)",
+    )
+    ap.add_argument("--json", action="store_true", help="print the raw numbers")
+    ap.add_argument("--no-color", action="store_true", help="plain text")
+    args = ap.parse_args()
+
+    global COLOR
+    COLOR = not args.no_color and sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+
+    wanted = [args.provider] if args.provider else list(FETCHERS)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(wanted)) as pool:
+        results = list(pool.map(lambda n: FETCHERS[n](), wanted))
+    providers = [r for r in results if r]
+
+    if args.json:
+        json.dump(providers, sys.stdout, indent=2)
+        sys.stdout.write("\n")
+        return 0
+
+    if not providers:
+        # Nothing answered: either nothing is installed, or the one provider you
+        # named isn't set up on this machine. Say which.
+        missing = args.provider or "no agent"
+        print(f"{missing}: not set up here.", file=sys.stderr)
+        return 1
+
+    print()
+    for line in render(providers):
+        print(line)
+    print()
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
