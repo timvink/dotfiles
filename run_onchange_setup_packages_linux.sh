@@ -325,6 +325,22 @@ if ! command -v rbw >/dev/null 2>&1; then
     cargo install rbw
 fi
 
+# bw — the *official* Bitwarden CLI. rbw above is the day-to-day reader (it has
+# the agent, so no re-prompting), but it only ever writes to the personal vault:
+# it cannot create items owned by an organization. bw can, which is what the
+# shared "Vink Family" org needs — bulk import into a collection, org-scoped
+# item creation, org exports. Ships as an npm global, so it rides on the
+# vendored node above and gets symlinked into ~/.local/bin the same way pi does.
+if ! command -v bw >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/bw" ]; then
+    (
+        export PATH="$HOME/.local/bin:$PATH"
+        npm install -g @bitwarden/cli
+    )
+    if [ ! -e "$HOME/.local/bin/bw" ] && [ -x "$HOME/.local/opt/node/bin/bw" ]; then
+        ln -sf "$HOME/.local/opt/node/bin/bw" "$HOME/.local/bin/bw"
+    fi
+fi
+
 # wireguard-tools — wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn`
 # CLI). Linux has in-kernel WireGuard, so no userspace backend is needed. If
 # `wg-quick up` later complains about resolvconf for the DNS line, install
