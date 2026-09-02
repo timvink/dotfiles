@@ -77,7 +77,8 @@ PACKAGES=(
   whisper-cpp # `whisper-cli`, Metal-accelerated; engine behind the transcribe skill
   ffmpeg # transcode to the 16k mono wav whisper-cli wants (transcribe skill)
   imagemagick # `magick` CLI; snacks.image uses it to render .png/.jpg previews in nvim
-  node # pi ships as an npm global package and needs Node >= 22.19
+  node # pi and agent-browser use Node; agent-browser needs Node >= 24
+  agent-browser # browser automation for coding agents
   wireguard-tools # wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn` CLI)
   wireguard-go # userspace WireGuard backend (macOS has no kernel module)
   vde # provides `dpipe`, used by devmount() to reverse-mount ~/Downloads onto the devbox via sshfs
@@ -90,6 +91,10 @@ for pkg in "${PACKAGES[@]}"; do
 done
 
 brew install ${PACKAGES[@]}
+
+# Keep Chrome for Testing ready for headless UI checks. The command is
+# idempotent, so rerunning this setup script does not redownload the same build.
+agent-browser install
 
 echo "Cleaning up..."
 brew cleanup

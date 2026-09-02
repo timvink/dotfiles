@@ -239,15 +239,15 @@ if ! command -v agy >/dev/null 2>&1; then
     curl -fsSL https://antigravity.google/cli/install.sh | bash
 fi
 
-# node — needed by pi below, which ships as an npm global package and wants
-# >= 22.19. Ubuntu 24.04's apt nodejs is 18.x, so install the upstream prebuilt
+# node — needed by pi and agent-browser below. agent-browser wants >= 24, while
+# Ubuntu 24.04's apt nodejs is 18.x, so install the upstream prebuilt
 # tarball into ~/.local/opt and symlink node/npm/npx into ~/.local/bin (same
 # vendoring pattern as nvim / imagemagick / diff-so-fancy above). Follows the
 # v24 LTS *line* rather than a pinned patch, so reapplying picks up security
 # releases; the version gate below means that only happens on a box whose node
 # is missing or too old, never as a surprise upgrade.
-NODE_MIN_MAJOR=22
-NODE_MIN_MINOR=19
+NODE_MIN_MAJOR=24
+NODE_MIN_MINOR=0
 NODE_LTS_DIST=https://nodejs.org/dist/latest-v24.x
 node_ok=0
 if command -v node >/dev/null 2>&1; then
@@ -283,6 +283,17 @@ if [ "$node_ok" -eq 0 ]; then
     done
     rm -rf "$tmp"
 fi
+
+# agent-browser — browser automation for coding agents. Install the native CLI
+# through npm and keep its Chrome for Testing build ready for headless UI checks.
+# The explicit prefix matches the vendored Node layout and avoids writing /usr.
+if ! command -v agent-browser >/dev/null 2>&1; then
+    export PATH="$HOME/.local/bin:$PATH"
+    hash -r 2>/dev/null || true
+    npm install --global --prefix "$HOME/.local/opt/node" agent-browser
+    ln -sf "$HOME/.local/opt/node/bin/agent-browser" "$HOME/.local/bin/agent-browser"
+fi
+agent-browser install --with-deps
 
 # pi — agent harness. The upstream installer wraps `npm install -g
 # @earendil-works/pi-coding-agent` with a Node version check and prefix
