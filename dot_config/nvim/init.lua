@@ -5,3 +5,6 @@ require("config.stale-swap")
 
 -- bootstrap lazy.nvim, LazyVim and your plugins
 require("config.lazy")
+
+-- must run after config.lazy: needs snacks.nvim on the runtime path
+require("config.snacks-image-safety")

@@ -59,12 +59,18 @@ add_http notion         https://mcp.notion.com/mcp
 add_http todoist        https://ai.todoist.net/mcp
 add_http cloudflare     https://mcp.cloudflare.com/mcp
 add_http gethumandesign https://api.gethumandesign.com/mcp
+{{ if dig "includePrivate" false . }}
+# Personal servers, gated on includePrivate. activecampaign is my own mailing
+# list and ah is my grocery basket -- neither belongs on a client's machine.
 add_http activecampaign https://stilstaanbijjezelf1.activehosted.com/api/agents/mcp/http
+{{ end }}
 add_http atlassian      https://mcp.atlassian.com/v1/mcp/authv2
 
+{{ if dig "includePrivate" false . }}
 # Albert Heijn: a local stdio binary, hand-installed and not managed by this
 # repo, so register it only on machines that actually have it.
 ah_bin="$HOME/.local/bin/ah-mcp"
 if [ -x "$ah_bin" ] && ! claude mcp get ah >/dev/null 2>&1; then
 	claude mcp add ah --scope user -- "$ah_bin" --transport stdio
 fi
+{{ end }}

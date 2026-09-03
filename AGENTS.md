@@ -52,6 +52,16 @@ has no prose-rules dir — its `~/.codex/rules/` is command-approval (Starlark),
 instructions. Full rationale and the add/remove/private-skill workflow are in
 `agents/README.md`.
 
+## Command-only skills (Claude)
+
+A skill I want to reach for by hand, never loaded automatically, is vendored
+outside every tool's skills path and driven by a slash command. `simple-english`
+is the pattern: the skill files live in `dot_claude/simple-english/` (nothing
+scans that directory) and `dot_claude/commands/simple-english.md` tells Claude to
+read `~/.claude/simple-english/SKILL.md`. Claude-only, because Codex has no
+slash-command mechanism to point at it. Vendored copies keep a `source:` line in
+their frontmatter so the `update-skill` skill can re-sync them.
+
 Implementation details for the per-tab tmux agent-state dot, note, subagent
 count, prefix+o overview, and lid-close sleep guard live in the
 `tmux-agent-status` skill — load it when working on `dot_tmux.conf`, the

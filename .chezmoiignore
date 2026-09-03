@@ -33,6 +33,9 @@ agents
 {{ end }}
 {{ if not (dig "includePrivate" false .) }}
 .ssh/config
+# Both rbw paths — the OS blocks below pick which one a private machine gets.
+.config/rbw/config.json
+Library/Application Support/rbw/config.json
 {{ end }}
 {{ if not (dig "includeDesktop" false .) }}
 private_dot_pi
@@ -41,9 +44,7 @@ private_dot_pi
 
 {{ if ne .chezmoi.os "darwin" }}
 Library/Application Support/Code/User/settings.json
-{{ if not (dig "includePrivate" false .) }}
 Library/Application Support/rbw/config.json
-{{ end }}
 .chezmoiscripts/setup_applications_darwin.sh
 .chezmoiscripts/setup_firefox_darwin.sh
 .chezmoiscripts/setup_packages_darwin.sh
@@ -67,7 +68,5 @@ setup_packages_linux.sh
 setup_ghostty_terminfo.sh
 remove-devbox-browser-cruft_linux.sh
 .local/bin/xdg-open
-{{ if not (dig "includePrivate" false .) }}
 .config/rbw/config.json
-{{ end }}
 {{ end }}

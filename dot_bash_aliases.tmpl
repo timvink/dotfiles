@@ -220,23 +220,29 @@ pi() {
     OPENROUTER_API_KEY="$key" command pi "$@"
 }
 
-# Toggle the Karabiner variable that switches Ghostty's ⌘V into smart image-paste
-# (clipboard image → uploaded to the remote box's /tmp → its path typed) for the
-# duration of a remote SSH session; plain-text pastes still paste normally. Pass 1
-# on connect, 0 on disconnect. The -x guard makes this a no-op off macOS (e.g. when
-# ~/.bash_aliases is sourced on a Linux box) or without Karabiner installed. Both
-# devbox() and homelab() also reset it via a signal trap, so an abruptly-killed
-# session (terminal window closed → SIGHUP) can't leave the flag stuck at 1 and
-# hijack ⌘V image-paste in local Ghostty windows. See ~/.local/bin/ssh-image-paste.
+# Mark a remote SSH session as live, so Ghostty's ⌘V knows to upload a clipboard
+# image to the box instead of handing it to a local app. Pass 1 on connect, 0 on
+# disconnect. ssh-image-paste tests for this file.
+#
+# Why a file and not the ControlMaster socket it uploads over: ControlPersist
+# keeps that socket warm for 30m AFTER you disconnect, so probing it alone would
+# treat a local Ghostty window as remote for half an hour and type a path into it
+# that nothing local can open. The socket answers "which host", this answers
+# "am I in a session at all".
+#
+# It sits next to the cm-*.sock files it pairs with. Both devbox() and homelab()
+# also clear it via a signal trap, so an abruptly-killed session (terminal window
+# closed → SIGHUP) can't leave it stuck and hijack ⌘V in local Ghostty windows.
+# See ~/.local/bin/ssh-image-paste.
+REMOTE_SSH_FLAG="$HOME/.ssh/remote-session-active"
 _remote_ssh_flag() {
-  local kc='/Library/Application Support/org.pqrs/Karabiner-Elements/bin/karabiner_cli'
-  [ -x "$kc" ] && "$kc" --set-variables "{\"remote_ssh_connected\":$1}" >/dev/null 2>&1
+  if [ "$1" = 1 ]; then : > "$REMOTE_SSH_FLAG"; else rm -f "$REMOTE_SSH_FLAG"; fi
 }
 
 ## Home server
 # SSH into the homelab and drop into the timvink-homelab repo. A function, not an
-# alias, so — like devbox() below — it can flag the Karabiner image-paste session
-# (see _remote_ssh_flag) for the duration of the connection. The upload rides the
+# alias, so — like devbox() below — it can flag the image-paste session (see
+# _remote_ssh_flag) for the duration of the connection. The upload rides the
 # reusable ControlMaster socket set up in ~/.ssh/config's `Host homelab` block.
 homelab() {
   _remote_ssh_flag 1
@@ -307,8 +313,8 @@ zfs_unlock() {
 #            open-url-listener here so links open in this Mac's browser.
 # A third option rides it too: -o ControlMaster lets `ssh-image-paste` reuse this
 # connection to stream a clipboard image into the box's /tmp on ⌘V. `devbox` is a
-# function (not an alias) so it can also flag the Karabiner image-paste session
-# (see _remote_ssh_flag) for the session's duration; the same flag is shared with
+# function (not an alias) so it can also flag the image-paste session (see
+# _remote_ssh_flag) for the session's duration; the same flag is shared with
 # homelab() above. See ~/.local/bin/xdg-open (box), and ~/.local/bin/open-url-listener +
 # ~/.local/bin/ssh-image-paste (this Mac).
 #
