@@ -5,7 +5,8 @@ Bound to prefix+o. Space switches between them and the choice is remembered:
 
   TREE (default) — one row per tab under a foldable session header, carrying the
     agent dot, the window name, its git branch (peach "⑂ branch" when the tab
-    sits in a linked worktree, matching the status bar's marker), a sapphire
+    sits in a linked worktree — the tree keeps the branch and only recolours it,
+    where the status bar drops it for the worktree's own name), a sapphire
     "+3" for any subagents that tab has in flight, and, on the right, a detail
     pane for whatever the cursor is on: full note, worktree path, how long it has
     been in this state, and a live snapshot of that one pane. Tab hides the
@@ -503,8 +504,11 @@ def sess_summary(ws):
 
 
 def branch_cell(w, width):
-    """The branch column: green normally, and for a linked worktree the peach
-    "⑂ branch" of the status bar's marker. Blank outside a repo — a tab in
+    """The branch column: green normally, and for a linked worktree the same
+    peach "⑂" the status bar marks one with. The branch itself stays here, where
+    the status bar replaces it with the worktree's directory name: the tree has
+    a detail pane carrying the path already, so the row can spend its width on
+    the thing the path doesn't tell you. Blank outside a repo — a tab in
     ~/Downloads has no branch, and inventing one would only mislead."""
     branch, wt = git_info(w.path) if w.path else ("", "")
     if not branch:

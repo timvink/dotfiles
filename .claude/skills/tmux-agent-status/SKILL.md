@@ -278,8 +278,9 @@ stopped" above.
 `tmux-overview` has a **tree** view (the default) and the original **grid**
 montage; **space** switches them and the choice sticks. The tree is one row per
 tab under a foldable session header, carrying the dot, the name, the git branch
-(peach `⑂ branch` in a linked worktree, the same marker `tmux-git-branch` puts in
-the status bar), a sapphire `+3` for any subagents that tab has in flight, and a
+(peach `⑂ branch` in a linked worktree — the tree keeps the branch there and only
+recolours it, where the status bar swaps the branch out for the worktree's
+directory name; the tree's detail pane already carries the path), a sapphire `+3` for any subagents that tab has in flight, and a
 right-hand detail pane for whatever the cursor is on: full note, worktree path,
 time in state, and a live snapshot of that one pane. The `+3` column exists only
 while some visible tab has subagents, so the tree gives up no width in the usual

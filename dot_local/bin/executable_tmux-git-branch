@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-# Print the git branch (or short SHA, when detached) of $1, prefixed with a
-# powerline git glyph. Empty output when $1 isn't a repo. Called from
-# status-right in dot_tmux.conf with '#{pane_current_path}' — tmux expands that
-# to the *active* pane's path, so the right side of the bar always shows the
-# branch of the tab you're looking at. Worktrees included: each tab can sit on a
-# different branch and the bar tracks whichever is focused.
+# Print what tab you're looking at, git-wise, for $1. Empty output when $1 isn't
+# a repo. Called from status-right in dot_tmux.conf with '#{pane_current_path}' —
+# tmux expands that to the *active* pane's path, so the right side of the bar
+# always tracks the tab you're focused on.
 #
-# When $1 is a *linked* worktree (not the primary checkout) the branch is
-# followed by a peach "⑂ <name>" marker, where <name> is the worktree's
-# directory basename. This disambiguates e.g. `main` checked out in a worktree
-# from `main` in the primary repo. The marker injects its own #[fg=...] codes;
-# status-right wraps our output in green (#a6e3a1) and tmux re-expands #[...]
-# from #() output, so we switch to peach for the marker and switch back to green
-# after it (see dot_tmux.conf status-right notes).
+# Two shapes, never both:
+#
+#   - Primary checkout: the branch (or short SHA, when detached), in the green
+#     status-right wraps us in.
+#   - Linked worktree: a peach "⑂ <name>" marker instead, <name> being the
+#     worktree's directory basename. The branch is dropped here on purpose —
+#     a worktree directory is named after its branch, so printing both filled
+#     the bar with the same word twice. The name is the useful half: it's what
+#     tells `main` in a worktree from `main` in the primary checkout.
+#
+# The marker injects its own #[fg=...] codes; status-right wraps our output in
+# green (#a6e3a1) and tmux re-expands #[...] from #() output, so we switch to
+# peach for the marker and switch back to green after it (see dot_tmux.conf
+# status-right notes).
 #
 # Linked-worktree test: in the primary checkout `--git-dir` == `--git-common-dir`;
 # in a linked worktree --git-dir points under <common>/worktrees/<name> while
@@ -25,13 +30,18 @@ dir="$1"
 b=$(GIT_OPTIONAL_LOCKS=0 git -C "$dir" symbolic-ref --short HEAD 2>/dev/null) \
   || b=$(GIT_OPTIONAL_LOCKS=0 git -C "$dir" rev-parse --short HEAD 2>/dev/null) \
   || exit 0
-printf ' %s' "$b"
 
-# Append a worktree marker when $1 is a linked (non-primary) worktree.
 # git prints --git-dir and --git-common-dir on separate lines, so read two.
 { read -r gd; read -r cd_; } < <(GIT_OPTIONAL_LOCKS=0 git -C "$dir" rev-parse \
   --path-format=absolute --git-dir --git-common-dir 2>/dev/null)
 if [ -n "$gd" ] && [ "$gd" != "$cd_" ]; then
   wt=$(basename "$(GIT_OPTIONAL_LOCKS=0 git -C "$dir" rev-parse --show-toplevel 2>/dev/null)")
-  [ -n "$wt" ] && printf ' #[fg=#fab387]⑂ %s#[fg=#a6e3a1]' "$wt"
+fi
+
+# Fall through to the branch when the worktree name can't be read — a bar with
+# the branch on it beats a bar with nothing on it.
+if [ -n "$wt" ]; then
+  printf ' #[fg=#fab387]⑂ %s#[fg=#a6e3a1]' "$wt"
+else
+  printf ' %s' "$b"
 fi
