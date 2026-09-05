@@ -1,0 +1,422 @@
+#!/usr/bin/env -S uv run --quiet --script
+# /// script
+# requires-python = ">=3.11"
+# dependencies = [
+#   "numpy>=2.1",
+#   "pillow>=11",
+#   "torch>=2.6",
+#   "torchvision>=0.21",
+#   "transformers>=5.5",
+#   "typer>=0.15",
+# ]
+# ///
+"""Segment and cut out objects with Meta's SAM 3, on-device.
+
+SAM 3 takes a short noun phrase ("butterfly", "red car") and returns a mask for
+every matching instance in the image. This wraps that in two commands: `cutout`
+writes a transparent PNG of the matches, `segment` reports what it found.
+
+Weights come from the gated `facebook/sam3` repo on Hugging Face; see
+`sam3 doctor` if the download 401s.
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Annotated, Any
+
+import typer
+
+# SAM 3 hits a few ops Metal lacks; fall back to CPU for those instead of dying.
+os.environ.setdefault("PYTORCH_ENABLE_MPS_FALLBACK", "1")
+os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+
+DEFAULT_MODEL = os.environ.get("SAM3_MODEL", "facebook/sam3")
+
+app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help=__doc__,
+    context_settings={"help_option_names": ["-h", "--help"]},
+)
+
+
+def err(msg: str) -> None:
+    print(msg, file=sys.stderr)
+
+
+def fail(msg: str, code: int = 1) -> None:
+    err(msg)
+    raise typer.Exit(code)
+
+
+# --------------------------------------------------------------------------
+# model
+
+
+def pick_device(requested: str) -> str:
+    import torch
+
+    if requested != "auto":
+        return requested
+    if torch.backends.mps.is_available():
+        return "mps"
+    if torch.cuda.is_available():
+        return "cuda"
+    return "cpu"
+
+
+_CACHE: dict[str, Any] = {}
+
+
+def load(model_id: str, device: str):
+    """Load SAM 3 once per process, onto `device`."""
+    key = f"{model_id}@{device}"
+    if key in _CACHE:
+        return _CACHE[key]
+
+    from transformers import Sam3Model, Sam3Processor
+
+    try:
+        model = Sam3Model.from_pretrained(model_id).to(device).eval()
+        processor = Sam3Processor.from_pretrained(model_id)
+    except Exception as exc:  # noqa: BLE001 - surface the useful half to the user
+        text = f"{type(exc).__name__}: {exc}"
+        if "401" in text or "gated" in text.lower() or "restricted" in text.lower():
+            fail(
+                f"Cannot download {model_id}: access denied.\n"
+                "SAM 3 is gated. Run `sam3 doctor` for how to fix it."
+            )
+        raise
+
+    _CACHE[key] = (model, processor)
+    return model, processor
+
+
+def detect(
+    image,
+    prompt: str,
+    model,
+    processor,
+    threshold: float,
+    mask_threshold: float,
+) -> list[dict]:
+    """Return one dict per instance matching `prompt`, best score first."""
+    import torch
+
+    inputs = processor(images=image, text=prompt, return_tensors="pt").to(model.device)
+    with torch.inference_mode():
+        outputs = model(**inputs)
+
+    result = processor.post_process_instance_segmentation(
+        outputs,
+        threshold=threshold,
+        mask_threshold=mask_threshold,
+        target_sizes=inputs["original_sizes"].tolist(),
+    )[0]
+
+    found = [
+        {
+            "prompt": prompt,
+            "score": float(score),
+            "box": [round(float(v), 1) for v in box],
+            "mask": mask.cpu().numpy().astype(bool),
+        }
+        for mask, box, score in zip(result["masks"], result["boxes"], result["scores"])
+    ]
+    found.sort(key=lambda d: d["score"], reverse=True)
+    return found
+
+
+def detect_all(image, prompts, model, processor, threshold, mask_threshold, quiet):
+    hits: list[dict] = []
+    for prompt in prompts:
+        found = detect(image, prompt, model, processor, threshold, mask_threshold)
+        if not quiet:
+            err(f"  {prompt!r}: {len(found)} match(es)")
+        hits += found
+    hits.sort(key=lambda d: d["score"], reverse=True)
+    return hits
+
+
+# --------------------------------------------------------------------------
+# mask -> alpha
+
+
+def to_alpha(hits: list[dict], grow: int, feather: float):
+    """Union the hit masks into an 8-bit alpha channel."""
+    import numpy as np
+    from PIL import Image, ImageFilter
+
+    union = np.zeros_like(hits[0]["mask"], dtype=bool)
+    for hit in hits:
+        union |= hit["mask"]
+
+    alpha = Image.fromarray((union * 255).astype(np.uint8), mode="L")
+    if grow:
+        # MaxFilter dilates, MinFilter erodes; kernel size must be odd.
+        size = abs(grow) * 2 + 1
+        alpha = alpha.filter(
+            ImageFilter.MaxFilter(size) if grow > 0 else ImageFilter.MinFilter(size)
+        )
+    if feather > 0:
+        alpha = alpha.filter(ImageFilter.GaussianBlur(feather))
+    return alpha
+
+
+def checkerboard(rgba, square: int = 24):
+    """Composite an RGBA image over a grey checkerboard, so alpha is visible."""
+    from PIL import Image
+
+    board = Image.new("RGB", rgba.size, (255, 255, 255))
+    dark = Image.new("RGB", (square, square), (204, 204, 204))
+    for y in range(0, rgba.height, square):
+        for x in range(0, rgba.width, square):
+            if (x // square + y // square) % 2:
+                board.paste(dark, (x, y))
+    board.paste(rgba, (0, 0), rgba)
+    return board
+
+
+def crop_to_alpha(rgba, alpha, pad: int):
+    box = alpha.getbbox()
+    if box is None:
+        return rgba
+    left, top, right, bottom = box
+    return rgba.crop(
+        (
+            max(0, left - pad),
+            max(0, top - pad),
+            min(rgba.width, right + pad),
+            min(rgba.height, bottom + pad),
+        )
+    )
+
+
+# --------------------------------------------------------------------------
+# commands
+
+PromptOpt = Annotated[
+    list[str],
+    typer.Option(
+        "--prompt",
+        "-p",
+        help="Noun phrase to segment, e.g. 'butterfly'. Repeat to union several.",
+    ),
+]
+ThresholdOpt = Annotated[
+    float, typer.Option("--threshold", "-t", help="Detection confidence cutoff.")
+]
+MaskThresholdOpt = Annotated[
+    float, typer.Option("--mask-threshold", help="Per-pixel mask probability cutoff.")
+]
+TopOpt = Annotated[
+    int, typer.Option("--top", help="Keep only the N highest-scoring matches (0 = all).")
+]
+DeviceOpt = Annotated[
+    str, typer.Option("--device", help="auto | mps | cuda | cpu.")
+]
+ModelOpt = Annotated[
+    str, typer.Option("--model", help="Hugging Face model id or local path.")
+]
+
+
+@app.command()
+def cutout(
+    image_path: Annotated[Path, typer.Argument(help="Input image.", exists=True)],
+    prompt: PromptOpt = [],
+    out: Annotated[
+        Path | None,
+        typer.Option("--out", "-o", help="Output PNG. Default: <input>-cutout.png"),
+    ] = None,
+    threshold: ThresholdOpt = 0.5,
+    mask_threshold: MaskThresholdOpt = 0.5,
+    top: TopOpt = 0,
+    grow: Annotated[
+        int,
+        typer.Option(
+            "--grow",
+            help="Dilate the mask by N px (negative erodes). Erode 1-2 kills colour fringes.",
+        ),
+    ] = 0,
+    feather: Annotated[
+        float, typer.Option("--feather", help="Gaussian-blur the alpha edge by N px.")
+    ] = 0.0,
+    crop: Annotated[
+        bool, typer.Option("--crop/--no-crop", help="Trim to the subject's bounding box.")
+    ] = False,
+    pad: Annotated[int, typer.Option("--pad", help="Padding kept when --crop.")] = 0,
+    check: Annotated[
+        Path | None,
+        typer.Option(
+            "--check",
+            help="Also write the result over a checkerboard, so you can eyeball the alpha.",
+        ),
+    ] = None,
+    device: DeviceOpt = "auto",
+    model_id: ModelOpt = DEFAULT_MODEL,
+) -> None:
+    """Write a transparent PNG containing only what matches the prompt."""
+    from PIL import Image
+
+    if not prompt:
+        fail("Give at least one --prompt, e.g. -p butterfly")
+
+    out = out or image_path.with_name(f"{image_path.stem}-cutout.png")
+    if out.suffix.lower() != ".png":
+        fail(f"Output must be a .png (alpha channel), got {out.suffix or 'no suffix'}")
+
+    image = Image.open(image_path).convert("RGB")
+    dev = pick_device(device)
+    err(f"SAM 3 on {dev} · {image.width}x{image.height}")
+
+    model, processor = load(model_id, dev)
+    hits = detect_all(image, prompt, model, processor, threshold, mask_threshold, False)
+    if not hits:
+        fail(
+            f"No match for {', '.join(repr(p) for p in prompt)} above score {threshold}. "
+            "Try a different noun or a lower --threshold."
+        )
+    if top:
+        hits = hits[:top]
+
+    alpha = to_alpha(hits, grow, feather)
+    rgba = image.convert("RGBA")
+    rgba.putalpha(alpha)
+    if crop:
+        rgba = crop_to_alpha(rgba, alpha, pad)
+
+    out.parent.mkdir(parents=True, exist_ok=True)
+    rgba.save(out)
+    if check:
+        check.parent.mkdir(parents=True, exist_ok=True)
+        checkerboard(rgba).save(check)
+        err(f"Check: {check}")
+
+    kept =", ".join(f"{h['prompt']} {h['score']:.2f}" for h in hits)
+    err(f"Kept {len(hits)}: {kept}")
+    print(out)
+
+
+@app.command()
+def segment(
+    image_path: Annotated[Path, typer.Argument(help="Input image.", exists=True)],
+    prompt: PromptOpt = [],
+    threshold: ThresholdOpt = 0.5,
+    mask_threshold: MaskThresholdOpt = 0.5,
+    top: TopOpt = 0,
+    masks_dir: Annotated[
+        Path | None,
+        typer.Option("--masks-dir", help="Write one black/white mask PNG per instance."),
+    ] = None,
+    preview: Annotated[
+        Path | None,
+        typer.Option("--preview", help="Write a PNG with masks and scores drawn on top."),
+    ] = None,
+    device: DeviceOpt = "auto",
+    model_id: ModelOpt = DEFAULT_MODEL,
+) -> None:
+    """Report every instance matching the prompts, as JSON on stdout."""
+    import numpy as np
+    from PIL import Image, ImageDraw
+
+    if not prompt:
+        fail("Give at least one --prompt, e.g. -p butterfly")
+
+    image = Image.open(image_path).convert("RGB")
+    dev = pick_device(device)
+    err(f"SAM 3 on {dev} · {image.width}x{image.height}")
+
+    model, processor = load(model_id, dev)
+    hits = detect_all(image, prompt, model, processor, threshold, mask_threshold, False)
+    if top:
+        hits = hits[:top]
+
+    if masks_dir:
+        masks_dir.mkdir(parents=True, exist_ok=True)
+        for i, hit in enumerate(hits):
+            path = masks_dir / f"{image_path.stem}-{i:02d}-{hit['prompt'].replace(' ', '_')}.png"
+            Image.fromarray((hit["mask"] * 255).astype(np.uint8), mode="L").save(path)
+            hit["mask_png"] = str(path)
+
+    if preview:
+        colors = [
+            (255, 82, 82), (66, 165, 245), (102, 187, 106),
+            (255, 167, 38), (171, 71, 188), (38, 198, 218),
+        ]
+        canvas = image.convert("RGBA")
+        for i, hit in enumerate(hits):
+            r, g, b = colors[i % len(colors)]
+            layer = np.zeros((*hit["mask"].shape, 4), dtype=np.uint8)
+            layer[hit["mask"]] = (r, g, b, 110)
+            canvas.alpha_composite(Image.fromarray(layer, mode="RGBA"))
+        draw = ImageDraw.Draw(canvas)
+        for i, hit in enumerate(hits):
+            x0, y0, x1, y1 = hit["box"]
+            color = colors[i % len(colors)]
+            draw.rectangle((x0, y0, x1, y1), outline=color, width=3)
+            draw.text((x0 + 4, max(0, y0 - 14)), f"{hit['prompt']} {hit['score']:.2f}", fill=color)
+        preview.parent.mkdir(parents=True, exist_ok=True)
+        canvas.convert("RGB").save(preview) if preview.suffix.lower() in {
+            ".jpg", ".jpeg"
+        } else canvas.save(preview)
+        err(f"Preview: {preview}")
+
+    for hit in hits:
+        hit["area_px"] = int(hit["mask"].sum())
+        del hit["mask"]
+    print(json.dumps({"image": str(image_path), "instances": hits}, indent=2))
+
+
+@app.command()
+def warmup(
+    device: DeviceOpt = "auto",
+    model_id: ModelOpt = DEFAULT_MODEL,
+) -> None:
+    """Build the venv and download the weights (~3.5 GB) ahead of first use."""
+    dev = pick_device(device)
+    err(f"Fetching {model_id} for {dev} ...")
+    load(model_id, dev)
+    err("Ready.")
+
+
+@app.command()
+def doctor() -> None:
+    """Check torch, the device and Hugging Face access to the gated weights."""
+    import torch
+
+    print(f"torch      {torch.__version__}")
+    print(f"device     {pick_device('auto')}")
+    print(f"model      {DEFAULT_MODEL}")
+
+    from huggingface_hub import get_token
+
+    token = get_token()
+    print(f"hf token   {'found' if token else 'MISSING'}")
+
+    # A gated repo still serves its metadata publicly, so only a real file
+    # download tells you whether the gate is open.
+    from huggingface_hub import hf_hub_download
+    from huggingface_hub.utils import HfHubHTTPError
+
+    try:
+        hf_hub_download(DEFAULT_MODEL, "config.json", token=token)
+        print("hf access  OK")
+    except (HfHubHTTPError, OSError):
+        print("hf access  DENIED")
+        print(
+            "\nSAM 3's weights are gated by Meta. To get in:\n"
+            f"  1. Open https://huggingface.co/{DEFAULT_MODEL} while logged in and\n"
+            "     submit the access form (name, DOB, country, affiliation).\n"
+            "  2. Create a read token at https://huggingface.co/settings/tokens\n"
+            "  3. `uvx --from huggingface_hub hf auth login` (or export HF_TOKEN=...)\n"
+            "\nOr point at another copy: SAM3_MODEL=<repo> sam3 ... / --model <repo>"
+        )
+        raise typer.Exit(1)
+
+
+if __name__ == "__main__":
+    app()
