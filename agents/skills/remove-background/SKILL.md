@@ -32,8 +32,10 @@ If it prints `hf access DENIED`, the user has to open
 `doctor` prints the steps. **Don't fill that form in for them**: it asks for
 their name, date of birth and country, and it accepts a license on their behalf.
 
-Meta approves those requests by hand, so it can sit pending for a while. Until
-it clears, the same weights are mirrored ungated and work unchanged:
+Approval is granted on this Mac and the token is in `~/.cache/huggingface/token`,
+so `facebook/sam3` works as the default. On a machine where it hasn't cleared —
+Meta approves by hand and it can sit pending — the same weights are mirrored
+ungated and produce a pixel-identical mask:
 
 ```sh
 sam3 cutout photo.jpg -p "butterfly" --model Translsis/sam3-model
