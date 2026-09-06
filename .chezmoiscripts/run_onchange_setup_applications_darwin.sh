@@ -45,9 +45,8 @@ CASKS=(
     font-caskaydia-mono-nerd-font
     font-jetbrains-mono-nerd-font
     firefox
-    codex # OpenAI's Codex CLI (`co`; tab 1 where codingAgent=codex). Cask, not
-          # the npm build: it ships a self-contained binary and brew keeps it
-          # current, and everything in dot_codex/ is useless without it.
+    # codex is deliberately NOT here — it moved to the npm build in
+    # run_onchange_setup_packages_darwin.sh. See the comment there.
     steipete/tap/codexbar
     handy
     nextcloud

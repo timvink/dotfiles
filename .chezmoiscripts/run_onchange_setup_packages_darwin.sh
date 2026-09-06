@@ -136,6 +136,26 @@ if ! command -v agy >/dev/null 2>&1; then
     curl -fsSL https://antigravity.google/cli/install.sh | bash
 fi
 
+# Install codex (OpenAI's Codex CLI; the `co` alias, tab 1 where
+# codingAgent=codex). The npm build, NOT the Homebrew cask: since 0.144.0 the
+# CLI spawns a `codex-code-mode-host` sidecar for every command it runs, and the
+# cask ships only the main binary, so a brew-installed codex fails on startup
+# with "failed to spawn code-mode host ...: No such file or directory" and does
+# nothing at all (openai/codex#31906). The npm package vendors the sidecar next
+# to the binary. npm's prefix here is /opt/homebrew, so the binary lands on the
+# same PATH entry the cask used and the `co` alias is unaffected. Node comes
+# from the PACKAGES list above, which runs first. `codex update` self-updates,
+# so this only has to cover a machine that has no codex yet.
+if brew list --cask codex >/dev/null 2>&1; then
+    # Migration off the cask. It owns /opt/homebrew/bin/codex, which is exactly
+    # where npm wants to link, so it has to go first or the install hits EEXIST.
+    echo "Removing the broken codex cask in favour of the npm build..."
+    brew uninstall --cask codex
+fi
+if ! command -v codex >/dev/null 2>&1; then
+    npm install -g @openai/codex
+fi
+
 # Install pi (agent harness). The upstream installer wraps `npm install -g
 # @earendil-works/pi-coding-agent` with a Node version check and prefix
 # selection; with no tty it skips its confirmation menu and installs, so it's
