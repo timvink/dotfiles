@@ -107,6 +107,19 @@ enabled = true
 max_concurrent_threads_per_session = 6
 '''
 
+# Experimental context management ("Astra"): Codex keeps notes across context
+# windows and can search back through earlier messages and tool results from the
+# same task, instead of just truncating. Opt-in, off by default.
+#
+# macOS only, and not by preference: OpenAI gates it on a personal ChatGPT
+# Plus/Pro sign-in and explicitly excludes Business, Enterprise and API-key
+# auth. The Linux devbox authenticates with an Azure API key, so the flag would
+# be inert there. Revisit if the gate is lifted.
+CONTEXT_MGMT = '''
+[features.context_management]
+experimental_mode = true
+'''
+
 AZURE_PROVIDER = '''
 [model_providers.azure]
 name = "Azure OpenAI"
@@ -170,7 +183,7 @@ args = ["--transport", "stdio"]
 {{ end }}
 '''
 
-OWNED = DEFAULTS + COMMON + (AZURE_PROVIDER if AZURE else '') + MCP
+OWNED = DEFAULTS + COMMON + (AZURE_PROVIDER if AZURE else CONTEXT_MGMT) + MCP
 
 PASS_GROUPS = {"projects", "tui", "hooks"}   # runtime state Codex manages
 
