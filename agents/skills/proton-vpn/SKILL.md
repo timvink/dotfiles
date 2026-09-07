@@ -1,59 +1,37 @@
 ---
 name: proton-vpn
-description: >-
-  Bring a Proton VPN WireGuard tunnel up or down via the `protonvpn` CLI to get a
-  clean exit IP. Use when a download or request is blocked by the machine's home
-  IP (e.g. spotdl / yt-dlp hitting "blocked by YouTube Music"), when the user
-  asks to route traffic through Proton VPN, or to confirm/teardown the tunnel.
+description: Connect, disconnect, or check this machine's Proton WireGuard VPN with the local protonvpn CLI, including downloads blocked by the current exit IP.
 ---
 
-# Proton VPN (WireGuard)
+# Proton VPN
 
-A full-tunnel Proton VPN connection over WireGuard, driven by the chezmoi-managed
-`protonvpn` CLI (`~/.local/bin/protonvpn`). While it's up, *all* traffic exits
-through a Proton free server (currently `NL-FREE#213`).
-
-## Commands
+The chezmoi-managed `protonvpn` CLI controls a full tunnel: while connected, all
+machine traffic uses the configured Proton server. Check the existing state before
+changing it; don't disconnect a tunnel the user already had running for other work.
 
 ```sh
-protonvpn up       # connect (prompts for sudo password — wg-quick needs root)
+protonvpn up       # connect
 protonvpn down     # disconnect
-protonvpn status   # sudo wg show
-protonvpn ip       # print current public IP (verify up/down took effect)
+protonvpn status   # WireGuard state
+protonvpn ip       # public exit IP
 ```
 
-`up`/`down`/`status` need **sudo** (the tunnel is a network interface). sudo
-prompts for the password on the user's own terminal — you cannot drive it from a
-non-interactive shell, so ask the user to run `protonvpn up` themselves.
+`up`, `down`, and `status` require sudo. If the current environment cannot satisfy
+a sudo prompt, ask the user to run the command in their terminal; never request
+the password in chat. Verify the exit IP after connecting or disconnecting.
+When a tunnel was opened for this task, close it afterward as requested.
 
-Typical use — route one job through the VPN, then drop it:
+## Configuration and recovery
 
-```sh
-protonvpn up && make -C ~/workspace/yoto sync ; protonvpn down
-```
+The private key lives in the vault entry `protonvpn-wireguard`. Non-secret peer
+settings live in the chezmoi source
+`dot_config/private_wireguard/private_protonvpn.conf.tmpl`; apply renders the key
+into the restricted live configuration. Use the `vault` skill for credential work.
 
-## How it's stored (and why it travels between machines)
+Don't use the same WireGuard identity concurrently on multiple machines. For a
+server change, obtain the replacement configuration from the user's Proton
+account, update the vault key and source template, then apply the affected target.
 
-- **Secret:** the WireGuard private key lives in rbw, entry `protonvpn-wireguard`
-  (see the [vault] skill — never handle the master password yourself).
-- **Non-secret config:** server endpoint, public key, and assigned address live in
-  the chezmoi template `dot_config/private_wireguard/private_protonvpn.conf.tmpl`,
-  which renders to `~/.config/wireguard/protonvpn.conf` (0600), injecting the key
-  from rbw at `chezmoi apply` time.
-
-So a **new machine** (homelab, devbox, …) needs only: rbw unlocked +
-`chezmoi apply` (the setup scripts install `wireguard-tools`), then `protonvpn up`.
-**No per-machine `.conf` download.**
-
-## Caveats
-
-- **Free tier = one device at a time.** The same key can't be connected from two
-  machines simultaneously (WireGuard would flap between endpoints). Use it on one
-  machine at a time.
-- **Linux DNS:** if `wg-quick up` complains about `resolvconf` for the `DNS =`
-  line, install `openresolv` or drop that line from the rendered config.
-- **Switching server / country, or if Proton retires the server:** generate one
-  new config at account.protonvpn.com → Downloads → WireGuard (pick a `FREE`
-  server), then update the single rbw key (`rbw edit protonvpn-wireguard`, or
-  remove + re-add) and the `[Peer]` / `Address` fields in the chezmoi template,
-  and `chezmoi apply`. It propagates to every machine.
+If Linux reports missing `resolvconf`, address the DNS dependency in the chezmoi
+package setup or deliberately adjust the source template. Never patch the rendered
+configuration. Persistent `wireguard-tools` installation also belongs in setup.

@@ -87,7 +87,7 @@ just untracked (and would be lost to `git clean -x`, so back it up).
 ## Tool-specific config (NOT shared)
 
 - **Shared prose rules** (anything Codex must also follow) go in `AGENTS.md`
-  above — it's Codex's only prose-instruction channel.
+  above; keep tool-specific rules in the corresponding tool configuration.
 - Claude-only or path-scoped rules → `~/.claude/rules/*.md` (`dot_claude/rules/`);
   Claude auto-loads them and supports `paths:` frontmatter for file-scoped rules.
 - Codex has **no** prose-rules dir. `~/.codex/rules/` is a command-approval store
@@ -96,3 +96,17 @@ just untracked (and would be lost to `git clean -x`, so back it up).
   and `~/.pi/agent/SYSTEM.md`. Neither is managed — `AGENTS.md` covers the same
   ground for every tool.
 - Claude-only skills → `dot_claude/skills/`; Codex-only → `~/.codex/skills/`.
+
+## Command-only skills
+
+`simple-english` is intentionally outside automatic skill discovery. Its files
+live in `dot_claude/simple-english/`; `dot_claude/commands/simple-english.md`
+loads it when explicitly invoked in Claude. Keep it there for controlled-language
+rewrites rather than applying its sentence and vocabulary limits to every reply.
+
+## Vendored skills
+
+A `source:` URL records upstream provenance; `local-edits:` records deliberate
+departures to preserve during refreshes. A documentation URL can credit source
+material without identifying an upstream skill to copy. Use `update-skill` for
+repository-backed updates, and retain licenses when shortening or splitting files.

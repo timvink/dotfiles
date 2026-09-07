@@ -1,67 +1,29 @@
 ---
 name: update-skill
-description: Update a vendored skill to its latest upstream version. Use when the user asks to update, refresh, or re-sync a skill that was copied in from an external repo (e.g. anthropics/skills). Works by reading the skill's own `source:` URL.
+description: Refresh a vendored skill from its recorded upstream repository while preserving deliberate local changes.
 ---
 
-# Updating a vendored skill
+# Update a vendored skill
 
-Some skills in this repo are **vendored** — copied from an upstream repo rather
-than installed via a marketplace plugin. Each one records where it came from in
-its `SKILL.md` frontmatter:
+Read the skill's `source:` and `local-edits:` frontmatter. A GitHub directory URL
+identifies an upstream copy; a documentation URL may only identify inspiration,
+not a synchronizable skill. If there is no usable source, report that rather than
+guessing a repository.
 
-```yaml
-source: https://github.com/<owner>/<repo>/tree/<branch>/<dir>
-```
+Fetch the upstream directory, including supporting files, into scratch space.
+Use the GitHub contents API or a checkout; don't assume the path is `skills/<name>`.
+Compare the full directory with the local version before replacing anything.
 
-To update one, find that URL and re-sync from it. Skills live in the chezmoi
-source at `~/.local/share/chezmoi/agents/skills/<name>/`, symlinked into
-`~/.claude/skills`, `~/.codex/skills` and `~/.gemini/config/skills` — so editing
-the repo copy is instantly live in every tool.
+Summarize material behavior changes. An explicit update request authorizes routine
+refreshes; ask only when a conflict requires choosing whether to discard a local
+behavior. Preserve `source:`, `local-edits:`, licenses, and other intentional
+customizations. Reapply the local edits to updated upstream content, and remove
+obsolete upstream files only after checking local references.
 
-## Steps
+Validate frontmatter and local links. Skills in `agents/skills/` are live through
+symlinks or pi's configured path, so content edits need no apply. Additions and
+removals need the chezmoi skill-link script to refresh the symlink inventory.
+Stage only the intended changes when a commit is requested.
 
-1. **Find the source URL.** Search the skill's frontmatter:
-
-   ```bash
-   grep -m1 '^source:' ~/.local/share/chezmoi/agents/skills/<name>/SKILL.md
-   ```
-
-   If there is no `source:` line, the skill is not vendored (it may be a
-   marketplace plugin or hand-written) — stop and tell the user; don't guess a URL.
-
-2. **Translate the URL to a fetchable form.** A source URL has the shape
-   `https://github.com/<owner>/<repo>/tree/<branch>/<dir>`. Note `<dir>` is the
-   skill's path within that repo and is **not** always `skills/<name>` — e.g. the
-   anthropics skills live at `skills/<name>`, but the polars skill lives at just
-   `polars`. Map `<dir>` (whatever it is) to:
-   - Directory listing (to discover every file, including `references/`, `scripts/`):
-     `https://api.github.com/repos/<owner>/<repo>/contents/<dir>?ref=<branch>`
-   - Raw file content:
-     `https://raw.githubusercontent.com/<owner>/<repo>/<branch>/<dir>/<path>`
-
-   Recurse the API listing into subdirectories so multi-file skills are fully covered.
-
-3. **Diff before overwriting.** Fetch upstream `SKILL.md`, diff it against the local
-   copy, and show the user what changed. Don't silently replace — a rewrite may
-   change the skill's behaviour.
-
-4. **Replace all files**, then **re-add the `source:` line** to the frontmatter
-   (upstream files won't contain it — it's our addition). Keep any other local
-   additions intentional and call them out.
-
-   A `local-edits:` line in the frontmatter records a deliberate departure from
-   upstream — a rule that was removed on purpose, say. Re-apply it after copying
-   the new files, or the sync silently restores what was dropped, and keep the
-   line itself.
-
-5. **No `chezmoi apply` needed for edits.** Skills are symlinked, so overwriting
-   the repo files under `agents/skills/<name>/` is already live in every tool.
-   (`chezmoi apply` is only needed when adding a *brand-new* skill, to create its
-   symlinks.)
-
-## Notes
-
-- Stage only the files you changed when committing (the repo may hold unrelated WIP).
-- If a skill exists both as a vendored copy *and* an enabled marketplace plugin of
-  the same name, that's a collision — disable the plugin
-  (`enabledPlugins` in `~/.claude/settings.json`) so there's one authoritative copy.
+If an installed plugin duplicates a vendored skill, report the collision. Don't
+change plugin configuration as an unrequested side effect of refreshing files.

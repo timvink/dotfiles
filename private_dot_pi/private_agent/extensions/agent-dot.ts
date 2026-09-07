@@ -1,8 +1,8 @@
 // agent-dot — drive the tmux per-tab agent dot from pi's lifecycle events.
 //
 // The dot is the same one Claude Code and Codex feed via lifecycle hooks and
-// Antigravity feeds from its status line (see ~/.local/bin/agent-state, the
-// tmux-agent-status skill). pi exposes no shell-out hooks, but its extension
+// Antigravity feeds from its status line (see ~/.local/bin/agent-state and
+// dot_tmux.conf). pi exposes no shell-out hooks, but its extension
 // events map onto the four states we can express without an interactive
 // blocker:
 //

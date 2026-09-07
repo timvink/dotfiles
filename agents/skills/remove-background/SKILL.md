@@ -1,135 +1,61 @@
 ---
 name: remove-background
-description: >-
-  Remove the background from an image on this Mac, producing a transparent PNG,
-  using Meta's SAM 3 through the local `sam3` CLI. Use when asked to cut out a
-  subject, remove or delete a background, make an image transparent, isolate an
-  object, extract a logo or product shot, or produce a PNG with alpha. Also use
-  it to find or mask a named object in an image. Runs offline on Apple Silicon
-  (MPS); no upload, no API key.
+description: Cut out or mask a named subject with the local sam3 CLI on Apple Silicon, producing a transparent PNG. Use for background removal and object isolation.
 ---
 
-# Remove backgrounds with SAM 3
+# Remove a background with SAM 3
 
-[SAM 3](https://huggingface.co/facebook/sam3) segments by *concept*: you give it
-a short noun phrase and it returns a mask for every matching instance. The
-chezmoi-managed `sam3` CLI (`~/.local/bin/sam3`, a `uv run --script` file) wraps
-that into a background remover.
+Use the chezmoi-managed `sam3` CLI. Processing is local; the first use may need to
+download model weights. Run `sam3 doctor` for dependency and model-access checks.
+If access to `facebook/sam3` is denied, follow its reported setup steps. The user
+must complete any access form and accept the model license themselves.
 
-Everything runs on-device. The first call downloads ~3.5 GB of weights and takes
-a minute or two; later calls are a few seconds on MPS.
+## Choose the subject and inspect the output
 
-## Before the first run
-
-The weights sit behind Meta's gate on Hugging Face. Check with:
-
-```sh
-sam3 doctor
-```
-
-If it prints `hf access DENIED`, the user has to open
-<https://huggingface.co/facebook/sam3>, submit the access form and add a token —
-`doctor` prints the steps. **Don't fill that form in for them**: it asks for
-their name, date of birth and country, and it accepts a license on their behalf.
-
-Approval is granted on this Mac and the token is in `~/.cache/huggingface/token`,
-so `facebook/sam3` works as the default. On a machine where it hasn't cleared —
-Meta approves by hand and it can sit pending — the same weights are mirrored
-ungated and produce a pixel-identical mask:
+Read the image before choosing a prompt. Use a concrete noun phrase describing
+what to keep, such as `butterfly` or `coffee mug`, rather than a sentence describing
+its location. Include connected objects with repeated `-p` options; masks are
+unioned.
 
 ```sh
-sam3 cutout photo.jpg -p "butterfly" --model Translsis/sam3-model
+sam3 cutout photo.jpg -p 'coffee mug' -o mug.png --check /tmp/mug-check.png
+sam3 cutout portrait.jpg -p person -p hat -o portrait.png
 ```
 
-## Cut out a subject
+The result path goes to stdout; scores and progress go to stderr. Without `-o`,
+output is `<input-name>-cutout.png` beside the input. PNG is required for alpha.
+
+Open the checkerboard preview to verify transparency, subject coverage, and edge
+quality. Keep previews in scratch space or `/tmp`. To inspect detected instances
+before making a cutout:
 
 ```sh
-sam3 cutout ~/Downloads/photo.jpg -p "butterfly" -o ~/Downloads/butterfly.png
+sam3 segment photo.jpg -p 'coffee mug' --preview /tmp/found.png
 ```
 
-The path of the PNG goes to stdout; progress and scores go to stderr. Without
-`-o` the result lands next to the input as `<name>-cutout.png`.
+## Adjust a mask
 
-## Pick the prompt from the picture, not the filename
+`--threshold` selects instances; `--mask-threshold` selects pixels within those
+instances. If nothing matches, try a broader noun before lowering the threshold.
 
-This is the whole job. SAM 3 keeps what matches the phrase and drops everything
-else, so a wrong noun gives an empty or half-right mask.
-
-1. Read the image first. Look at what the subject actually is.
-2. Use a plain, concrete noun phrase: `butterfly`, `coffee mug`, `person`,
-   `sneaker`, `dog`. Two or three words at most.
-3. Don't describe the background, and don't write a sentence. `the butterfly in
-   the middle of the vintage print` scores worse than `butterfly`.
-4. If the subject has parts the mask should keep — a person plus their hat, a
-   bike plus its rider — pass `-p` more than once. The masks are unioned:
-
-   ```sh
-   sam3 cutout portrait.jpg -p person -p hat -o portrait.png
-   ```
-
-If nothing matches, the CLI says so and exits 1. Try a broader noun before you
-lower `--threshold`.
-
-## Always look at the result
-
-A transparent PNG viewed against a white page looks identical to one that failed.
-Write a checkerboard copy and read that:
-
-```sh
-sam3 cutout photo.jpg -p "coffee mug" -o mug.png --check /tmp/mug-check.png
-```
-
-Open `/tmp/mug-check.png` with the Read tool. Grey squares are transparency.
-Check for a background fringe, holes in the subject, and missing thin parts
-(antennae, hair, handles). Put the check file in the scratchpad or `/tmp`, never
-next to the user's image.
-
-To see what SAM 3 found before committing to a cutout:
-
-```sh
-sam3 segment photo.jpg -p "coffee mug" --preview /tmp/found.png
-```
-
-That prints one JSON record per instance (score, box, area) and draws the masks
-on the image.
-
-## Fixing a mediocre mask
-
-The two thresholds do different jobs, and mixing them up is the usual mistake.
-`--threshold` decides *which instances* survive; `--mask-threshold` decides
-*which pixels* belong to an instance that already survived.
-
-| Symptom | Fix |
+| Symptom | Adjustment |
 | --- | --- |
-| Thin parts missing: antennae, hair, wires, whiskers | `--mask-threshold 0.15` |
-| Halo of old background around the edge | `--grow -1` (erodes 1 px) |
-| Hard, aliased edge | `--feather 1` |
-| Extra objects came along | `--top 1`, or raise `-t 0.7` |
-| Subject missed entirely | broader noun, then `-t 0.3` |
-| Speckles of background elsewhere | `--top N` for the N you actually want |
-| Want it tight to the subject | `--crop`, plus `--pad 20` for breathing room |
+| Fine parts missing, such as antennae or hair | Try `--mask-threshold 0.15` |
+| Fringe from the old background | Try `--grow -1` |
+| Hard edge on a photograph | Try `--feather 1` |
+| Extra objects selected | Use `--top 1`, or raise `-t 0.7` |
+| Entire subject missed | Broaden the prompt, then try `-t 0.3` |
+| Need a tighter output canvas | `--crop --pad 20` |
 
-The first row matters more than it looks. At the default `--mask-threshold 0.5`
-SAM 3 clips anything only a pixel or two wide — on a monarch butterfly it
-silently amputates both antennae. Dropping to `0.15` restores them whole and
-costs almost nothing elsewhere, so reach for it whenever the subject has fine
-edges.
+Reinspect after adjustments. Leave feathering off for crisp artwork unless the
+result needs it; a setting that helps a photograph can damage a logo.
 
-`--grow -1 --feather 1` together is a good default for photos with a busy
-background. Leave both off for flat artwork and logos — feathering softens crisp
-line work.
+## Limits
 
-## Notes
+Masks retain the original image size. Use `--device cpu` if MPS fails, accepting
+slower processing. Override a checkpoint with `--model` or `SAM3_MODEL` only when
+appropriate for the installed CLI and model access.
 
-- Output must be `.png`. JPEG has no alpha channel and the CLI refuses it.
-- Non-square and large images are fine; masks come back at the original size.
-- `--device cpu` if MPS misbehaves. It works, just slower.
-- Point at a different checkpoint with `--model <repo>` or `SAM3_MODEL=<repo>`.
-- Video and point/box prompts are SAM 3 features this CLI does not expose yet.
-
-## When not to use this
-
-Removing a *uniform* background (a studio white or a green screen) is a colour
-key, not a segmentation problem — ImageMagick does it faster and with a cleaner
-edge. Reach for SAM 3 when the background is real scenery, or when you need one
-named object out of several.
+The CLI does not expose video or point/box prompts. For a truly uniform background,
+consider a color-key operation instead of segmentation when available and allowed
+by the task's image-editing tools.

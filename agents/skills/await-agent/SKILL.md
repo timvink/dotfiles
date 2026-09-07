@@ -1,118 +1,63 @@
 ---
 name: await-agent
-description: >-
-  Coordinate agent sessions (Claude Code / Codex / Antigravity) across tmux
-  windows on the same machine: wait until the agent in another window is done
-  before continuing, or send a hand-off message into another agent session.
-  Use when the user says things like "when the agent in window 3 is done,
-  continue", "wait for the other session to finish", or "when you're done,
-  tell the other agent to continue".
+description: Wait for another agent session in tmux or send it an explicitly requested handoff message. Both sessions must use the same tmux server.
 ---
 
-# Waiting on / notifying another agent session
+# Coordinate tmux agent sessions
 
-Every agent tab on this machine broadcasts its state in the `@agent_state`
-tmux window option — the same signal that renders the per-tab dot (see
-`dot_tmux.conf`). It is set by lifecycle hooks in Claude Code, Codex and
-Antigravity alike, so any of them can wait on any other:
-
-| value         | dot      | meaning                                                                      |
-| ------------- | -------- | ---------------------------------------------------------------------------- |
-| `running`     | blue ●   | working — or its turn ended with agent-driven work that will auto-resume it   |
-| `needs-input` | red ●    | blocked on the user: a permission prompt, a plan approval, or another dialog only they can answer |
-| `done`        | yellow ● | turn complete, and the user has not looked at that tab yet                    |
-| `idle`        | yellow ○ | turn complete, and the user has since looked at that tab                      |
-| *(unset)*     | no dot   | no agent has finished a turn in that window, or the session exited            |
-
-`done` and `idle` both mean **finished** — they differ only in whether the user
-has seen it, which is nothing to do with you. When you are waiting on another
-agent, treat the two as one state.
-
-Both windows must be on the same tmux server (always true locally, and on each
-remote VM). Outside tmux this skill does not apply.
-
-## Identify yourself and the target
+Identify your own pane explicitly; an untargeted query may report the window the
+user is viewing instead:
 
 ```sh
-tmux display-message -t "$TMUX_PANE" -p 'me: #{session_name}:#{window_index} (#{window_name})'
-tmux list-windows -F '#{window_index}: #{window_name}  state=#{@agent_state}'        # current session
-tmux list-windows -a -F '#{session_name}:#{window_index}: #{window_name}  state=#{@agent_state}'  # all sessions
+tmux display-message -t "$TMUX_PANE" -p '#{session_name}:#{window_index}'
+tmux list-windows -a -F '#{session_name}:#{window_index} #{window_id} #{window_name} state=#{@agent_state}'
 ```
 
-Always pass `-t "$TMUX_PANE"` to display-message — without it you get the
-window the *user* is currently looking at, not your own. As a target, use
-`:3` (window index in your session), `:name`, or `session:3` across sessions.
-If the user's reference is ambiguous, `list-windows` usually disambiguates:
-the other agent window is the one with `@agent_state` set.
+Resolve the user's target from the listing, then prefer its stable window ID
+(such as `@12`) for subsequent calls. Outside tmux, this workflow is unavailable.
 
-## Wait for another agent (pull)
+## Wait
 
-Check the current state first: `tmux show-option -wqv -t :3 '@agent_state'`
+Read the target's state with `tmux show-option -wqv -t @12 '@agent_state'`:
 
-- `running` → start the wait loop below.
-- `done` or `idle` → it already finished; skip the wait and continue.
-- `needs-input` → it is already waiting on the user; tell them, then use the
-  second loop below.
-- empty → no agent is running there (or it never finished a turn). Re-check
-  the target with `list-windows` and confirm with the user before waiting on
-  a window that will never signal.
+| State | Action |
+| --- | --- |
+| `running` | Wait; the agent may also have automatic follow-up work |
+| `done` or `idle` | Continue; both mean the turn finished |
+| `needs-input` | Tell the user the other agent needs input; keep waiting if requested |
+| Empty or missing window | Check whether the agent exited or the target was wrong |
 
-Run the loop as a **background** task so your harness resumes you when it
-exits (in Claude Code: Bash with `run_in_background`; if your harness has a
-dedicated condition-monitor tool, that works too):
+Prefer a background wait that the harness can resume. Otherwise use bounded
+polls so this session can report progress and receive input:
 
 ```sh
-t=':3'  # target window
-while [ "$(tmux show-option -wqv -t "$t" '@agent_state')" = running ]; do sleep 5; done
-echo "target now: $(tmux show-option -wqv -t "$t" '@agent_state')"
+target='@12'
+n=0
+while [ "$n" -lt 6 ]; do
+    state=$(tmux show-option -wqv -t "$target" '@agent_state') || break
+    case "$state" in running|needs-input) ;; *) break ;; esac
+    sleep 5
+    n=$((n + 1))
+done
+tmux show-option -wqv -t "$target" '@agent_state'
 ```
 
-When you are resumed, branch on the landing state:
+Inspect the landing state before continuing. A permission prompt is not completion.
+An empty state alone is not proof of success; verify the target or report its exit.
 
-- `done` or `idle` — the agent finished; continue with the follow-up task.
-- empty — the session exited. Usually also "done", but say so when reporting.
-- `needs-input` — **not done**: it is sitting on a prompt only the user can
-  answer. Report that to the user right away, then keep waiting for full
-  completion:
+## Send a requested handoff
 
-  ```sh
-  while s=$(tmux show-option -wqv -t "$t" '@agent_state'); [ "$s" = running ] || [ "$s" = needs-input ]; do sleep 5; done
-  ```
-
-If your harness cannot resume on background-task completion, run a bounded
-foreground loop instead (here ≤5 min, under typical command timeouts) and
-repeat it while the state is still `running`:
+Verify the target pane hosts the intended agent. `send-keys` also types into bare
+shells, where prose could execute as a command. Include your identity, concrete
+outcome, relevant paths, and the next action; the recipient lacks your context.
 
 ```sh
-n=0; while [ "$(tmux show-option -wqv -t "$t" '@agent_state')" = running ] && [ "$n" -lt 60 ]; do sleep 5; n=$((n+1)); done; tmux show-option -wqv -t "$t" '@agent_state'
-```
-
-## Notify another agent (push)
-
-To message another agent session — typically as *your last action* before
-ending your turn, when asked "when you're done, tell window 2 to continue":
-
-```sh
-tmux send-keys -t :2 -l 'From window 3 (api-refactor): done — tests pass, schema changes are in db/migrations/. Continue with the backfill.'
+tmux send-keys -t @12 -l 'From API session: tests pass; migration is ready in db/migrations/. Continue with the backfill.'
 sleep 0.3
-tmux send-keys -t :2 Enter
+tmux send-keys -t @12 Enter
 ```
 
-- `-l` sends the text literally (so nothing in it is interpreted as a key
-  name). Send `Enter` separately after a short pause — bundled in the same
-  burst it can be swallowed by the TUI's paste detection instead of
-  submitting.
-- The text lands as that session's next user prompt (queued if it is
-  mid-turn), so write it like one: say who you are, what happened, and what
-  to do next. The receiver has none of your context — include concrete
-  outcomes and paths, not "as discussed".
-- **Verify the target window is an agent tab first** (its `@agent_state` is
-  set, or the user confirmed it). send-keys types into whatever runs in that
-  pane — into a bare shell, your message would execute as a command.
-
-## Choosing a direction
-
-Prefer push when the finishing session can be instructed ("tell window 2 when
-done") — no polling at all. Use pull when you cannot instruct the other agent
-or it is already mid-task. Don't set up both for the same hand-off: the waiter
-would resume twice.
+Send text literally with `-l`, then Enter separately so paste detection doesn't
+swallow submission. The message becomes that session's next prompt. Send only
+when the user requested the handoff. Prefer notification over polling when the
+finishing agent can be instructed; avoid setting up both for one handoff.

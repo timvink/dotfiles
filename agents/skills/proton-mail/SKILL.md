@@ -1,110 +1,53 @@
 ---
 name: proton-mail
-description: >-
-  Read, search, draft (with attachments), archive, and send Proton Mail from the
-  user's already-open, logged-in Proton tab via the local `proton-bridge` CLI
-  (companion Firefox extension). Use when the user asks to check / read / search
-  their Proton email, summarize their inbox, find a message, draft or send a
-  reply, attach a file, or archive a message. Sending is irreversible and gated
-  on explicit per-message intent; it never deletes (archive is the only
-  destructive-ish action, and it's reversible). Requires Firefox open with
-  https://mail.proton.me logged in.
+description: Read, search, draft, send, or archive Proton Mail through the local proton-bridge CLI and the user's logged-in Firefox tab. Sending requires explicit intent for the message.
 ---
 
-# Proton Mail (local bridge)
+# Proton Mail
 
-This skill talks to a Firefox extension that reads the user's **already-decrypted**
-Proton Mail tab. No Proton Bridge, no IMAP, no credentials — the web app decrypts
-in the browser and the extension reads the rendered DOM. Communication goes through a
-native-messaging host over local pipes (no network port); nothing runs continuously.
-
-## Before using
-
-Requires all of:
-1. **Firefox open** with a tab on `https://mail.proton.me`, **logged in**.
-2. The **Proton LLM Bridge extension** installed, and the **native host** registered
-   (`make install-host`, done once during setup).
-3. The **`proton-bridge` CLI** on PATH (via `uv tool install ./cli`).
-
-Sanity-check first with `proton-bridge ping`. If it reports `loggedIn: false` or
-times out, tell the user what's missing instead of retrying blindly.
-
-A `Connection refused` from `ping` almost always means the **extension isn't
-active** in the running Firefox — the native host is spawned by the extension, so
-no active extension → no host → dead socket. Walk the user through it, in order:
-
-- **Enable it** (installed but switched off): Firefox → `about:addons` →
-  Extensions → toggle **Proton LLM Bridge** on → reload the `mail.proton.me` tab.
-- **Re-load it** (was only a temporary add-on — those are wiped on every Firefox
-  restart): open `about:debugging#/runtime/this-firefox` → *Load Temporary
-  Add-on…* → pick `extension/manifest.json` → reload the Proton tab.
-- **Install it permanently** (survives restarts): `make sign` to produce a signed
-  `.xpi`, then `about:addons` → gear → *Install Add-on From File…* → pick the
-  `.xpi` from `web-ext-artifacts/`. Then reload the Proton tab.
-
-After any of these, `proton-bridge ping` should report `loggedIn: true`.
+Run `proton-bridge ping` first. Firefox must have a logged-in `mail.proton.me`
+tab and the bridge extension must be active. If unavailable, consult
+[references/setup.md](references/setup.md); don't retry without addressing the
+reported cause. The bridge reads the already-decrypted browser content.
 
 ## Commands
 
-All commands print JSON to stdout (exit 0) or a JSON error to stderr (exit 1).
+Commands return JSON; inspect errors and warnings as well as the exit status.
 
-| Command | What it does |
-|---|---|
-| `proton-bridge ping` | Check the bridge and whether the user is logged in. |
-| `proton-bridge list [--limit N]` | List messages in the current view (id, subject, conversationCount, sender, date, unread). |
-| `proton-bridge goto FOLDER [--limit N]` | Navigate to a mailbox folder (`inbox`, `all-mail`, `starred`, `archive`, `sent`, `drafts`, `trash`, `spam`, …) and list it. |
-| `proton-bridge read [ID]` | Read a message. With an ID from `list`, it opens that row first; with no ID, reads whatever message is currently open. Returns plaintext `body`. |
-| `proton-bridge search "QUERY" [--limit N]` | Run Proton's search and list the results. |
-| `proton-bridge archive ID` | Move a message to the **Archive** folder. Reversible. Requires an ID from `list`. |
-| `proton-bridge draft --to "a@b.com" --subject "..." --body "..."` | Open a **prefilled composer**. Also `--body-file PATH` and `--attach PATH` (repeatable; each file < ~700 KB). Does **not** send. |
-| `proton-bridge send [--force]` | Click **Send** on the open composer. **Irreversible.** Refuses if several composers are open unless `--force` (then sends the newest). |
-| `proton-bridge diagnose` | Report which DOM selectors matched — use when output looks wrong. |
+| Command | Purpose |
+| --- | --- |
+| `proton-bridge list [--limit N]` | List messages in the current view |
+| `proton-bridge goto FOLDER [--limit N]` | Navigate to inbox, sent, archive, or another folder |
+| `proton-bridge search "QUERY"` | Find messages |
+| `proton-bridge read [ID]` | Open and read an ID, or read the currently open message |
+| `proton-bridge draft --to ADDRESS --subject TEXT --body-file PATH` | Open a filled composer without sending |
+| `proton-bridge archive ID` | Archive a specified message |
+| `proton-bridge send` | Send the open composer |
+| `proton-bridge diagnose` | Inspect DOM selector matches |
 
-## Sending — read this before you ever run `send`
+Drafts also accept `--body TEXT` and repeated `--attach PATH`. Keep attachments
+under approximately 700 KB each for this bridge; inspect attachment warnings and
+verify that uploads completed. Larger files need manual attachment or a shared link.
 
-`send` is the one irreversible action this tool has. Treat it like archive's
-stricter sibling:
+## Sending and archiving
 
-- **Explicit per-message intent only.** Run `send` only when the user has clearly
-  asked to send *this* message. Never as a side effect of a vague request.
-- **Draft → review → send.** Always `draft` first (it leaves the composer open and
-  prefilled). Before sending, state the **recipient, subject, and any attachments**
-  back to the user and get a clear go-ahead. Default to leaving the draft for the
-  user when there's any doubt.
-- **`send` acts on the open composer** — it does not take to/subject/body. So the
-  immediately-preceding `draft` defines what goes out. Don't `send` if you're not
-  sure which composer is open (it will refuse when more than one is open).
-- **Attachments ride inside the message** (base64), so they're capped near 1 MB
-  each. Larger files: tell the user to attach manually, or share a link instead.
+Send only when the user explicitly asks to send the particular message. An
+already-authorized request with a clear recipient and content needs no repeated
+confirmation. A draft request authorizes drafting only. Resolve ambiguous recipients,
+content, or attachments before sending.
 
-## Other constraints
+Draft first, then verify recipient, subject, body, and attachments in the composer.
+`send` acts on the open composer, not an ID; don't send an unrelated draft. If
+several composers are open, resolve the ambiguity instead of using `--force`.
+Check the result and report any failure; don't claim delivery from a draft alone.
 
-- **Never deletes.** Archive (reversible) is the only move-to-folder action. There
-  is no trash, spam, or permanent-delete command — do not look for workarounds.
-- **Archive needs per-message intent too.** Only `archive` when asked; confirm the
-  subject first. Never archive as a side effect of "clean up my inbox."
-- If `read` returns `bodyExtractionFailed: true` or an empty `body` with
-  `bodySource: "iframe-blocked"`, the body lives in a sandboxed iframe the
-  extension couldn't read. Report it; do not fabricate. Run `diagnose` and surface
-  the result so the selectors can be fixed.
+Archive when the request identifies the messages to archive; use returned IDs and
+verify their subjects. Don't infer bulk archive permission from “clean up my inbox.”
+The bridge has no delete command; don't work around that constraint.
 
-## Typical flows
+## Read failures
 
-- *"What's in my inbox?"* → `ping`, then `list`, summarize.
-- *"Read the one from Alice."* → `list`, pick the matching `id`, `read <id>`.
-- *"Find emails about the invoice."* → `search "invoice"`, then `read <id>`.
-- *"Draft a reply to Bob saying I'll be late."* → confirm intent, `draft --to ... --subject ... --body ...`, tell the user it's open for review.
-- *"Email this file to Carol and send it."* → `draft --to carol@... --subject ... --body ... --attach /path/to/file`; confirm recipient + subject + attachment with the user; on their go-ahead, `send`.
-- *"Archive that newsletter."* → `list` (or `search`), identify the `id`, confirm the subject, then `archive <id>`.
-
-## Troubleshooting
-
-- `ping` says `Connection refused` → extension not loaded in the running Firefox
-  (re-load/enable it); host manifest unregistered (`make install-host`); or the
-  launcher's `python3` path moved.
-- Timeout → Firefox not open, Proton tab not loaded, or extension not installed.
-- `send` clicked but composer stayed open → likely a missing recipient or still
-  uploading an attachment; check the tab. `attachWarning` on a draft → the file
-  input wasn't found; run `diagnose` and re-tune `composerAttachmentInput`.
-- Empty/garbled fields → Proton changed its DOM; run `diagnose` and update the
-  extension's `selectors.js`.
+If `read` reports `bodyExtractionFailed`, or an empty body with
+`bodySource: "iframe-blocked"`, report the unreadable body and run `diagnose`.
+Don't infer its contents from the subject. Selector failures may require a bridge
+fix; an attachment warning does not establish a successful upload.
