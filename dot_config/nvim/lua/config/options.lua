@@ -8,6 +8,30 @@ vim.opt.smartindent = true
 -- Relative line numbers, for quick jumps with j/k
 vim.opt.relativenumber = true
 
+-- LazyVim enables `list`, and nvim's default `listchars` marks trailing
+-- whitespace with `-`. Mid-sentence the space you just typed *is* trailing, so a
+-- `-` flickers after every word while typing. Hide the marker in insert mode and
+-- restore it on leaving, so real trailing whitespace is still visible in normal
+-- mode. `listchars` is window-local, so clear any local value the current window
+-- picked up before falling back to the global one.
+local trail = vim.opt.listchars:get().trail
+if trail then
+  vim.api.nvim_create_autocmd("InsertEnter", {
+    desc = "Stop flagging the space being typed as trailing whitespace",
+    callback = function()
+      vim.opt_local.listchars = nil
+      vim.opt.listchars:remove("trail")
+    end,
+  })
+  vim.api.nvim_create_autocmd("InsertLeave", {
+    desc = "Flag trailing whitespace again once out of insert mode",
+    callback = function()
+      vim.opt_local.listchars = nil
+      vim.opt.listchars:append({ trail = trail })
+    end,
+  })
+end
+
 -- Spell-check Dutch as well as English. LazyVim already enables `spell` for
 -- prose filetypes (markdown, text, gitcommit); this just adds the nl dictionary
 -- so Dutch words stop being flagged. First time nvim sees `nl` it offers to
