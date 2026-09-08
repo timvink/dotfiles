@@ -1,8 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Tools referenced by dot_bashrc / dot_bash_aliases.tmpl / dot_gitconfig.tmpl:
-# starship, uv, eza, bat, nvim, trash-cli (rmtrash alias), diff-so-fancy, gh.
+# Tools referenced by dot_bashrc / dot_bash_aliases.tmpl / dot_gitconfig.tmpl or
+# required by Neovim: starship, uv, eza, bat, nvim, ripgrep, trash-cli
+# (rmtrash alias), diff-so-fancy, gh.
 # Idempotent — chezmoi reruns this only when the file's hash changes.
 
 echo "=== chezmoi: installing linux CLI tools ==="
@@ -67,6 +68,10 @@ if [ "$nvim_ok" -eq 0 ]; then
     ln -sf "$HOME/.local/opt/nvim/bin/nvim" "$HOME/.local/bin/nvim"
     rm -rf "$tmp"
 fi
+
+# ripgrep — provides `rg`, which LazyVim uses for project-wide text search
+# (including <leader>sg).
+install_if_missing rg ripgrep
 
 # trash-cli — provides 'trash-put'; bash_aliases aliases 'del' to it on linux
 install_if_missing trash-put trash-cli
