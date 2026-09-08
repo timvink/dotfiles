@@ -28,6 +28,15 @@
 # the one session name `a_b`; the second is then hidden from the list (or jumps
 # you to the first). Accepted — tmux simply can't name those two apart.
 #
+# Alt+n (advertised in the picker footer) makes a NEW project instead: a second
+# fzf acts as a one-line input box, prefilled with whatever was already typed,
+# then mkdir -p ~/workspace/<name> and the same open_project() create-or-switch.
+# The binding is `become(printf …)` rather than a nested prompt inside the
+# picker: fzf's stdout here is the command substitution's pipe, so having the
+# child fzf run there would capture its selection instead of the picker's. So
+# alt-n only *emits a sentinel row* (kind `new`) and the real prompt runs after
+# the picker has exited, back where stdout is ours again.
+#
 # Written bash-3.2-safe (macOS /usr/bin/bash): no associative arrays. Each fzf
 # line is tab-separated  <display>\t<kind>\t<target> ; --with-nth=1 shows only
 # the display column while the selection still carries kind+target to act on.
@@ -178,18 +187,55 @@ emit_project() {
   [ -d "/media/storage/private/timvink-homelab" ] && emit_project "/media/storage/private/timvink-homelab"
 } > "$proj_file"
 
+# Create-or-switch for a project directory: session named after the dir (tmux
+# forbids . and :, so they squash to _), agent in tab 1 and `nvim .` in tab 2.
+open_project() {
+  proj_dir=${1%/}
+  name=${proj_dir##*/}; name=${name//[.:]/_}
+  if ! tmux has-session -t "=$name" 2>/dev/null; then
+    # Capture the new session's pane id for send-keys. send-keys needs a *pane*
+    # target, and the "=name" exact-match form (fine for session lookups like
+    # has-session) does NOT resolve as a pane — it errors, which under set -e
+    # would abort the script before the switch below ever runs.
+    pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$proj_dir")
+    tmux send-keys -t "$pane" {{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }} Enter
+    # Second tab (window) with nvim; no -d so it becomes the selected window.
+    nvim_pane=$(tmux new-window -P -F '#{pane_id}' -t "=$name" -c "$proj_dir")
+    tmux send-keys -t "$nvim_pane" 'nvim .' Enter
+  fi
+  go "$name"
+}
+
+# The alt-n hint line. --footer landed in fzf 0.65; an older fzf (some distro
+# packages) aborts on an unknown flag, and `|| exit 0` below would swallow that
+# into "alt+f does nothing", so fall back to --header there — top of the popup
+# instead of the bottom, but still discoverable.
+hint='alt-n  new project in ~/workspace'
+fzf_minor=$(fzf --version | cut -d. -f2)
+case $fzf_minor in ''|*[!0-9]*) fzf_minor=0 ;; esac
+if [ "$fzf_minor" -ge 65 ]; then
+  hint_args=(--footer "$hint" --color='footer:#6c7086')
+else
+  hint_args=(--header "$hint" --color='header:#6c7086')
+fi
+
 # Interactive picker. --no-sort keeps the two-tier order --rerank hands us;
 # change:reload recomputes it per keystroke; the initial list is the empty-query
 # grouping. fzf still matches {q} to highlight, and drops nothing (every fed line
 # already matched). $0/$sess_file/$proj_file expand now and bake into the bind
 # string; {q} stays literal for fzf to substitute (it shell-quotes the query).
+# alt-n `become`s a printf that emits one sentinel row in the same
+# <display>\t<kind>\t<target> shape, carrying the current query as the proposed
+# project name — see the alt-n note at the top for why it can't prompt in place.
 selected=$(
   "$0" --rerank "$sess_file" "$proj_file" "" \
   | fzf --ansi --no-sort --reverse --cycle --no-multi \
         --delimiter=$'\t' --with-nth=1 \
         --bind "change:reload(\"$0\" --rerank \"$sess_file\" \"$proj_file\" {q})" \
+        --bind "alt-n:become(printf '%s\tnew\t%s\n' new {q})" \
         --border=rounded --border-label=' Projects ' \
         --prompt='  ' --pointer='▶' \
+        "${hint_args[@]}" \
         --color='border:#cba6f7,label:#cba6f7,prompt:#89b4fa,pointer:#f38ba8,bg+:#45475a,fg+:#cdd6f4'
 ) || exit 0
 [ -z "$selected" ] && exit 0
@@ -197,21 +243,37 @@ selected=$(
 kind=$(printf '%s' "$selected" | cut -f2)
 target=$(printf '%s' "$selected" | cut -f3)
 
-if [ "$kind" = session ]; then
-  go "$target"
-else
-  name=${target##*/}; name=${name//[.:]/_}   # basename + squash, as the projects
-                                             # loop above does (tmux forbids . :)
-  if ! tmux has-session -t "=$name" 2>/dev/null; then
-    # Capture the new session's pane id for send-keys. send-keys needs a *pane*
-    # target, and the "=name" exact-match form (fine for session lookups like
-    # has-session) does NOT resolve as a pane — it errors, which under set -e
-    # would abort the script before the switch below ever runs.
-    pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$target")
-    tmux send-keys -t "$pane" {{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }} Enter
-    # Second tab (window) with nvim; no -d so it becomes the selected window.
-    nvim_pane=$(tmux new-window -P -F '#{pane_id}' -t "=$name" -c "$target")
-    tmux send-keys -t "$nvim_pane" 'nvim .' Enter
-  fi
-  go "$name"
-fi
+case $kind in
+  session) go "$target" ;;
+  dir)     open_project "$target" ;;
+  new)
+    # Input box: an fzf over an empty list, so the only thing it can return is
+    # the query. `accept-or-print-query` is what makes enter print it (plain
+    # `accept` has nothing to accept and would exit empty-handed); esc still
+    # aborts, printing nothing, which the emptiness check below treats as
+    # "changed my mind". Prefilled with whatever was typed in the picker.
+    # (Not --print-query: that prints the query on *abort* too, which would turn
+    # esc into "create it anyway".)
+    # --height shrinks it to a small box at the top of the popup instead of a
+    # mostly-empty full-screen list; fzf always keeps one (here blank) list row,
+    # so 4 lines with the border is as short as this gets. --no-info and
+    # --no-separator drop the 0/0 counter and its rule, which have nothing to
+    # say about an empty list.
+    name=$(: | fzf --height=3 --no-info --no-separator --reverse \
+        --bind 'enter:accept-or-print-query' --query="$target" \
+        --border=rounded --border-label=' New project ' \
+        --prompt='  ~/workspace/' \
+        --color='border:#a6e3a1,label:#a6e3a1,prompt:#89b4fa') || true
+    # Trim surrounding whitespace, then bail on empty / path-ish names: a name
+    # with a slash would silently make (or reopen) something outside the flat
+    # one-level layout the picker lists.
+    name=${name#"${name%%[![:space:]]*}"}
+    name=${name%"${name##*[![:space:]]}"}
+    [ -z "$name" ] && exit 0
+    case $name in
+      */*|.|..) tmux display-message "new project: '$name' is not a plain name"; exit 0 ;;
+    esac
+    mkdir -p "$WORKSPACE/$name"
+    open_project "$WORKSPACE/$name"
+    ;;
+esac
