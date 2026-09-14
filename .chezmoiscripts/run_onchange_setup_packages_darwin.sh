@@ -6,6 +6,9 @@
 # this is HOMEBREW_NO_ASK and not HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK.
 export HOMEBREW_NO_ASK=1
 export HOMEBREW_NO_ENV_HINTS=1
+# Homebrew 7 lists every package an auto-update refreshed. Useful interactively,
+# pure noise in an unattended apply log; this keeps the "updated" line only.
+export HOMEBREW_AUTO_UPDATE_QUIET=1
 
 echo "Setting up environment for macOS..."
 

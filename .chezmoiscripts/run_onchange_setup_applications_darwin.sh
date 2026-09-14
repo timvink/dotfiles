@@ -14,6 +14,9 @@
 export HOMEBREW_NO_ASK=1
 # Drop the "Hide these hints with..." advice blocks from the log.
 export HOMEBREW_NO_ENV_HINTS=1
+# Homebrew 7 lists every package an auto-update refreshed. Useful interactively,
+# pure noise in an unattended apply log; this keeps the "updated" line only.
+export HOMEBREW_AUTO_UPDATE_QUIET=1
 
 echo "Setting up environment for macOS..."
 
@@ -70,16 +73,30 @@ brew trust --cask steipete/tap/codexbar
 # exactly that way and no amount of `chezmoi apply` brought it back.) Homebrew
 # keeps a Caskroom symlink pointing at wherever the app really lives, so a deleted
 # app leaves a dangling one: resolve it and treat "installed but gone" as missing.
-# Casks with no app artifact (all the fonts above) list no *.app and always pass.
+#
+# The .app check alone is not enough. A receipt can outlive the staged files
+# entirely, leaving .../Caskroom/<name>/ with nothing in it but .metadata/ and no
+# version directory at all -- which is how netbird-ui sat broken for weeks, since
+# listing no *.app made it indistinguishable from a font cask and it passed. So
+# also require at least one artifact outside .metadata/. Casks that stage
+# something other than an .app (fonts, netbird-ui's netbird_ui_darwin binary)
+# still pass on that count alone.
 cask_artifacts_intact() {
+    staged=0
     while IFS= read -r artifact; do
+        # The empty case is the heredoc's own trailing newline when brew listed
+        # nothing at all, which is itself a cask with no staged artifacts.
+        case "$artifact" in
+            "" | */.metadata/*) continue ;;
+        esac
+        staged=1
         case "$artifact" in
             *.app) [ -e "$artifact" ] || return 1 ;;
         esac
     done <<EOF
 $(brew list --cask "$1" 2>/dev/null)
 EOF
-    return 0
+    [ "$staged" -eq 1 ]
 }
 
 echo "Installing cask apps..."
