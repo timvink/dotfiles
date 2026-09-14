@@ -1,0 +1,57 @@
+#!/bin/sh
+# Force this box's SSH login pty to a given size, so tmux (and everything under
+# it) redraws at the width the terminal on the other end is actually showing.
+#
+# Usage: ssh-pty-resize COLS ROWS
+#
+# Why this exists: resizing the Ghostty window on the Mac is supposed to travel
+# down as a SIGWINCH — Ghostty resizes its local pty, the ssh client relays the
+# signal to its ControlMaster, the master re-reads the size off the session's
+# tty and sends a window-change to sshd, sshd resizes the pty here. Over the
+# devbox's multiplexed connection that chain sometimes drops the resize: the
+# Mac's pty ends up at (say) 269x64 while this one stays at the pre-resize
+# 134x64. tmux then paints a half-width screen into a full-width window and the
+# columns it never writes keep whatever was on them before — the "mangled view"
+# where nvim, Claude Code and everything else is duplicated in a dead right-hand
+# strip. Nothing here can notice on its own: tmux believes the kernel, the
+# kernel believes sshd, and a terminal size query sent through tmux's
+# passthrough never gets its reply back (tmux eats it).
+#
+# So the Mac tells us instead. _devbox_winch_bg (dot_bash_aliases.tmpl) watches
+# the local pty for the whole session and calls this over the existing mux
+# socket whenever the size changes. Setting the size with stty is enough on its
+# own: the kernel delivers SIGWINCH to the pty's foreground process group, tmux
+# re-reads the size and repaints every pane at the new width.
+#
+# Which pty: the session process advertises its own in its argv, as
+# "sshd: user@pts/3". With exactly one such session this is unambiguous. With
+# two we would be guessing — a second terminal of a different size would fight
+# this one — so we decline and leave the size alone. Exit 3 means no session pty
+# was found at all, which is how the watcher knows to try again rather than
+# assume the push landed (it starts before the login shell is necessarily up).
+#
+# Managed by chezmoi (Linux only — the Mac is the side that sends, not receives).
+set -u
+
+if [ $# -ne 2 ]; then
+    echo "usage: ssh-pty-resize COLS ROWS" >&2
+    exit 64
+fi
+cols=$1
+rows=$2
+case "$cols$rows" in
+    '' | *[!0-9]*)
+        echo "ssh-pty-resize: COLS and ROWS must be whole numbers" >&2
+        exit 64
+        ;;
+esac
+
+ttys=$(ps -u "$(id -u)" -o args= | sed -n 's|^sshd: .*@\(pts/[0-9][0-9]*\)$|\1|p' | sort -u)
+
+case $(printf '%s' "$ttys" | grep -c .) in
+    0) exit 3 ;;
+    1) ;;
+    *) exit 0 ;;
+esac
+
+stty -F "/dev/$ttys" cols "$cols" rows "$rows"

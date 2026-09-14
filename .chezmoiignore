@@ -68,5 +68,8 @@ setup_packages_linux.sh
 setup_ghostty_terminfo.sh
 remove-devbox-browser-cruft_linux.sh
 .local/bin/xdg-open
+# The Mac is the side that pushes a window resize down to a Linux box, never the
+# side that receives one — see _devbox_winch_bg in dot_bash_aliases.tmpl.
+.local/bin/ssh-pty-resize
 .config/rbw/config.json
 {{ end }}

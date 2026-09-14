@@ -360,11 +360,17 @@ _devbox_session() {
   # its poll window is only ~30s, which a failed attempt plus a reclaim would burn.
   _revmount_bg_devbox &
   local _mnt=$!
+  # Push window resizes down to the box for as long as the session lasts, because the
+  # connection itself sometimes loses them — see _devbox_winch_bg. Started here rather
+  # than in devbox() for the same reason as the mount waiter: a retried attempt gets a
+  # fresh watcher instead of one already talking to the connection that failed.
+  _devbox_winch_bg "$HOME/.ssh/cm-devbox.sock" "$user" "$host" &
+  local _winch=$!
   # Reset the flag and unmount even if the session dies abruptly (terminal closed →
   # SIGHUP, or killed) and skips the normal cleanup below; the handler clears itself
   # so the trap never leaks into the interactive shell. INT/TERM/HUP behave the same
   # in bash and zsh.
-  trap "_remote_ssh_flag 0; kill $_mnt 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
+  trap "_remote_ssh_flag 0; kill $_mnt $_winch 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
   # The shell itself is a plain mux client, NOT az — and that is what makes exiting
   # instant. az waits on the ssh process it spawns, and under ControlMaster that same
   # process goes on to serve the master, so an az-run session can't return until the
@@ -375,7 +381,7 @@ _devbox_session() {
   # spam the forwards emit (a browser tab still pointing at a devbox:<port> dev server
   # that has since stopped) belong to the master and now land in its log, not here.
   ssh -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o User="$user" "$host"
-  kill "$_mnt" 2>/dev/null
+  kill "$_mnt" "$_winch" 2>/dev/null
   _revumount_devbox
   trap - INT TERM HUP
   return 0
@@ -617,6 +623,42 @@ _revmount_bg_devbox() {
       fi
     fi
     sleep 0.5
+  done
+}
+
+# Keep the box's pty in step with this terminal's real size, for the life of the
+# session. Resizing the Ghostty window is meant to travel down as a SIGWINCH —
+# Ghostty resizes the local pty, ssh relays the signal to the master, the master
+# re-reads the size off the session's tty and sshd resizes the pty over there. On
+# the devbox's az-brokered multiplexed connection that chain sometimes drops the
+# resize, leaving the box at the pre-resize width while Ghostty shows the new one:
+# 134 columns against 269. tmux paints half a screen, the columns it never writes
+# keep whatever was on them before, and nvim or Claude Code appears duplicated in a
+# dead right-hand strip. The box cannot spot this on its own — tmux believes the
+# kernel, the kernel believes sshd, and a size query sent through tmux's passthrough
+# never gets its reply back. See ~/.local/bin/ssh-pty-resize.
+#
+# So push the size from this end: poll the local pty (a bare ioctl, no round trip)
+# and on every change tell the box over the master socket already carrying the
+# session. A one-second beat is far quicker than noticing a garbled screen yourself,
+# and costs nothing while the window sits still. $1=socket $2=user $3=host.
+# Launch backgrounded with a trailing &.
+_devbox_winch_bg() {
+  local sock=$1 user=$2 host=$3 size last=""
+  while :; do
+    sleep 1
+    # /dev/tty rather than stdin: this runs in the background, where stdin may have
+    # been handed elsewhere. It failing means the terminal is gone, and so are we.
+    size=$(stty size </dev/tty 2>/dev/null) || return 0
+    [ "$size" = "$last" ] && continue
+    # stty prints "rows cols" and ssh-pty-resize takes them the other way round.
+    # -n so a background ssh can never eat keystrokes meant for the session.
+    # Only a clean exit counts as pushed: 3 is "no login pty over there yet", which
+    # the first pass often hits, since this starts alongside the session not after it.
+    if ssh -n -o ControlPath="$sock" -o User="$user" "$host" \
+         "~/.local/bin/ssh-pty-resize ${size#* } ${size%% *}" >/dev/null 2>&1; then
+      last=$size
+    fi
   done
 }
 
