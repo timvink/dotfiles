@@ -220,48 +220,66 @@ pi() {
     OPENROUTER_API_KEY="$key" command pi "$@"
 }
 
-# Mark a remote SSH session as live, so Ghostty's ⌘V knows to upload a clipboard
-# image to the box instead of handing it to a local app. Pass 1 on connect, 0 on
-# disconnect. ssh-image-paste tests for this file.
+# Mark THIS Ghostty window as being in a session on <host>, so its ⌘V uploads a
+# clipboard image to that box instead of handing it to a local app. Pass the host
+# to mark, nothing to clear. ssh-image-paste reads it back.
 #
-# Why a file and not the ControlMaster socket it uploads over: ControlPersist
-# keeps that socket warm for 30m AFTER you disconnect, so probing it alone would
-# treat a local Ghostty window as remote for half an hour and type a path into it
-# that nothing local can open. The socket answers "which host", this answers
-# "am I in a session at all".
+# The channel is OSC 7, the escape a shell uses to tell the terminal its working
+# directory: we report a marker path instead, .../remote-window/<host>, and
+# Ghostty hands it back per surface as the window's AXDocument. That makes the
+# mark per WINDOW, which a file next to the cm-*.sock files could never be — with
+# one global flag, a devbox open in one window sent an image ⌘V in another, local
+# window to the box and typed back a path this Mac doesn't have.
 #
-# It sits next to the cm-*.sock files it pairs with. Both devbox() and homelab()
-# also clear it via a signal trap, so an abruptly-killed session (terminal window
-# closed → SIGHUP) can't leave it stuck and hijack ⌘V in local Ghostty windows.
-# See ~/.local/bin/ssh-image-paste.
-REMOTE_SSH_FLAG="$HOME/.ssh/remote-session-active"
-_remote_ssh_flag() {
-  if [ "$1" = 1 ]; then : > "$REMOTE_SSH_FLAG"; else rm -f "$REMOTE_SSH_FLAG"; fi
+# The marker directory is never created. A new tab opened from a marked window
+# inherits its cwd, and inheriting a real one would mark that fresh local tab too.
+#
+# Clearing is belt-and-braces: Ghostty's shell integration reports $PWD at every
+# prompt anyway, so the marker cannot outlive the session even if a wrapper is
+# killed outright. Both devbox() and homelab() still clear it on the way out and
+# from their signal traps. See ~/.local/bin/ssh-image-paste.
+REMOTE_WINDOW_MARK="$HOME/.ssh/remote-window"
+_remote_window() {
+  if [ -n "$1" ]; then
+    printf '\033]7;file://%s%s/%s\a' "$(hostname)" "$REMOTE_WINDOW_MARK" "$1" > /dev/tty 2>/dev/null
+  else
+    printf '\033]7;file://%s%s\a' "$(hostname)" "$PWD" > /dev/tty 2>/dev/null
+  fi
+}
+
+# tmux eats OSC 7 instead of forwarding it, so a session started inside a tmux
+# pane can't mark its window and its ⌘V stays local. Say so once, on the way in,
+# rather than let the upload silently not happen.
+_remote_window_warn_tmux() {
+  [ -n "$TMUX" ] && printf '%s\n' "$1: inside tmux — an image ⌘V will paste locally, not upload" >&2
+  return 0
 }
 
 ## Home server
 # SSH into the homelab and drop into the timvink-homelab repo. A function, not an
-# alias, so — like devbox() below — it can flag the image-paste session (see
-# _remote_ssh_flag) for the duration of the connection. The upload rides the
-# reusable ControlMaster socket set up in ~/.ssh/config's `Host homelab` block.
+# alias, so — like devbox() below — it can mark this window as the image-paste
+# session (see _remote_window) for the duration of the connection. The upload
+# rides the reusable ControlMaster socket set up in ~/.ssh/config's `Host
+# homelab` block.
 homelab() {
-  _remote_ssh_flag 1
+  _remote_window homelab
+  _remote_window_warn_tmux homelab
   # Auto-mount ~/Downloads (read-write) at homelab:~/mac-downloads for this session
   # (see the reverse-mount helpers below); the backgrounded waiter brings it up once
   # the master is live, and it's torn down on exit. $_mnt is that waiter, killed in
   # case it's still polling when we leave.
   _revmount_bg homelab homelab &
   local _mnt=$!
-  # Reset the flag and unmount even if the session dies abruptly (terminal closed →
-  # SIGHUP, or killed) and skips the normal cleanup below; the handler clears itself
-  # so the trap never leaks into the interactive shell. INT/TERM/HUP behave the same
-  # in bash and zsh.
-  trap "_remote_ssh_flag 0; kill $_mnt 2>/dev/null; _revumount homelab homelab; trap - INT TERM HUP" INT TERM HUP
+  # Clear the window marker and unmount even if the session dies abruptly (terminal
+  # closed → SIGHUP, or killed) and skips the normal cleanup below; the handler clears
+  # itself so the trap never leaks into the interactive shell. INT/TERM/HUP behave the
+  # same in bash and zsh.
+  trap "_remote_window; kill $_mnt 2>/dev/null; _revumount homelab homelab; trap - INT TERM HUP" INT TERM HUP
   ssh -t homelab "cd /media/storage/private/timvink-homelab/ && exec \$SHELL -l"
   kill "$_mnt" 2>/dev/null
   _revumount homelab homelab
   trap - INT TERM HUP
-  _remote_ssh_flag 0
+  _remote_window
 }
 
 # Unlock the encrypted ZFS dataset on the homelab after a reboot and
@@ -313,18 +331,19 @@ zfs_unlock() {
 #            open-url-listener here so links open in this Mac's browser.
 # A third option rides it too: -o ControlMaster lets `ssh-image-paste` reuse this
 # connection to stream a clipboard image into the box's /tmp on ⌘V. `devbox` is a
-# function (not an alias) so it can also flag the image-paste session (see
-# _remote_ssh_flag) for the session's duration; the same flag is shared with
-# homelab() above. See ~/.local/bin/xdg-open (box), and ~/.local/bin/open-url-listener +
-# ~/.local/bin/ssh-image-paste (this Mac).
+# function (not an alias) so it can also mark this window as the image-paste
+# session (see _remote_window) for the session's duration; homelab() above marks
+# its own window the same way. See ~/.local/bin/xdg-open (box), and
+# ~/.local/bin/open-url-listener + ~/.local/bin/ssh-image-paste (this Mac).
 #
 # The session itself is _devbox_session below; this wrapper owns only the Karabiner
-# flag and the one retry. If the box refuses the -R 2489 bind because a dead session
+# marker and the one retry. If the box refuses the -R 2489 bind because a dead session
 # still holds the port, _devbox_reclaim_fwd clears it and we reconnect once. A second
 # failure means something is holding it that the reclaim deliberately won't kill (it
 # prints which), so we stop rather than loop.
 devbox() {
-  _remote_ssh_flag 1
+  _remote_window devbox
+  _remote_window_warn_tmux devbox
   local rc
   _devbox_session; rc=$?
   if [ "$rc" -eq 2 ] && _devbox_reclaim_fwd; then
@@ -334,7 +353,7 @@ devbox() {
     _revumount_devbox
     _devbox_session
   fi
-  _remote_ssh_flag 0
+  _remote_window
 }
 
 # One connect attempt: make sure a usable master exists, ride it into an interactive
@@ -366,11 +385,11 @@ _devbox_session() {
   # fresh watcher instead of one already talking to the connection that failed.
   _devbox_winch_bg "$HOME/.ssh/cm-devbox.sock" "$user" "$host" &
   local _winch=$!
-  # Reset the flag and unmount even if the session dies abruptly (terminal closed →
-  # SIGHUP, or killed) and skips the normal cleanup below; the handler clears itself
-  # so the trap never leaks into the interactive shell. INT/TERM/HUP behave the same
-  # in bash and zsh.
-  trap "_remote_ssh_flag 0; kill $_mnt $_winch 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
+  # Clear the window marker and unmount even if the session dies abruptly (terminal
+  # closed → SIGHUP, or killed) and skips the normal cleanup below; the handler clears
+  # itself so the trap never leaks into the interactive shell. INT/TERM/HUP behave the
+  # same in bash and zsh.
+  trap "_remote_window; kill $_mnt $_winch 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
   # The shell itself is a plain mux client, NOT az — and that is what makes exiting
   # instant. az waits on the ssh process it spawns, and under ControlMaster that same
   # process goes on to serve the master, so an az-run session can't return until the
