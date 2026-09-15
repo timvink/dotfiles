@@ -64,22 +64,37 @@ BLUE = "\033[38;2;137;180;250m"  # blue     #89b4fa
 TEXT = "\033[38;2;205;214;244m"  # text     #cdd6f4
 TRACK = "\033[38;2;69;71;90m"  # surface1   #45475a
 
-# The fill is a segmented bar; the track is a thin rule.
+# The fill is a segmented bar at half-cell resolution; the track is a thin rule.
 #
-# The fill glyph has to sit on the text's centre line, or it reads as having
-# slipped a line away from the plan and label beside it — which is what a half
-# block (▄), hung at the bottom of its cell, did. It also has to leave the
-# cell's top and bottom empty, or stacked rows fuse into one slab and a
-# provider's three windows stop being three — which is what a full block (█)
-# did. A vertical rectangle does both: discrete segments with a block's weight.
+# A cell is as narrow as a terminal gets, so finer segments mean fitting more
+# than one into a cell rather than drawing a smaller glyph. Braille has two dot
+# columns per character, which puts the fill on a 24-step scale in the twelve
+# columns a 12-step one used, each step a narrow pair of dots. Dots 2,3,5,6 are
+# the cell's middle two rows, so the mark sits on the text's centre line — the
+# half block (▄) hung below it and read as a line adrift from the plan and label
+# beside it. Dots also leave the cell's top and bottom empty, so stacked rows
+# stay three rows; a full block (█) fused them into one slab.
 #
 # The track is not a second bar and should not be drawn like one. An outlined
 # rectangle (▯) has as many strokes as the fill, so twelve of them per row, on
 # every row including the empty ones, crowded the screen with the part that
 # carries no reading. A rule in surface1 says the same thing — here is the scale
 # the fill is measured against — and then gets out of the way.
+#
+# Without colour the fill and track have to differ by glyph alone, so that
+# variant rules the bar in heavy and light instead, ╸ being the half step.
 BAR_CELLS = 12
-BAR_GLYPHS = {True: ("▮", "─"), False: ("━", "─")}
+BAR_STEPS = BAR_CELLS * 2
+BAR_GLYPHS = {True: ("⠶", "⠆", "─"), False: ("━", "╸", "─")}
+
+
+def bar_of(pct):
+    """The bar for a percentage, BAR_CELLS wide, rounded to the nearest half."""
+    full, half, track = BAR_GLYPHS[COLOR]
+    steps = min(BAR_STEPS, max(0, round(pct / 100 * BAR_STEPS)))
+    cells, odd = divmod(steps, 2)
+    fill = full * cells + (half if odd else "")
+    return paint(fill, tone(pct)) + paint(track * (BAR_CELLS - cells - odd), TRACK)
 
 COLOR = True
 
@@ -566,11 +581,7 @@ def render(providers):
             if pct is None:
                 bar, num = " " * BAR_CELLS, "   ?"
             else:
-                filled = min(BAR_CELLS, max(0, round(pct / 100 * BAR_CELLS)))
-                full, empty = BAR_GLYPHS[COLOR]
-                bar = paint(full * filled, tone(pct)) + paint(
-                    empty * (BAR_CELLS - filled), TRACK
-                )
+                bar = bar_of(pct)
                 num = paint(f"{round(pct):>3}%", tone(pct))
 
             clock, rel = when(r["resets_at"])
