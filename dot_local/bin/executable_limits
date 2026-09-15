@@ -64,18 +64,22 @@ BLUE = "\033[38;2;137;180;250m"  # blue     #89b4fa
 TEXT = "\033[38;2;205;214;244m"  # text     #cdd6f4
 TRACK = "\033[38;2;69;71;90m"  # surface1   #45475a
 
-# Segmented bars, and both halves of the pair have to earn their shape. The
-# glyph must sit on the text's centre line, or it reads as having slipped a line
-# away from the plan and label beside it — which is what a half block (▄), hung
-# at the bottom of its cell, did. It must also leave the cell's top and bottom
-# empty, or stacked rows fuse into one slab and a provider's three windows stop
-# being three — which is what a full block (█) did. A vertical rectangle does
-# both: discrete segments with the weight of a block. The unused track keeps the
-# same shape in surface1, dark enough to recede but bright enough to show the
-# scale a bar is measured against. Without colour the two must differ by glyph
-# alone, so that variant keeps the heavy and light rules.
+# The fill is a segmented bar; the track is a thin rule.
+#
+# The fill glyph has to sit on the text's centre line, or it reads as having
+# slipped a line away from the plan and label beside it — which is what a half
+# block (▄), hung at the bottom of its cell, did. It also has to leave the
+# cell's top and bottom empty, or stacked rows fuse into one slab and a
+# provider's three windows stop being three — which is what a full block (█)
+# did. A vertical rectangle does both: discrete segments with a block's weight.
+#
+# The track is not a second bar and should not be drawn like one. An outlined
+# rectangle (▯) has as many strokes as the fill, so twelve of them per row, on
+# every row including the empty ones, crowded the screen with the part that
+# carries no reading. A rule in surface1 says the same thing — here is the scale
+# the fill is measured against — and then gets out of the way.
 BAR_CELLS = 12
-BAR_GLYPHS = {True: ("▮", "▯"), False: ("━", "─")}
+BAR_GLYPHS = {True: ("▮", "─"), False: ("━", "─")}
 
 COLOR = True
 
