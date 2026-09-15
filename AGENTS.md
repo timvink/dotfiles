@@ -3,6 +3,11 @@
 Chezmoi-managed dotfiles for one developer. Work directly on `main`; no PR
 workflow. Support macOS and Linux (including remote VMs over SSH).
 
+- Commit each logical chunk of finished work, without being asked — this
+  overrides the assistant default of committing only on request. Finished means
+  applied and verified, not merely written. Stage by path, never `git add -A`:
+  the working tree often holds unrelated drift from an installer or another
+  session. One commit per change, with the why in the message.
 - Prefer `alt` + vim-direction keys for navigation, consistent with tmux and
   VSCode. Keep binding rationale beside its configuration.
 - Apps that write their own configuration use `modify_` scripts. Inject managed
