@@ -537,6 +537,11 @@ def render(providers):
 
     lines = []
     for provider in providers:
+        # A blank line between providers. Without it the bars of one provider run
+        # straight into the next one's and the eye has to use the name column,
+        # far to the left, to find where claude stops and codex starts.
+        if lines:
+            lines.append("")
         head = paint(provider["name"].ljust(name_w), TEXT)
         plan = paint((provider.get("plan") or "").ljust(plan_w), DIM) if plan_w else ""
 
