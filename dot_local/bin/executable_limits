@@ -23,6 +23,7 @@ Where the numbers come from, since none of the CLIs ships a `usage` subcommand:
           and chatgpt.com refuses a plain curl anyway.
 
   agy     a cache the agy status line writes (see dot_gemini/.../statusline.sh).
+          Its third-party buckets stay hidden until something spends them.
           Antigravity's quota lives behind an RPC that 403s for anything but the
           real client, but agy hands the same buckets to its status line on every
           state change — so the reading is as fresh as your last agy session and
@@ -364,6 +365,15 @@ def fetch_codex():
 
 AGY_CACHE = os.path.expanduser("~/.gemini/antigravity-cli/cache/quota.json")
 
+# agy meters the non-Google models it serves — Claude Sonnet/Opus, GPT-OSS —
+# against their own "3p" (third-party) buckets, separate from the gemini ones.
+# Nothing here routes through them, so their 5h and weekly rows were a permanent
+# pair of empty bars taking a quarter of the screen. Hidden while they stay
+# untouched rather than dropped outright: a tank that quietly stopped being
+# reported the moment something started drawing on it would be worse than a
+# noisy one, and this is the command you check to avoid exactly that surprise.
+AGY_HIDE_WHILE_UNUSED = ("3p",)
+
 
 BUCKET_FIELDS = ("remaining_fraction", "remainingFraction", "remaining_amount")
 WINDOW_TOKEN = re.compile(r"^(\d+[hmd]|weekly|daily|monthly|hourly)$", re.IGNORECASE)
@@ -438,6 +448,8 @@ def fetch_agy():
         # Group a model's windows together, shortest window first, so 3p's 5h and
         # weekly sit next to each other instead of interleaving with gemini's.
         model = label.split(" · ")[-1]
+        if model in AGY_HIDE_WHILE_UNUSED and not pct:
+            continue
         ordered.append((model, reset or 0, row(label, pct, reset, None if left is None else f"{left} left")))
 
     rows = [entry[2] for entry in sorted(ordered, key=lambda e: (e[0], e[1]))]
