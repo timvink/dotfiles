@@ -64,13 +64,16 @@ BLUE = "\033[38;2;137;180;250m"  # blue     #89b4fa
 TEXT = "\033[38;2;205;214;244m"  # text     #cdd6f4
 TRACK = "\033[38;2;69;71;90m"  # surface1   #45475a
 
-# Half-height blocks, not ▓/░: full-height ones tile into a single slab down the
-# column and you can no longer tell one provider's bars from the next one's. A
-# lower half block leaves the top of every cell empty, so each bar reads as its
-# own line. The unused part of the track stays visible in surface1, dark enough
-# to recede but bright enough to show the scale a bar is measured against.
+# Full-height blocks. A half block (▄) hangs at the bottom of its cell while the
+# plan and label beside it sit on the text's centre line, so the bar read as if
+# it had slipped a line; a full block fills the cell and centres on the same
+# line. Full blocks used to tile into one slab down the column, but the blank
+# line between providers now does that separating instead. Without colour the
+# track and the fill would be the same glyph, so that variant keeps the rules.
+# The unused track stays visible in surface1, dark enough to recede but bright
+# enough to show the scale a bar is measured against.
 BAR_CELLS = 12
-BAR_GLYPHS = {True: ("▄", "▄"), False: ("━", "─")}
+BAR_GLYPHS = {True: ("█", "█"), False: ("━", "─")}
 
 COLOR = True
 
@@ -543,7 +546,10 @@ def render(providers):
         if lines:
             lines.append("")
         head = paint(provider["name"].ljust(name_w), TEXT)
-        plan = paint((provider.get("plan") or "").ljust(plan_w), DIM) if plan_w else ""
+        # Right-aligned: the plan belongs to the bar beside it, not to the
+        # name on its left, and ljust left a ragged gap between "max" and the
+        # bar that read as a missing column.
+        plan = paint((provider.get("plan") or "").rjust(plan_w), DIM) if plan_w else ""
 
         if provider.get("error"):
             lines.append(f"  {head}  {plan}  {paint(provider['error'], DIM)}".rstrip())
