@@ -4,3 +4,8 @@
 # Renamed to tmux-pane-close: Alt+e now closes agent, nvim and shell tabs alike,
 # so "agent-exit-pane" no longer described it.
 .local/bin/agent-exit-pane
+
+# CodexBar (menu bar usage monitor) is gone: `limits` covers the same quotas from
+# the terminal, so the app, its login LaunchAgent and its provider config go too.
+Library/LaunchAgents/com.timvink.codexbar.plist
+.config/codexbar
