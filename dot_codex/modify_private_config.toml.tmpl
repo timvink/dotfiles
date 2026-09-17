@@ -159,6 +159,28 @@ url = "https://mcp.notion.com/mcp"
 [mcp_servers.cloudflare]
 url = "https://mcp.cloudflare.com/mcp"
 
+# NWF Kwartaalplanner. Entra ondersteunt geen dynamic client registration, dus
+# Codex gebruikt de bestaande app-registratie als vooraf geregistreerde public
+# client. Codex 0.154 negeert de scope uit protected-resource discovery; leg
+# daarom de API-scope plus de scopes voor identiteit en token-refresh hier vast.
+# Daarna werkt `codex mcp login kwartaalplanner` zonder extra argumenten.
+[mcp_servers.kwartaalplanner]
+url = "https://kwartaalplanner.warmtefonds.nl/mcp"
+scopes = ["openid", "profile", "email", "offline_access", "https://kwartaalplanner.warmtefonds.nl/mcp/mcp.tools"]
+# De app schaalt na een uur naar nul. Wacht op de cold-start, zodat de eerste
+# gebruikersvraag de kwartaalplanner-tools al in de toolcatalogus ziet.
+#
+# Bewust geen `required = true`: Entra's conditional access begrenst de
+# refresh-token op zeven dagen (AADSTS70043), dus na een week vakantie mislukt
+# de token-refresh. Met `required` is dat fataal en start Codex helemaal niet
+# meer; zonder blijft het een waarschuwing en helpt `codex mcp login
+# kwartaalplanner` je weer verder.
+startup_timeout_sec = 45
+
+[mcp_servers.kwartaalplanner.oauth]
+client_id = "0a5796bd-ce35-45e3-b71e-98cdfa308f85"
+callback_url = "http://127.0.0.1/callback/t9pPE-0kAm0z"
+
 # gethumandesign is deliberately NOT declared here. It ships as an official
 # plugin in OpenAI's directory, so `/plugins` inside Codex installs it and
 # handles its own OAuth. A manual entry would duplicate those tools and sit
