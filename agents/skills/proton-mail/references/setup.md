@@ -14,16 +14,38 @@ times out, tell the user what's missing instead of retrying blindly.
 
 A `Connection refused` from `ping` almost always means the **extension isn't
 active** in the running Firefox — the native host is spawned by the extension, so
-no active extension → no host → dead socket. Walk the user through it, in order:
+no active extension → no host → dead socket.
 
-- **Enable it** (installed but switched off): Firefox → `about:addons` →
-  Extensions → toggle **Proton LLM Bridge** on → reload the `mail.proton.me` tab.
-- **Re-load it** (was only a temporary add-on — those are wiped on every Firefox
-  restart): open `about:debugging#/runtime/this-firefox` → *Load Temporary
-  Add-on…* → pick `extension/manifest.json` → reload the Proton tab.
-- **Install it permanently** (survives restarts): `make sign` to produce a signed
-  `.xpi`, then `about:addons` → gear → *Install Add-on From File…* → pick the
-  `.xpi` from `web-ext-artifacts/`. Then reload the Proton tab.
+First find out which case it is, rather than guessing. Check whether the extension
+is installed in any profile at all:
 
-After any of these, `proton-bridge ping` should report `loggedIn: true`.
+```sh
+grep -l 'proton-llm-bridge@local' ~/Library/Application\ Support/Firefox/Profiles/*/extensions.json
+```
+
+No match means it was never installed permanently — it was loaded as a temporary
+add-on, and those are wiped on every Firefox restart. That is the usual cause of a
+bridge that worked yesterday and not today.
+
+**Fix it permanently, don't reload a temporary add-on.** A signed `.xpi` is
+normally already sitting in the bridge project's `web-ext-artifacts/`; `make sign`
+is only needed when the extension itself changed. Opening that file in Firefox
+pops the install prompt directly, which skips the `about:debugging` file-picker
+dance:
+
+```sh
+open -a Firefox <project>/web-ext-artifacts/<id>-<version>.xpi   # Linux: firefox <path>
+```
+
+The user then clicks **Add** in Firefox and reloads the `mail.proton.me` tab.
+That click is theirs to make: the assistant's browser automation drives Chrome,
+not Firefox, so it cannot reach `about:addons` or an install dialog. Say so
+plainly instead of offering to click it.
+
+If a match *was* found, the extension is installed but switched off: Firefox →
+`about:addons` → Extensions → toggle **Proton LLM Bridge** on → reload the tab.
+
+After any of these, `proton-bridge ping` should report `loggedIn: true`. A reload
+of the Proton tab is often unnecessary once the extension is active — ping before
+asking the user for more steps.
 
