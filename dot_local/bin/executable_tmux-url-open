@@ -77,9 +77,25 @@ servers=$(
 )
 
 # ---- URLs in the current pane -----------------------------------------------
-# -J joins wrapped lines so a split URL comes back whole. Two kinds are matched
-# (one alternation, leftmost-longest so a scheme URL always wins over its bare
-# tail at the same spot):
+# Lines come from capture-pane -J, which rejoins what the TERMINAL wrapped at the
+# pane edge. It does nothing for a line the APPLICATION broke itself: Claude Code
+# word-wraps its own output at a width of its choosing and re-indents the
+# continuation to that block's gutter, so a URL longer than that width lands as
+# two hard lines and used to be picked up truncated at the break (an OAuth link
+# losing its &state= tail, for instance). So we re-join those ourselves first,
+# only when all three hold:
+#   * the previous physical line ran to its block's wrap column — the widest line
+#     sharing its indent, ignoring the over-wide ones -J already joined. A line
+#     that merely ENDS with a URL stops short of that column, because the next
+#     word is what did not fit;
+#   * that line ends inside a URL, with no space between the URL and the break;
+#   * the next line, minus its gutter, opens with a long run (>= 12) of URL
+#     characters — wrapped prose resumes with a short word and then a space.
+# Together those separate ".../docs" + "for the details" (leave alone) from a
+# genuinely split token (join). Joining repeats, so a URL may span three lines.
+#
+# Then two kinds of URL are matched (one alternation, leftmost-longest so a
+# scheme URL always wins over its bare tail at the same spot):
 #   1. scheme URLs: https?://…
 #   2. bare domains: host.tld[/path] with no scheme, e.g. dashboard.stripe.com/x.
 #      Bare matching is gated on a curated TLD list (see $tld) so it fires on
@@ -106,10 +122,42 @@ tld='com|org|net|edu|gov|mil|int|info|biz|io|dev|app|ai|co|xyz|online|site|tech|
 if [ "$mode" = open ]; then
     urls=$(
         tmux capture-pane -J -p \
-            | TLD="$tld" perl -ne '
+            | TLD="$tld" COLS="$(tmux display-message -p '#{pane_width}')" perl -e '
                 my $c = qr/[A-Za-z0-9._~:\/?#\@!\$&()*+,;=%-]/;
-                while (/(https?:\/\/$c+)|(?<![A-Za-z0-9\@_.\-])((?:[A-Za-z0-9-]+\.)+(?:$ENV{TLD})\b(?::[0-9]+)?(?:\/$c*)?)/g) {
-                    print defined($1) ? "$1\n" : "$2\n";
+                my @lines = <STDIN>; chomp @lines; s/\s+$// for @lines;
+                my $cols = $ENV{COLS} || 200;
+
+                # Wrap column per indent level: the widest line at that gutter
+                # that the terminal did NOT wrap (anything wider than the pane is
+                # a line -J already stitched together, so it proves nothing).
+                my %wrap;
+                for my $l (@lines) {
+                    next if length($l) > $cols;
+                    my ($ind) = $l =~ /^(\s*)/;
+                    my $n = length($ind);
+                    $wrap{$n} = length($l) if length($l) > ($wrap{$n} // 0);
+                }
+
+                my @merged; my $i = 0;
+                while ($i <= $#lines) {
+                    my $buf = $lines[$i]; my $prev = $lines[$i];
+                    while ($i < $#lines) {
+                        my ($ind) = $prev =~ /^(\s*)/;
+                        my $w = $wrap{length($ind)} // 0;
+                        last unless length($prev) && length($prev) >= $w - 2;
+                        last unless $buf =~ m{https?://$c*$};
+                        (my $cont = $lines[$i+1]) =~ s/^\s+//;
+                        my ($run) = $cont =~ /^($c+)/;
+                        last unless defined($run) && length($run) >= 12;
+                        $buf .= $cont; $i++; $prev = $lines[$i];
+                    }
+                    push @merged, $buf; $i++;
+                }
+
+                for my $l (@merged) {
+                    while ($l =~ /(https?:\/\/$c+)|(?<![A-Za-z0-9\@_.\-])((?:[A-Za-z0-9-]+\.)+(?:$ENV{TLD})\b(?::[0-9]+)?(?:\/$c*)?)/g) {
+                        print defined($1) ? "$1\n" : "$2\n";
+                    }
                 }
             ' \
             | sed -E 's/[.,;:)]+$//' \
