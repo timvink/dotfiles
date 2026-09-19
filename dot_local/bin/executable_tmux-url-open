@@ -135,7 +135,14 @@ if [ "$mode" = pick ]; then
             if [ "$kind" = kil ]; then
                 tmux send-keys -t "$payload" C-c
             else
-                "$opener" "$payload" >/dev/null 2>&1 &
+                # Hand the open to the tmux SERVER, not this shell: we are the
+                # popup's process, and tmux tears the popup down the moment fzf
+                # returns, SIGHUPing our process group before a backgrounded
+                # `open`/`xdg-open` has launched anything. run-shell -b runs it
+                # outside the popup, so it survives (same reason `q` uses it).
+                # tmuxfmt too: run-shell expands formats, so a bare '#(' in a
+                # URL fragment would otherwise run as a command substitution.
+                tmux run-shell -b "$opener '$(tmuxfmt "$(shquote "$payload")")'"
             fi
             ;;
     esac
