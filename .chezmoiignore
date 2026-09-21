@@ -1,9 +1,9 @@
 # This repo's own docs and project agent-instructions, not dotfiles for $HOME.
-# AGENTS.md is the canonical file (read by Codex/Antigravity/etc.); CLAUDE.md is
-# a symlink to it because Claude Code reads CLAUDE.md, not AGENTS.md. Ignore both.
+# AGENTS.md is the only project-instructions file: every agent reads it directly
+# now that Claude Code 2.1.277+ falls back to AGENTS.md in a project with no
+# CLAUDE.md, so the CLAUDE.md symlink that used to sit beside it is gone.
 README.md
 AGENTS.md
-CLAUDE.md
 
 # Python bytecode caches. tmux-overview is a python script, so running it from
 # the source dir drops a __pycache__ next to it; chezmoi would then treat that
