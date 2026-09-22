@@ -50,7 +50,6 @@ CASKS=(
     firefox
     # codex is deliberately NOT here — it moved to the npm build in
     # run_onchange_setup_packages_darwin.sh. See the comment there.
-    steipete/tap/codexbar
     handy
     nextcloud
     ghostty
@@ -63,16 +62,14 @@ CASKS=(
 # definitions without an interactive prompt. Required for the netbird-ui
 # cask below, and stops later `brew` runs from refusing to load the tap.
 brew trust netbirdio/tap
-# Same for the codexbar cask (steipete's tap) in CASKS above — once tap-trust
-# becomes mandatory, a fresh `brew install --cask` would otherwise refuse it.
-brew trust --cask steipete/tap/codexbar
 
 # `brew list --cask` answers from Homebrew's receipts alone, so a cask whose app
 # has since been dragged to the Trash still reports as installed -- the loop below
-# skips it and the CASKS list quietly stops meaning anything. (CodexBar vanished
-# exactly that way and no amount of `chezmoi apply` brought it back.) Homebrew
-# keeps a Caskroom symlink pointing at wherever the app really lives, so a deleted
-# app leaves a dangling one: resolve it and treat "installed but gone" as missing.
+# skips it and the CASKS list quietly stops meaning anything. (CodexBar, since
+# removed from this setup, vanished exactly that way and no amount of `chezmoi
+# apply` brought it back.) Homebrew keeps a Caskroom symlink pointing at wherever
+# the app really lives, so a deleted app leaves a dangling one: resolve it and
+# treat "installed but gone" as missing.
 #
 # The .app check alone is not enough. A receipt can outlive the staged files
 # entirely, leaving .../Caskroom/<name>/ with nothing in it but .metadata/ and no
@@ -101,7 +98,7 @@ EOF
 
 echo "Installing cask apps..."
 for cask in "${CASKS[@]}"; do
-    cask_name="${cask##*/}"  # strip tap prefix (e.g. steipete/tap/codexbar -> codexbar)
+    cask_name="${cask##*/}"  # strip tap prefix (e.g. netbirdio/tap/netbird-ui -> netbird-ui)
     if ! brew list --cask "$cask_name" &>/dev/null 2>&1; then
         # --adopt takes ownership of an app that is already in /Applications but
         # was NOT installed by brew (installed by hand, or by the app's own

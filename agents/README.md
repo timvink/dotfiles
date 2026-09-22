@@ -20,10 +20,14 @@ in each location:
   (its `.system/` is reserved), Antigravity (the `agy` CLI / Gemini) scans
   `~/.gemini/config/skills/` for global skills. Same `SKILL.md` format (folder +
   YAML frontmatter), three dirs.
-- **Instructions**: Codex reads `~/.codex/AGENTS.md` natively. Claude reads
-  `CLAUDE.md`, **not** AGENTS.md — so `~/.claude/CLAUDE.md` is a symlink to this
-  `AGENTS.md` (Claude follows it). Antigravity (the `agy` CLI / Gemini) reads
-  `~/.gemini/GEMINI.md`, which is likewise a symlink to this `AGENTS.md`.
+- **Instructions**: Codex reads `~/.codex/AGENTS.md` natively. Claude Code's
+  AGENTS.md support (2.1.277+) is **project-scoped only** — a project with no
+  `CLAUDE.md` of its own gets its `AGENTS.md` instead — and never applies to the
+  user-level file: `~/.claude/AGENTS.md` is not read, not even with
+  `~/.claude/CLAUDE.md` absent or `instructionFiles` set to
+  `claude-md-and-agents-md`. So `~/.claude/CLAUDE.md` stays a symlink to this
+  `AGENTS.md`. Antigravity (the `agy` CLI / Gemini) reads `~/.gemini/GEMINI.md`,
+  which is likewise a symlink to this `AGENTS.md`.
 
 Because the symlinks point straight at this repo, editing a file here is instantly
 live in every tool — there is no applied copy. `agents/` is `.chezmoiignore`d so
@@ -54,7 +58,10 @@ is how pi creates them; session transcripts land in `~/.pi/agent/sessions/`.
 
 pi also scans `~/.agents/skills/` on its own. That directory is not chezmoi-managed
 — a separate skill installer owns it, tracking what it put there in
-`~/.agents/.skill-lock.json` — and pi picks those up without any wiring.
+`~/.agents/.skill-lock.json` — and pi picks those up without any wiring. Claude
+Code does **not** read `~/.agents/skills/`; the only place that path appears in
+Claude Code is its `/import` scanner, which *copies* skills out of it. A skill
+that must reach Claude belongs in `agents/skills/` here.
 
 ## How the links are created (on `chezmoi apply`)
 

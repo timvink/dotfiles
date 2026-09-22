@@ -23,6 +23,7 @@ Where the numbers come from, since none of the CLIs ships a `usage` subcommand:
           and chatgpt.com refuses a plain curl anyway.
 
   agy     a cache the agy status line writes (see dot_gemini/.../statusline.sh).
+          Its third-party buckets stay hidden until something spends them.
           Antigravity's quota lives behind an RPC that 403s for anything but the
           real client, but agy hands the same buckets to its status line on every
           state change — so the reading is as fresh as your last agy session and
@@ -64,13 +65,37 @@ BLUE = "\033[38;2;137;180;250m"  # blue     #89b4fa
 TEXT = "\033[38;2;205;214;244m"  # text     #cdd6f4
 TRACK = "\033[38;2;69;71;90m"  # surface1   #45475a
 
-# Half-height blocks, not ▓/░: full-height ones tile into a single slab down the
-# column and you can no longer tell one provider's bars from the next one's. A
-# lower half block leaves the top of every cell empty, so each bar reads as its
-# own line. The unused part of the track stays visible in surface1, dark enough
-# to recede but bright enough to show the scale a bar is measured against.
+# The fill is a segmented bar at half-cell resolution; the track is a thin rule.
+#
+# A cell is as narrow as a terminal gets, so finer segments mean fitting more
+# than one into a cell rather than drawing a smaller glyph. Braille has two dot
+# columns per character, which puts the fill on a 24-step scale in the twelve
+# columns a 12-step one used, each step a narrow pair of dots. Dots 2,3,5,6 are
+# the cell's middle two rows, so the mark sits on the text's centre line — the
+# half block (▄) hung below it and read as a line adrift from the plan and label
+# beside it. Dots also leave the cell's top and bottom empty, so stacked rows
+# stay three rows; a full block (█) fused them into one slab.
+#
+# The track is not a second bar and should not be drawn like one. An outlined
+# rectangle (▯) has as many strokes as the fill, so twelve of them per row, on
+# every row including the empty ones, crowded the screen with the part that
+# carries no reading. A rule in surface1 says the same thing — here is the scale
+# the fill is measured against — and then gets out of the way.
+#
+# Without colour the fill and track have to differ by glyph alone, so that
+# variant rules the bar in heavy and light instead, ╸ being the half step.
 BAR_CELLS = 12
-BAR_GLYPHS = {True: ("▄", "▄"), False: ("━", "─")}
+BAR_STEPS = BAR_CELLS * 2
+BAR_GLYPHS = {True: ("⠶", "⠆", "─"), False: ("━", "╸", "─")}
+
+
+def bar_of(pct):
+    """The bar for a percentage, BAR_CELLS wide, rounded to the nearest half."""
+    full, half, track = BAR_GLYPHS[COLOR]
+    steps = min(BAR_STEPS, max(0, round(pct / 100 * BAR_STEPS)))
+    cells, odd = divmod(steps, 2)
+    fill = full * cells + (half if odd else "")
+    return paint(fill, tone(pct)) + paint(track * (BAR_CELLS - cells - odd), TRACK)
 
 COLOR = True
 
@@ -340,6 +365,15 @@ def fetch_codex():
 
 AGY_CACHE = os.path.expanduser("~/.gemini/antigravity-cli/cache/quota.json")
 
+# agy meters the non-Google models it serves — Claude Sonnet/Opus, GPT-OSS —
+# against their own "3p" (third-party) buckets, separate from the gemini ones.
+# Nothing here routes through them, so their 5h and weekly rows were a permanent
+# pair of empty bars taking a quarter of the screen. Hidden while they stay
+# untouched rather than dropped outright: a tank that quietly stopped being
+# reported the moment something started drawing on it would be worse than a
+# noisy one, and this is the command you check to avoid exactly that surprise.
+AGY_HIDE_WHILE_UNUSED = ("3p",)
+
 
 BUCKET_FIELDS = ("remaining_fraction", "remainingFraction", "remaining_amount")
 WINDOW_TOKEN = re.compile(r"^(\d+[hmd]|weekly|daily|monthly|hourly)$", re.IGNORECASE)
@@ -414,6 +448,8 @@ def fetch_agy():
         # Group a model's windows together, shortest window first, so 3p's 5h and
         # weekly sit next to each other instead of interleaving with gemini's.
         model = label.split(" · ")[-1]
+        if model in AGY_HIDE_WHILE_UNUSED and not pct:
+            continue
         ordered.append((model, reset or 0, row(label, pct, reset, None if left is None else f"{left} left")))
 
     rows = [entry[2] for entry in sorted(ordered, key=lambda e: (e[0], e[1]))]
@@ -537,8 +573,16 @@ def render(providers):
 
     lines = []
     for provider in providers:
+        # A blank line between providers. Without it the bars of one provider run
+        # straight into the next one's and the eye has to use the name column,
+        # far to the left, to find where claude stops and codex starts.
+        if lines:
+            lines.append("")
         head = paint(provider["name"].ljust(name_w), TEXT)
-        plan = paint((provider.get("plan") or "").ljust(plan_w), DIM) if plan_w else ""
+        # Right-aligned: the plan belongs to the bar beside it, not to the
+        # name on its left, and ljust left a ragged gap between "max" and the
+        # bar that read as a missing column.
+        plan = paint((provider.get("plan") or "").rjust(plan_w), DIM) if plan_w else ""
 
         if provider.get("error"):
             lines.append(f"  {head}  {plan}  {paint(provider['error'], DIM)}".rstrip())
@@ -549,11 +593,7 @@ def render(providers):
             if pct is None:
                 bar, num = " " * BAR_CELLS, "   ?"
             else:
-                filled = min(BAR_CELLS, max(0, round(pct / 100 * BAR_CELLS)))
-                full, empty = BAR_GLYPHS[COLOR]
-                bar = paint(full * filled, tone(pct)) + paint(
-                    empty * (BAR_CELLS - filled), TRACK
-                )
+                bar = bar_of(pct)
                 num = paint(f"{round(pct):>3}%", tone(pct))
 
             clock, rel = when(r["resets_at"])

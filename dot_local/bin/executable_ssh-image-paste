@@ -14,15 +14,29 @@
 #   * Local. The app reads the Mac clipboard itself and already has a key for
 #     it: ctrl+v. We just send that.
 #
-# Local vs remote takes two signals, and needs both. The flag file says "a remote
-# session is live" (set by devbox()/homelab() in ~/.bash_aliases, cleared on exit
-# and by their signal traps); the ControlMaster socket probe says "which host".
-# The socket alone is not enough: ControlPersist keeps it warm for 30m after you
-# disconnect, and typing a remote /tmp path into a local session helps nobody.
+# Local vs remote is decided PER WINDOW, and only from the frontmost one.
+# devbox()/homelab() in ~/.bash_aliases report a marker path as their window's
+# working directory (OSC 7) for the length of the session; Ghostty tracks that
+# per surface and publishes it as the front window's AXDocument, so reading it
+# back asks "is the window I'm pasting into the one that's in a session?" The
+# marker names the host, whose ControlMaster socket must then still answer —
+# ControlPersist keeps that socket warm for 30m after you disconnect, so the
+# socket alone would keep hijacking ⌘V long after the session ended.
 #
-# Known flaw, unchanged from the previous design: the flag is global, not
-# per-window. With a devbox session open in one Ghostty window, an image ⌘V in
-# another — local — window still uploads. Rare enough to live with.
+# Why the working directory and not the window title: the title belongs to
+# whatever runs in the window. Claude Code, tmux and neovim all set it, remote
+# ones included, and a stale title left behind by a remote tmux is
+# indistinguishable from a live local one. OSC 7 is written by shell integration
+# only — no TUI touches it — and Ghostty drops any whose hostname isn't this
+# Mac's, so the box at the far end cannot forge a marker either.
+#
+# Known flaw: tmux consumes OSC 7 rather than forwarding it, so a devbox or
+# homelab started INSIDE a local tmux pane never marks its window, and ⌘V there
+# pastes locally instead of uploading. Both wrappers say so on the way in when
+# $TMUX is set. (tmux ON the box is fine: the marker is written on this side,
+# before ssh.) Pasting locally is the safe way to be wrong — the image lands
+# somewhere you can see it, where a wrongly-remote paste silently types the path
+# of a file this Mac does not have.
 #
 # Plain-text pastes are passed straight through as a normal ⌘V, so the only cost
 # of sitting on every ⌘V is one fast pngpaste miss.
@@ -36,15 +50,19 @@
 
 export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 
-# Known reusable ControlMaster sessions, in priority order: "<host> <socket>".
-# The first one with a live master wins (you'd rarely have both connected in the
-# same Ghostty window; if you do, devbox is preferred). To teach this about a new
-# host, add its ControlPath socket here — nothing else to register.
+# Known reusable ControlMaster sessions: "<host> <socket>". The wrappers stamp
+# <host> into the window marker and this table turns it back into a socket, so it
+# doubles as the allowlist of hosts a marker is allowed to name. To teach this
+# about a new host, add its ControlPath socket here — nothing else to register.
 SESSIONS="devbox $HOME/.ssh/cm-devbox.sock
 homelab $HOME/.ssh/cm-homelab.sock"
 
-# Set while a devbox/homelab session is up. Keep in sync with _remote_ssh_flag.
-REMOTE_SSH_FLAG="$HOME/.ssh/remote-session-active"
+# The directory devbox()/homelab() report as their window's cwd, one child per
+# host: .../remote-window/devbox. Deliberately a path that does NOT exist — a new
+# tab opened from a marked window inherits that window's cwd, and inheriting a
+# real marker directory would make the fresh local tab look like a session too.
+# Keep in sync with _remote_window in ~/.bash_aliases.
+REMOTE_WINDOW_MARK="$HOME/.ssh/remote-window"
 
 # Normal paste of whatever's on the clipboard. osascript posts a synthetic ⌘V at
 # the CGEvent layer, which is downstream of Karabiner's HID grab — so it reaches
@@ -59,6 +77,30 @@ paste_image_local() {
   osascript -e 'tell application "System Events" to keystroke "v" using control down'
 }
 
+# The host whose session owns the frontmost Ghostty window, empty for a local
+# one. Reading AXDocument keeps this inside the Accessibility permission the two
+# keystroke helpers already need; Ghostty fills it from the focused surface's
+# reported cwd. Anything unexpected — no marker, an unreadable window, a host
+# that isn't in SESSIONS — falls through as local, the harmless way to be wrong.
+front_window_host() {
+  doc=$(osascript -e 'tell application "System Events" to tell process "ghostty" to get value of attribute "AXDocument" of front window' 2>/dev/null) || return 0
+  case "$doc" in
+    "file://$REMOTE_WINDOW_MARK/"?*) ;;
+    *) return 0 ;;
+  esac
+  host=${doc#"file://$REMOTE_WINDOW_MARK/"}
+  printf '%s\n' "${host%/}"
+}
+
+# The ControlMaster socket registered for host $1, empty if it isn't one of ours.
+session_socket() {
+  while read -r h s; do
+    [ "$h" = "$1" ] && { printf '%s\n' "$s"; return 0; }
+  done <<EOF
+$SESSIONS
+EOF
+}
+
 # 1s debounce — belt-and-suspenders against any paste loop.
 LOCK="/tmp/.ssh-image-paste.lock"
 if [ -f "$LOCK" ] && [ "$(( $(date +%s) - $(stat -f %m "$LOCK" 2>/dev/null || echo 0) ))" -lt 1 ]; then
@@ -67,28 +109,19 @@ fi
 : > "$LOCK"
 
 # Grab a clipboard image into a local temp. No image on the clipboard → pngpaste
-# fails → it's an ordinary (text) paste.
+# fails → it's an ordinary (text) paste, and we never even look at the window.
 img="/tmp/ssh-image-paste.$$.png"
 if ! pngpaste "$img" 2>/dev/null; then
   rm -f "$img"; paste_now; exit 0
 fi
 
-# Find the first remote session with a live master to ferry the image over.
-# No session flag → we're local, so don't even probe the (possibly still-warm)
-# sockets.
-host= sock=
-[ -f "$REMOTE_SSH_FLAG" ] || { rm -f "$img"; paste_image_local; exit 0; }
-while read -r h s; do
-  [ -n "$h" ] || continue
-  if [ -S "$s" ] && ssh -S "$s" -O check "$h" >/dev/null 2>&1; then
-    host=$h; sock=$s; break
-  fi
-done <<EOF
-$SESSIONS
-EOF
-# Flag set but no live master (the session died without clearing it): treat it as
-# local rather than dropping the paste.
-if [ -z "$host" ]; then
+# Which session is this window in, if any — and is that master still up? A marked
+# window whose master has gone (the session died before its shell reached a new
+# prompt and cleared the marker) counts as local rather than dropping the paste.
+host=$(front_window_host)
+sock=
+[ -n "$host" ] && sock=$(session_socket "$host")
+if [ -z "$sock" ] || [ ! -S "$sock" ] || ! ssh -S "$sock" -O check "$host" >/dev/null 2>&1; then
   rm -f "$img"; paste_image_local; exit 0
 fi
 

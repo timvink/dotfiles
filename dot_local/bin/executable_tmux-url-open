@@ -1,6 +1,6 @@
 #!/bin/sh
-# tmux-url-open — pop up a tmux menu to open a local dev server or an on-screen
-# URL in the system default browser. Bound from .tmux.conf to `prefix u`.
+# tmux-url-open — pop up a picker to open, copy or stop a local dev server or an
+# on-screen URL. Bound from .tmux.conf to `prefix u`.
 #
 # Two sections, two key styles so they never collide and picking is fast:
 #   Servers (1-9): every running `make serve` across ALL sessions, keyed off the
@@ -12,40 +12,151 @@
 #     like dashboard.stripe.com/... that carry no http(s):// scheme (these are
 #     normalised to https:// so the opener treats them as URLs, not files).
 #
-# Press `q` to drop into "kill mode": the same menu, servers only, where the
-# digit keys send C-c to a server's pane (a graceful stop — the make wrapper's
-# INT trap shuts the server down and clears the tab's port chip) instead of
-# opening it. Reached by re-invoking ourselves as `tmux-url-open kill`. `q`
-# works as a mnemonic even though tmux documents it as "exit menu": item key
-# shortcuts are matched before the built-in keys (see menu.c menu_key_cb), the
-# same reason the cheatsheet's `q` row fires.
+# Keys, all shown in the picker's header: enter opens the highlighted row, `y`
+# copies it (system clipboard AND the tmux paste buffer, so it also works on a
+# remote VM with no pbcopy/xclip), `q` drops into "kill mode" — the same list,
+# servers only, where choosing one sends C-c to its pane (a graceful stop; the
+# make wrapper's INT trap shuts the server down and clears the tab's port chip).
+# The a-z / 1-9 shortcuts still jump straight to a row and open it, so the common
+# case stays a single keystroke.
+#
+# The picker is fzf inside `display-popup`, NOT tmux's own `display-menu`: a menu
+# maps each key to one row's command and never exposes which row is highlighted,
+# so "highlight a row, press y" is impossible there. fzf gives us a second verb
+# per row (--expect reports the key alongside the selection) while keeping the
+# one-key jumps (each letter is bound to pos(N)+accept). Typing is disabled
+# (--no-input) so the letters stay shortcuts instead of a search query.
 #
 # Replaces Ghostty's cmd-click URL-open, which tmux's `set -g mouse on` swallows
 # before Ghostty sees it. Cross-platform (Darwin / Linux).
 
 set -eu
 
-# "open" (default) builds the open menu; "kill" builds the servers-only kill
-# menu. The open menu's `q` row re-invokes us with this arg.
+# "open" (default) builds the open list; "kill" builds the servers-only kill
+# list; "pick" is us re-invoked INSIDE the popup to run fzf and act on the
+# choice. The split matters: capture-pane must run in the user's pane, before
+# the popup exists, so the rows are built out here and handed over in a file.
 mode="${1:-open}"
-
-case "$(uname)" in
-    Darwin) opener=open ;;
-    *)      opener=xdg-open ;;
+case "$0" in
+    /*) self=$0 ;;
+    *)  self=$(cd "$(dirname "$0")" && pwd)/$(basename "$0") ;;
 esac
 
+case "$(uname)" in
+    Darwin)
+        opener=open
+        clip=pbcopy
+        ;;
+    *)
+        opener=xdg-open
+        if [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wl-copy >/dev/null 2>&1; then
+            clip=wl-copy
+        elif command -v xclip >/dev/null 2>&1; then
+            clip='xclip -selection clipboard'
+        elif command -v xsel >/dev/null 2>&1; then
+            clip='xsel --clipboard --input'
+        else
+            clip=''   # tmux's own paste buffer still gets it
+        fi
+        ;;
+esac
+
+# fzf draws the picker (see the note above on why display-menu cannot). It is in
+# the darwin package list; on a bare remote VM it may not be, so say so plainly
+# instead of having `prefix u` do nothing.
+if ! command -v fzf >/dev/null 2>&1; then
+    tmux display-message "tmux-url-open: fzf is not installed"
+    exit 0
+fi
+
 TAB=$(printf '\t')
-cur=$(tmux display-message -p '#{session_name}:#{window_index}')   # this tab
+ESC=$(printf '\033')
+DIM="$ESC[38;5;245m"
+OFF="$ESC[0m"
 
 # Escape single quotes so a value is safe inside a single-quoted shell word.
 shquote() { printf '%s' "$1" | sed "s/'/'\\\\''/g"; }
 
-# Escape a display-menu item *name* for tmux's format engine: a literal '#'
-# (URL fragments like #section, or a '#' in a window name) is otherwise read as
-# the start of '#[style]', '#{format}' or even '#(run-shell)', which corrupts
-# the row's width maths (truncating it with a ">") or runs a command. Doubling
-# '#'→'##' makes tmux render a single literal '#'. (See the quirks note below.)
-menulabel() { printf '%s' "$1" | sed 's/#/##/g'; }
+# Escape a string for tmux's format engine: a literal '#' (a URL fragment, or a
+# '#' in a window name) is otherwise read as the start of '#[style]', '#{format}'
+# or even '#(run-shell)'. Doubling '#'→'##' makes tmux render a single literal
+# '#'. Needed for display-message and the popup title; fzf rows are plain text.
+tmuxfmt() { printf '%s' "$1" | sed 's/#/##/g'; }
+
+# ---- the popup half ---------------------------------------------------------
+# Runs inside display-popup with the rows already computed. fzf prints two lines:
+# the --expect key (empty when the row was taken with enter or a jump shortcut)
+# and the chosen row, as KIND \t PAYLOAD \t DISPLAY.
+if [ "$mode" = pick ]; then
+    rowsfile=$2
+    submode=${3:-open}
+    hdr=$4
+    binds=$5
+    startpos=$6
+
+    if [ "$submode" = open ]; then
+        expect=y,q                     # q hands off to kill mode
+    else
+        expect=y
+        binds="${binds:+$binds,}q:abort"
+    fi
+
+    out=$(fzf --no-input --info=hidden --layout=reverse --no-scrollbar --ansi \
+              --delimiter="$TAB" --with-nth='3..' \
+              --header="$hdr" \
+              --pointer='▌' --marker=' ' \
+              --color='bg+:#45475a,fg+:-1,hl:-1,hl+:-1,header:#6c7086,pointer:#cba6f7,gutter:-1,border:#585b70' \
+              --expect="$expect" \
+              --bind="load:pos($startpos)${binds:+,$binds}" \
+              < "$rowsfile") || out=""
+    rm -f "$rowsfile"
+
+    key=$(printf '%s\n' "$out" | sed -n 1p)
+    sel=$(printf '%s\n' "$out" | sed -n 2p)
+    [ -n "$sel" ] || exit 0
+
+    kind=${sel%%"$TAB"*}
+    rest=${sel#*"$TAB"}
+    payload=${rest%%"$TAB"*}
+    [ "$kind" = hdr ] && exit 0          # a section label; nothing to do
+
+    case "$key" in
+        y)
+            # Both sinks: the system clipboard for other apps, and tmux's paste
+            # buffer so prefix-] works even where no clipboard tool exists.
+            tmux set-buffer -- "$payload"
+            if [ -n "$clip" ]; then printf '%s' "$payload" | sh -c "$clip"; fi
+            tmux display-message "copied: $(tmuxfmt "$payload")"
+            ;;
+        q)
+            tmux run-shell -b "'$(shquote "$self")' kill"
+            ;;
+        *)
+            if [ "$kind" = kil ]; then
+                tmux send-keys -t "$payload" C-c
+            else
+                # Hand the open to the tmux SERVER, not this shell: we are the
+                # popup's process, and tmux tears the popup down the moment fzf
+                # returns, SIGHUPing our process group before a backgrounded
+                # `open`/`xdg-open` has launched anything. run-shell -b runs it
+                # outside the popup, so it survives (same reason `q` uses it).
+                # tmuxfmt too: run-shell expands formats, so a bare '#(' in a
+                # URL fragment would otherwise run as a command substitution.
+                tmux run-shell -b "$opener '$(tmuxfmt "$(shquote "$payload")")'"
+            fi
+            ;;
+    esac
+    exit 0
+fi
+
+# ---- servers across the whole workspace -------------------------------------
+# -a spans every session; keep only windows whose tab is flagged running with a
+# detected port. Fields: PORT \t session:index \t name.
+cur=$(tmux display-message -p '#{session_name}:#{window_index}')   # this tab
+servers=$(
+    tmux list-windows -a -F "#{@server_port}${TAB}#{@server_state}${TAB}#{session_name}:#{window_index}${TAB}#{window_name}" \
+        | awk -F"$TAB" '$2=="running" && $1!="" { print $1 FS $3 FS $4 }'
+)
 
 # Fit a URL into $2 columns. A plain end-cut hides the part that actually tells
 # two long URLs apart (same host + path, differing only in a tail beyond the
@@ -68,18 +179,26 @@ ellipsize_url() {
     printf '%s…%s' "$prefix" "$tail"
 }
 
-# ---- servers across the whole workspace -------------------------------------
-# -a spans every session; keep only windows whose tab is flagged running with a
-# detected port. Fields: PORT \t session:index \t name.
-servers=$(
-    tmux list-windows -a -F "#{@server_port}${TAB}#{@server_state}${TAB}#{session_name}:#{window_index}${TAB}#{window_name}" \
-        | awk -F"$TAB" '$2=="running" && $1!="" { print $1 FS $3 FS $4 }'
-)
-
 # ---- URLs in the current pane -----------------------------------------------
-# -J joins wrapped lines so a split URL comes back whole. Two kinds are matched
-# (one alternation, leftmost-longest so a scheme URL always wins over its bare
-# tail at the same spot):
+# Lines come from capture-pane -J, which rejoins what the TERMINAL wrapped at the
+# pane edge. It does nothing for a line the APPLICATION broke itself: Claude Code
+# word-wraps its own output at a width of its choosing and re-indents the
+# continuation to that block's gutter, so a URL longer than that width lands as
+# two hard lines and used to be picked up truncated at the break (an OAuth link
+# losing its &state= tail, for instance). So we re-join those ourselves first,
+# only when all three hold:
+#   * the previous physical line ran to its block's wrap column — the widest line
+#     sharing its indent, ignoring the over-wide ones -J already joined. A line
+#     that merely ENDS with a URL stops short of that column, because the next
+#     word is what did not fit;
+#   * that line ends inside a URL, with no space between the URL and the break;
+#   * the next line, minus its gutter, opens with a long run (>= 12) of URL
+#     characters — wrapped prose resumes with a short word and then a space.
+# Together those separate ".../docs" + "for the details" (leave alone) from a
+# genuinely split token (join). Joining repeats, so a URL may span three lines.
+#
+# Then two kinds of URL are matched (one alternation, leftmost-longest so a
+# scheme URL always wins over its bare tail at the same spot):
 #   1. scheme URLs: https?://…
 #   2. bare domains: host.tld[/path] with no scheme, e.g. dashboard.stripe.com/x.
 #      Bare matching is gated on a curated TLD list (see $tld) so it fires on
@@ -106,10 +225,42 @@ tld='com|org|net|edu|gov|mil|int|info|biz|io|dev|app|ai|co|xyz|online|site|tech|
 if [ "$mode" = open ]; then
     urls=$(
         tmux capture-pane -J -p \
-            | TLD="$tld" perl -ne '
+            | TLD="$tld" COLS="$(tmux display-message -p '#{pane_width}')" perl -e '
                 my $c = qr/[A-Za-z0-9._~:\/?#\@!\$&()*+,;=%-]/;
-                while (/(https?:\/\/$c+)|(?<![A-Za-z0-9\@_.\-])((?:[A-Za-z0-9-]+\.)+(?:$ENV{TLD})\b(?::[0-9]+)?(?:\/$c*)?)/g) {
-                    print defined($1) ? "$1\n" : "$2\n";
+                my @lines = <STDIN>; chomp @lines; s/\s+$// for @lines;
+                my $cols = $ENV{COLS} || 200;
+
+                # Wrap column per indent level: the widest line at that gutter
+                # that the terminal did NOT wrap (anything wider than the pane is
+                # a line -J already stitched together, so it proves nothing).
+                my %wrap;
+                for my $l (@lines) {
+                    next if length($l) > $cols;
+                    my ($ind) = $l =~ /^(\s*)/;
+                    my $n = length($ind);
+                    $wrap{$n} = length($l) if length($l) > ($wrap{$n} // 0);
+                }
+
+                my @merged; my $i = 0;
+                while ($i <= $#lines) {
+                    my $buf = $lines[$i]; my $prev = $lines[$i];
+                    while ($i < $#lines) {
+                        my ($ind) = $prev =~ /^(\s*)/;
+                        my $w = $wrap{length($ind)} // 0;
+                        last unless length($prev) && length($prev) >= $w - 2;
+                        last unless $buf =~ m{https?://$c*$};
+                        (my $cont = $lines[$i+1]) =~ s/^\s+//;
+                        my ($run) = $cont =~ /^($c+)/;
+                        last unless defined($run) && length($run) >= 12;
+                        $buf .= $cont; $i++; $prev = $lines[$i];
+                    }
+                    push @merged, $buf; $i++;
+                }
+
+                for my $l (@merged) {
+                    while ($l =~ /(https?:\/\/$c+)|(?<![A-Za-z0-9\@_.\-])((?:[A-Za-z0-9-]+\.)+(?:$ENV{TLD})\b(?::[0-9]+)?(?:\/$c*)?)/g) {
+                        print defined($1) ? "$1\n" : "$2\n";
+                    }
                 }
             ' \
             | sed -E 's/[.,;:)]+$//' \
@@ -120,26 +271,27 @@ else
     urls=""
 fi
 
-# Build display-menu arg triplets in "$@": <label> <hotkey> <tmux-command>.
-# A label starting with "-" is a dimmed, non-selectable section header; an empty
-# label is a horizontal rule. Two quirks learned the hard way (tmux 3.6):
-#   * tmux SWALLOWS the very first menu item if it's non-selectable, so the
-#     servers section leads with a throwaway empty item to let its header show.
-#   * #[...] styles in an item *name* corrupt tmux's width maths and the row gets
-#     truncated with a ">", so labels are kept PLAIN. Clarity instead comes from
-#     the headers, the digit-vs-letter keys, and flush-left alignment (every row
-#     carries only the box's one-space padding, so ports and URLs line up).
-set --
+# Build the row list, one line per row as KIND \t PAYLOAD \t KEY \t TEXT:
+#   hdr  a dim section label, selectable but a no-op (fzf has no inert rows)
+#   url  open PAYLOAD in the browser
+#   kil  send C-c to the window named by PAYLOAD
+# KEY is the jump shortcut; the perl pass below turns KEY + TEXT into the padded
+# display column and reports how wide the widest row came out.
+rawrows=""
+addrow() { rawrows="$rawrows$1$TAB$2$TAB$3$TAB$4
+"; }
+
 srv_urls=""   # localhost URLs we've shown as servers, to dedupe the URL list
 n=0
+startpos=1    # first pickable row, so the cursor never opens on a section label
 
 if [ -n "$servers" ]; then
-    set -- "" "" ""                              # absorbed; lets the header show
     if [ "$mode" = kill ]; then
-        set -- "$@" "-kill a server · sends C-c to its pane" "" ""
+        addrow hdr "" "" "${DIM}kill a server · sends C-c to its pane${OFF}"
     else
-        set -- "$@" "-servers · all sessions" "" ""
+        addrow hdr "" "" "${DIM}servers · all sessions${OFF}"
     fi
+    [ "$startpos" = 1 ] && startpos=2
     while IFS="$TAB" read -r ports_field loc name; do
         [ -n "$ports_field" ] || continue
         here=""
@@ -149,19 +301,17 @@ if [ -n "$servers" ]; then
         for port in $ports_field; do
             n=$((n + 1))
             if [ "$n" -le 9 ]; then key="$n"; else key=""; fi
-            url="http://localhost:$port"
+            text=$(printf ':%-5s %s  %s%s' "$port" "$name" "$loc" "$here")
             if [ "$mode" = kill ]; then
                 # @server_state/@server_port are window-scoped, so we only know
                 # the window — target it and its active pane gets the C-c (the
                 # serve pane, normally). The make wrapper traps INT, so this is
                 # the same graceful stop as hitting Ctrl-C in that tab.
-                cmd="send-keys -t '$(shquote "$loc")' C-c"
+                addrow kil "$loc" "$key" "$text"
             else
-                srv_urls="$srv_urls$url$TAB"
-                cmd="run-shell -b \"$opener '$(shquote "$url")'\""
+                srv_urls="$srv_urls http://localhost:$port$TAB"
+                addrow url "http://localhost:$port" "$key" "$text"
             fi
-            label=$(printf ':%-5s %s  %s%s' "$port" "$name" "$loc" "$here")
-            set -- "$@" "$(menulabel "$label")" "$key" "$cmd"
         done
     done <<EOF
 $servers
@@ -174,39 +324,25 @@ if [ -n "$urls" ]; then
     while IFS= read -r url; do
         [ -n "$url" ] || continue
         # Skip an on-screen URL that's already listed as a server.
-        case "$srv_urls" in *"$url$TAB"*) continue ;; esac
+        case "$srv_urls" in *" $url$TAB"*) continue ;; esac
         # Only a..z keys available; stop once they're spent (after server-dedup,
         # so real URLs aren't crowded out by localhost servers — see capture above).
         [ "$i" -ge 26 ] && break
         if [ -z "$header_done" ]; then
-            # Always emit an empty item before the header. When servers precede
-            # us it reads as the rule between sections; when URLs are the first
-            # (and only) section it's the throwaway tmux swallows — and, crucially,
-            # it keeps the "-"-prefixed header off the front of display-menu's arg
-            # list, where tmux would parse "-urls…" as flags (-> "unknown flag -u").
-            set -- "$@" "" "" ""
-            set -- "$@" "-urls · this pane" "" ""
+            [ -n "$rawrows" ] && addrow hdr "" "" ""      # rule between sections
+            addrow hdr "" "" "${DIM}urls · this pane${OFF}"
             header_done=1
         fi
         hotkey=$(awk -v c=$((97 + i)) 'BEGIN { printf "%c", c }')   # a, b, c, …
         i=$((i + 1))
-        cmd="run-shell -b \"$opener '$(shquote "$url")'\""
-        label=$(ellipsize_url "$url" 90)
-        set -- "$@" "$(menulabel "$label")" "$hotkey" "$cmd"
+        addrow url "$url" "$hotkey" "$(ellipsize_url "$url" 90)"
+        [ "$startpos" = 1 ] && startpos=$(printf '%s' "$rawrows" | grep -c '')
     done <<EOF
 $urls
 EOF
 fi
 
-# Open menu only: a `q` row into kill mode, but only when there's a server to
-# kill. It re-invokes us as `… kill` from within the (closing) menu, the same
-# nested run-shell the cheatsheet's `u` row uses to reach this very menu.
-if [ "$mode" = open ] && [ -n "$servers" ]; then
-    set -- "$@" "" "" ""
-    set -- "$@" "kill a server…" "q" "run-shell -b \"$0 kill\""
-fi
-
-if [ "$#" -eq 0 ]; then
+if [ -z "$rawrows" ]; then
     if [ "$mode" = kill ]; then
         tmux display-message "tmux-url-open: no servers running"
     else
@@ -215,7 +351,63 @@ if [ "$#" -eq 0 ]; then
     exit 0
 fi
 
-# -H sets the selected-row style: a subtle surface-1 background (instead of the
-# default reverse video) so the green port / dim location stay legible.
+# Pad every pickable row to a common width and hang its shortcut off the right,
+# the way display-menu used to render "(a)". Done in perl because the labels
+# carry an ellipsis and ANSI dim codes, which byte-wise padding gets wrong.
+# Prints the resulting row width so the popup can be sized to fit.
+rowsfile=$(mktemp "${TMPDIR:-/tmp}/tmux-url-open.XXXXXX")
+rowwidth=$(printf '%s' "$rawrows" | ROWSFILE="$rowsfile" perl -CSD -e '
+    my @r;
+    while (<STDIN>) {
+        chomp;
+        next unless length;
+        my @f = split /\t/, $_, 4;
+        push @r, [ @f[0..3] ];
+    }
+    my $m = 0;
+    for my $f (@r) {
+        (my $p = $f->[3] // "") =~ s/\e\[[0-9;]*m//g;
+        $m = length($p) if length($p) > $m;
+    }
+    open my $fh, ">", $ENV{ROWSFILE} or die $!;
+    for my $f (@r) {
+        my ($kind, $pay, $key, $text) = @$f;
+        $_ //= "" for ($pay, $key, $text);
+        (my $plain = $text) =~ s/\e\[[0-9;]*m//g;
+        my $disp = $text;
+        $disp .= " " x ($m - length($plain)) . ($key ne "" ? "  ($key)" : "") if $kind ne "hdr";
+        print $fh join("\t", $kind, $pay, $disp), "\n";
+    }
+    close $fh;
+    print $m + 5;
+')
+
+# Header: the grey line above the list spelling out both verbs (plus kill mode
+# when there is a server to kill), so the shortcuts are discoverable in place.
+if [ "$mode" = kill ]; then
+    hdr='enter stop · y copy'
+elif [ -n "$servers" ]; then
+    hdr='enter open · y copy · q kill server'
+else
+    hdr='enter open · y copy'
+fi
+
+# One --bind per shortcut: jump to that row and take it. pos() counts from the
+# top because of --layout=reverse.
+binds=$(printf '%s' "$rawrows" | awk -F"$TAB" '
+    $3 != "" { printf "%s%s:pos(%d)+accept", (k++ ? "," : ""), $3, NR }
+')
+
+nrows=$(grep -c '' "$rowsfile")
+read -r cw ch <<EOF
+$(tmux display-message -p '#{client_width} #{client_height}')
+EOF
+pw=$((rowwidth + 4))
+[ "$pw" -lt $((${#hdr} + 4)) ] && pw=$((${#hdr} + 4))
+[ "$pw" -gt $((cw - 2)) ] && pw=$((cw - 2))
+ph=$((nrows + 3))
+[ "$ph" -gt $((ch - 2)) ] && ph=$((ch - 2))
+
 [ "$mode" = kill ] && title=' kill ' || title=' open '
-tmux display-menu -T "$title" -H 'bg=#45475a' -x C -y C "$@"
+tmux display-popup -E -b rounded -S 'fg=#585b70' -T "$title" -w "$pw" -h "$ph" \
+    "'$(shquote "$self")' pick '$(shquote "$rowsfile")' '$mode' '$(shquote "$hdr")' '$(shquote "$binds")' '$startpos'"
