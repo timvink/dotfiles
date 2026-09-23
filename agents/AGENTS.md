@@ -21,8 +21,7 @@ splitting existing code solely to satisfy a naming preference.
 
 ## Writing
 
-Follow `write-for-humans` for human-facing prose; load it before writing more than
-a few sentences. Lead with useful information, use plain words and active
+For human-facing prose, lead with useful information, use plain words and active
 voice, and omit filler, repeated summaries, and unnecessary formatting.
 
 ## Scratch files and progress

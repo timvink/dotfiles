@@ -46,5 +46,5 @@ such as “webhooks,” unless the implementation is what they manage. Name acti
 consistently across controls and feedback: “Publish” produces “Published.”
 
 Labels should explain the action. Empty states should show the next useful step;
-errors should explain what happened and how to recover. Follow `write-for-humans`
-for prose without adding marketing filler to ordinary controls.
+errors should explain what happened and how to recover. Keep marketing filler
+out of ordinary controls.

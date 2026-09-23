@@ -10,6 +10,3 @@ when the SKILL tells you to.
 
 If no target is given above, apply it to the text or file we were last working
 on; ask which one only if that is genuinely unclear.
-
-The SKILL's rules replace the `write-for-humans` skill for this task — do not
-load both.
