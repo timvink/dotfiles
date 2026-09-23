@@ -613,8 +613,11 @@ def fetch_openrouter():
         return None
 
     try:
-        credits = openrouter_get(OPENROUTER_CREDITS, key)
-        info = openrouter_get(OPENROUTER_KEY_INFO, key)
+        with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+            credits, info = pool.map(
+                lambda url: openrouter_get(url, key),
+                (OPENROUTER_CREDITS, OPENROUTER_KEY_INFO),
+            )
     except urllib.error.HTTPError as exc:
         problem = "key rejected" if exc.code in (401, 403) else f"HTTP {exc.code}"
         return {"name": "openrouter", "error": problem}
@@ -677,6 +680,10 @@ def render(providers):
         # bar that read as a missing column.
         plan = paint((provider.get("plan") or "").rjust(plan_w), DIM) if plan_w else ""
 
+        if provider.get("pending"):
+            lines.append(f"  {head}  {plan}  {paint('…', DIM)}".rstrip())
+            continue
+
         if provider.get("error"):
             lines.append(f"  {head}  {plan}  {paint(provider['error'], DIM)}".rstrip())
             continue
@@ -729,27 +736,71 @@ def main():
 
     wanted = [args.provider] if args.provider else list(FETCHERS)
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(wanted) + 1)
-    refresh = pool.submit(refresh_agy) if "agy" in wanted and agy_stale() else None
-    results = list(pool.map(lambda n: FETCHERS[n](), wanted))
+    jobs = {pool.submit(FETCHERS[name]): name for name in wanted}
+    # The agy relaunch waits for codex: both start a heavy CLI, and running them
+    # side by side made codex, the reading that matters more, half a second slower.
+    refresh_due = "agy" in wanted and agy_stale()
+    refreshing = refresh_due
 
-    # The agy relaunch takes seconds while the rest answer in under one. On a
-    # terminal, show the cached agy reading straight away and redraw the table in
-    # place once the fresh one lands, so the order never changes. Anywhere else
-    # (--json, a pipe) there is nothing to redraw, so wait and print once.
-    live = refresh and not args.json and sys.stdout.isatty()
+    # On a terminal the table is drawn at once, a placeholder for every provider,
+    # and redrawn in place as each one answers, so claude and codex show up in
+    # under a second instead of waiting on the slowest provider — openrouter's
+    # vault lookup, or the few seconds the agy relaunch takes. The order never
+    # changes. Anywhere else (--json, a pipe) there is nothing to redraw, so wait
+    # and print once.
+    live = not args.json and sys.stdout.isatty()
+    results, done = {}, set()
+    drawn = 0
 
-    def agy_now(refreshing):
-        index = wanted.index("agy")
-        results[index] = fetch_agy()
-        if refreshing and results[index] and results[index].get("note"):
-            results[index]["note"] += " · refreshing…"
+    def snapshot():
+        return [
+            results[name] if name in done else {"name": name, "pending": True}
+            for name in wanted
+            if name not in done or results[name]
+        ]
 
-    if refresh and not live:
-        refresh.result()
-        agy_now(False)
-    elif live:
-        agy_now(True)
-    providers = [r for r in results if r]
+    def draw():
+        nonlocal drawn
+        if drawn:
+            # Back to the first table line and clear to the end of the screen.
+            sys.stdout.write(f"\033[{drawn}F\033[J")
+        lines = render(snapshot())
+        sys.stdout.write("".join(line + "\n" for line in lines) + "\n")
+        sys.stdout.flush()
+        drawn = len(lines) + 1
+
+    if live:
+        print()
+        draw()
+
+    pending = set(jobs)
+    while pending or refresh_due:
+        if refresh_due and ("codex" in done or "codex" not in wanted):
+            refresh_due = False
+            job = pool.submit(refresh_agy)
+            jobs[job] = "agy refresh"
+            pending.add(job)
+        finished, pending = concurrent.futures.wait(
+            pending, return_when=concurrent.futures.FIRST_COMPLETED
+        )
+        for job in finished:
+            name = jobs[job]
+            if name == "agy refresh":
+                refreshing = False
+                name, result = "agy", fetch_agy()
+            else:
+                result = job.result()
+                if name == "agy" and not refreshing and "agy refresh" in jobs.values():
+                    result = fetch_agy()  # read the cache the refresh just rewrote
+                elif name == "agy" and refreshing and result and result.get("note"):
+                    result["note"] += " · refreshing…"
+            results[name] = result
+            done.add(name)
+            if live:
+                draw()
+    pool.shutdown(wait=False)
+
+    providers = [results[name] for name in wanted if results[name]]
 
     if args.json:
         json.dump(providers, sys.stdout, indent=2)
@@ -759,27 +810,17 @@ def main():
     if not providers:
         # Nothing answered: either nothing is installed, or the one provider you
         # named isn't set up on this machine. Say which.
+        if live:
+            sys.stdout.write(f"\033[{drawn + 1}F\033[J")
         missing = args.provider or "no agent"
         print(f"{missing}: not set up here.", file=sys.stderr)
         return 1
 
-    lines = render(providers)
-    print()
-    for line in lines:
-        print(line)
-    print(flush=True)
-
-    if live:
-        refresh.result()
-        agy_now(False)
-        providers = [r for r in results if r]
-        # Back to the first table line (past it and the trailing blank), clear
-        # to the end of the screen, and draw the table again.
-        sys.stdout.write(f"\033[{len(lines) + 1}F\033[J")
+    if not live:
+        print()
         for line in render(providers):
             print(line)
         print()
-    pool.shutdown(wait=False)
     return 0
 
 
