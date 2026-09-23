@@ -5,7 +5,8 @@
 # the polling below can't block the tmux server.
 #
 # Three kinds of pane, tried in order:
-#   agent   — claude/codex/agy/pi/… : clear the tab dot, then kill the pane.
+#   agent   — claude/codex/agy/pi/… : save the pane's text to
+#             ~/.cache/tmux-pane-close/, clear the tab dot, then kill the pane.
 #             Lives at the tmux level because none of those tools expose
 #             configurable key bindings, so a uniform alt+e has to sit above
 #             them. SIGHUP semantics, same as the old bare-`e` hook had — pi
@@ -41,6 +42,16 @@ fi
 tty=$(tmux display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null)
 [ -n "$tty" ] || exit 0
 if ps -t "$tty" -o comm= 2>/dev/null | grep -qE '^(claude|codex|codex-.+|agy|antigravity|gemini|pi)$'; then
+  # Snapshot the pane first. kill-pane gives the agent no chance to save, and a
+  # half-typed prompt lives only in its input box — an accidental alt+e used to
+  # take a long draft with it. The capture holds the full scrollback plus that
+  # box; kept 14 days in ~/.cache/tmux-pane-close/.
+  snapdir="$HOME/.cache/tmux-pane-close"
+  mkdir -p "$snapdir"
+  name=$(tmux display-message -p -t "$pane" '#{session_name}-#{window_name}' 2>/dev/null)
+  name=$(printf '%s' "$name" | tr -c 'A-Za-z0-9_.-' '_')
+  tmux capture-pane -p -J -S - -t "$pane" > "$snapdir/$(date +%Y%m%d-%H%M%S)-${name}.txt" 2>/dev/null || true
+  find "$snapdir" -type f -mtime +14 -delete 2>/dev/null || true
   "$HOME/.local/bin/agent-state" idle 2>/dev/null || true
   exec tmux kill-pane -t "$pane"
 fi
