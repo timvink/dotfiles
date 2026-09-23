@@ -19,6 +19,10 @@ Use consistent domain vocabulary and searchable names. Document constraints the
 code cannot express, such as units, timezones, and ownership. Avoid renaming or
 splitting existing code solely to satisfy a naming preference.
 
+Commit your completed changes before ending a task. Do not leave work you made
+uncommitted unless the user asks you to or a blocker prevents the commit; explain
+any remaining uncommitted changes.
+
 ## Writing
 
 For human-facing prose, lead with useful information, use plain words and active
