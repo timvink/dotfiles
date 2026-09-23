@@ -26,8 +26,10 @@ Where the numbers come from, since none of the CLIs ships a `usage` subcommand:
           Its third-party buckets stay hidden until something spends them.
           Antigravity's quota lives behind an RPC that 403s for anything but the
           real client, but agy hands the same buckets to its status line on every
-          state change — so the reading is as fresh as your last agy session and
-          the age is always printed next to it.
+          state change. So when the cache is stale, limits starts the agy TUI in
+          a hidden terminal for the few seconds it takes to draw its first status
+          line, then kills it — no prompt is sent, nothing is spent. The table
+          shows the cached reading first and redraws when the fresh one lands.
 
   openrouter
           openrouter.ai/api/v1/credits and /key, with the key from
@@ -47,8 +49,11 @@ import datetime as dt
 import json
 import os
 import platform
+import pty
 import re
+import select
 import shutil
+import signal
 import subprocess
 import sys
 import time
@@ -416,6 +421,94 @@ def agy_label(key, bucket):
     return str(bucket.get("window") or "quota")
 
 
+# Younger than this and the cache is as good as a fresh read; skip the relaunch.
+AGY_FRESH_SECONDS = 120
+AGY_REFRESH_TIMEOUT = 20
+
+
+def agy_cache_at():
+    try:
+        with open(AGY_CACHE) as fh:
+            return parse_ts(json.load(fh).get("at")) or 0
+    except (OSError, json.JSONDecodeError):
+        return 0
+
+
+def agy_stale():
+    return bool(shutil.which("agy")) and time.time() - agy_cache_at() > AGY_FRESH_SECONDS
+
+
+def refresh_agy(timeout=AGY_REFRESH_TIMEOUT):
+    """Start the agy TUI in a hidden pty until its status line rewrites the cache.
+
+    agy only runs its status line inside the interactive TUI, not in --print
+    mode, so a pty is the only way to get one. It is started in $HOME (a
+    trusted folder, so no trust dialog stands in the way) with the TMUX
+    variables removed: the status line also drives the tmux agent dot, and it
+    must not mark whichever pane `limits` runs in. The whole process group is
+    killed afterwards. True when the cache was rewritten in time.
+    """
+    before = agy_cache_at()
+    env = {k: v for k, v in os.environ.items() if not k.startswith("TMUX")}
+    env["TERM"] = "xterm-256color"
+    try:
+        pid, fd = pty.fork()
+    except OSError:
+        return False
+    if pid == 0:
+        try:
+            os.chdir(os.path.expanduser("~"))
+            os.execvpe("agy", ["agy"], env)
+        finally:
+            os._exit(127)
+
+    try:
+        import fcntl
+        import struct
+        import termios
+
+        fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 120, 0, 0))
+    except (ImportError, OSError):
+        pass
+
+    deadline = time.time() + timeout
+    updated = False
+    try:
+        while time.time() < deadline:
+            # Drain the TUI's output, or it blocks on a full pty buffer.
+            ready, _, _ = select.select([fd], [], [], 0.2)
+            if ready:
+                try:
+                    if not os.read(fd, 65536):
+                        break
+                except OSError:
+                    break
+            if agy_cache_at() > before:
+                updated = True
+                break
+    finally:
+        # agy moves itself out of the pty's process group, so signal the process
+        # as well as the group, and never block on reaping it.
+        for sig in (signal.SIGTERM, signal.SIGKILL):
+            for kill in (os.kill, os.killpg):
+                try:
+                    kill(pid, sig)
+                except OSError:
+                    pass
+            for _ in range(10):
+                try:
+                    if os.waitpid(pid, os.WNOHANG)[0]:
+                        break
+                except OSError:
+                    break
+                time.sleep(0.05)
+            else:
+                continue
+            break
+        os.close(fd)
+    return updated
+
+
 def fetch_agy():
     if not shutil.which("agy"):
         return None
@@ -635,8 +728,27 @@ def main():
     COLOR = not args.no_color and sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
 
     wanted = [args.provider] if args.provider else list(FETCHERS)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(wanted)) as pool:
-        results = list(pool.map(lambda n: FETCHERS[n](), wanted))
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(wanted) + 1)
+    refresh = pool.submit(refresh_agy) if "agy" in wanted and agy_stale() else None
+    results = list(pool.map(lambda n: FETCHERS[n](), wanted))
+
+    # The agy relaunch takes seconds while the rest answer in under one. On a
+    # terminal, show the cached agy reading straight away and redraw the table in
+    # place once the fresh one lands, so the order never changes. Anywhere else
+    # (--json, a pipe) there is nothing to redraw, so wait and print once.
+    live = refresh and not args.json and sys.stdout.isatty()
+
+    def agy_now(refreshing):
+        index = wanted.index("agy")
+        results[index] = fetch_agy()
+        if refreshing and results[index] and results[index].get("note"):
+            results[index]["note"] += " · refreshing…"
+
+    if refresh and not live:
+        refresh.result()
+        agy_now(False)
+    elif live:
+        agy_now(True)
     providers = [r for r in results if r]
 
     if args.json:
@@ -651,10 +763,23 @@ def main():
         print(f"{missing}: not set up here.", file=sys.stderr)
         return 1
 
+    lines = render(providers)
     print()
-    for line in render(providers):
+    for line in lines:
         print(line)
-    print()
+    print(flush=True)
+
+    if live:
+        refresh.result()
+        agy_now(False)
+        providers = [r for r in results if r]
+        # Back to the first table line (past it and the trailing blank), clear
+        # to the end of the screen, and draw the table again.
+        sys.stdout.write(f"\033[{len(lines) + 1}F\033[J")
+        for line in render(providers):
+            print(line)
+        print()
+    pool.shutdown(wait=False)
     return 0
 
 
