@@ -98,7 +98,22 @@ running_hook=$(mk_hook "running")
 # dot PostToolUse last set and reads as "still working" while the session sits
 # stuck. Red rather than yellow because it isn't an ordinary finished turn: the
 # session needs you to do something before it goes anywhere.
-failed_hook=$(mk_hook "needs-input")
+#
+# It also carries background_tasks, so agent-subagents reconciles its subagent
+# set here too, the same as on Stop; otherwise a dead turn kept its old "+N".
+failed_cmd='p=$(cat); printf "%s" "$p" | $HOME/.local/bin/agent-subagents; $HOME/.local/bin/agent-state needs-input'
+failed_hook=$(jq -n --arg cmd "$failed_cmd" '[
+    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
+]')
+
+# SubagentStart / SubagentStop: add and remove the agent_id in agent-subagents'
+# set, so the status bar's "+N" moves the moment an agent starts or finishes
+# instead of only when the turn ends. Both fire for foreground, background and
+# workflow agents. Stop reconciles the set; see agent-subagents for why.
+subagent_cmd='$HOME/.local/bin/agent-subagents'
+subagent_hook=$(jq -n --arg cmd "$subagent_cmd" '[
+    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
+]')
 
 # Notification covers a dozen cases, distinguished by the payload's
 # "notification_type" field (NOT by the matcher — matchers only match tool
@@ -147,8 +162,8 @@ prompt_hook=$(jq -n --arg cmd "$prompt_cmd" '[
 
 # Stop: the turn ended — delegated to `agent-stop-state`, which reads the payload
 # once and gets two things out of it: the dot (running ● when in-flight
-# background work will auto-resume the agent, done ● otherwise) and
-# @agent_subagents, the fan-out count the status bar's "6+11" adds up. $HOME
+# background work will auto-resume the agent, done ● otherwise) and a reconcile
+# of agent-subagents' set, the fan-out the status bar's "6+11" adds up. $HOME
 # stays literal so /bin/sh expands it when Claude Code runs the hook; the script
 # reads the payload from stdin itself.
 stop_cmd='$HOME/.local/bin/agent-stop-state'
@@ -206,6 +221,7 @@ printf '%s' "$input" | jq \
     --argjson perm    "$perm_hook" \
     --argjson stop    "$stop_hook" \
     --argjson failed  "$failed_hook" \
+    --argjson subagent "$subagent_hook" \
     --arg     statuscmd "$status_cmd" \
     --arg     autocompactpct "$autocompact_pct" \
     --arg     defaultmode "$default_permission_mode" \
@@ -219,6 +235,8 @@ printf '%s' "$input" | jq \
    | .hooks.Notification     = $perm
    | .hooks.Stop             = $stop
    | .hooks.StopFailure      = $failed
+   | .hooks.SubagentStart    = $subagent
+   | .hooks.SubagentStop     = $subagent
    | .statusLine             = { "type": "command", "command": $statuscmd }
    | .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $autocompactpct
    | .permissions.defaultMode = $defaultmode

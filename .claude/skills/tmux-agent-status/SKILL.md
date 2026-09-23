@@ -90,17 +90,32 @@ out: how many subagents it has in flight. The status bar's agent count reads
 puts the `+11` on the row, in the detail pane and in the session roll-up. Claude
 Code exposes no ambient number for this (the status-line payload has no such
 field, and the `tasks/*.output` files on disk outlive the task that wrote them),
-but the **Stop hook payload carries `background_tasks`**, its own list of what is
-still attached to the session, each entry typed `subagent` / `shell` /
-`workflow` / …. So `agent-stop-state` — which already reads that array's length to
-decide the dot — counts the `subagent` entries and hands the number to
-`~/.local/bin/agent-subagents`. Recomputing from that list every turn is the whole
-point: a counter incremented on spawn and decremented on finish drifts the first
-time a process dies between the two and never recovers, whereas each Stop
-overwrites the option with the truth. `agent-state none` unsets it with the dot
+so `~/.local/bin/agent-subagents` keeps a **set** of live agent ids — one file
+each under `$TMPDIR/agent-subagents/<server pid>-<window>/<session>/` — and
+publishes the file count:
+
+- `SubagentStart` adds the `agent_id`, `SubagentStop` removes it. Both fire for
+  foreground, background and workflow agents, so the `+N` moves the moment an
+  agent starts or finishes. Files, not a list in a tmux option, because a batch
+  of spawns fires its hooks concurrently and a read-modify-write loses some.
+- **Stop and StopFailure reconcile** against the payload's `background_tasks`,
+  whose `subagent` entry ids are the same `agent_id`s: anything not still listed
+  as running/pending is deleted, so a missed `SubagentStop` costs one turn, not
+  forever. Workflow agents (`agent_type: workflow-subagent`) never appear there
+  by id — the workflow is one `workflow` entry — so they survive while any
+  workflow is live. Only turn ends reconcile: mid-turn, a running foreground
+  agent may be missing from the list.
+
+Until 2026-09 the count came from Stop alone, which missed everything that
+happens inside a turn: agents launched mid-turn, finished ones lingering,
+foreground agents entirely, and a workflow's agents (counted as 0). Probed on
+2.1.280 with a `--settings` file logging the three payloads from `claude -p`.
+
+`agent-state none` calls `agent-subagents clear`, dropping the set with the dot
 and the note, so a session killed mid-fan-out doesn't leave phantom subagents in
-the bar. The number is Claude-only by construction — Codex and Antigravity tabs
-count toward the `6` and can never add to the `+11`.
+the bar; `agent-state-sweep` does the same when it demotes a stale blue dot. The
+number is Claude-only by construction — Codex and Antigravity tabs count toward
+the `6` and can never add to the `+11`.
 
 ## done vs idle: the dot remembers whether you looked
 

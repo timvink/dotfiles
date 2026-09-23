@@ -60,7 +60,7 @@ if [ -n "${TMUX_PANE:-}" ]; then
             tmux set-option -wt "$win" -u '@agent_state' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_note' 2>/dev/null || true
             tmux set-option -wt "$win" -u '@agent_since' 2>/dev/null || true
-            tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
+            "$(dirname "$0")/agent-subagents" clear "$win"
             tmux set-option -wt "$win" -u '@agent_bg' 2>/dev/null || true
             # agent-state-sweep's two per-window memories go the same way. A
             # reused window must start unproven: @agent_title_spins is the

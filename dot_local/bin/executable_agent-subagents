@@ -1,46 +1,157 @@
 #!/bin/sh
-# Set the @agent_subagents user option on the current tmux window: how many
-# subagents this window's agent has in flight right now. The @agent_state dot
-# says whether the agent is working and @agent_note says what it is working on;
-# this says how wide it has fanned out, which is the difference between one
+# Maintain the @agent_subagents user option on the current tmux window: how
+# many subagents this window's agent has in flight right now. The @agent_state
+# dot says whether the agent is working and @agent_note says what it is working
+# on; this says how wide it has fanned out, which is the difference between one
 # agent grinding alone and one driving a dozen.
 #
 # Read by the status bar's agent count (tmux-agent-count, which sums it across
 # the whole server to render the "6+11") and by tmux-overview (prefix+o), which
 # shows it per tab.
 #
-# Usage: agent-subagents 3    (0, an empty string or no args → clear the option)
+# Usage:
+#   agent-subagents              Claude Code hook payload on stdin
+#   agent-subagents clear [@win] forget every subagent of a window (default:
+#                                this pane's) and unset the option
 #
-# NOT for agents to call, unlike its neighbour agent-note. The only writer is
-# agent-stop-state, which reads the count out of the Stop hook payload's
-# background_tasks — Claude Code's own list of what is still attached to the
-# session. Recomputing it from that list every turn is what keeps the number
-# honest: an event-driven counter incremented on spawn and decremented on
-# finish drifts the first time a process dies between the two, and never
-# recovers, whereas each Stop overwrites whatever was here with the truth.
+# NOT for agents to call, unlike its neighbour agent-note. Claude Code runs it
+# from four hooks (dot_claude/modify_settings.json, agent-stop-state):
 #
-# Clearing when the session goes away is not this script's job: `agent-state
-# none` unsets @agent_subagents along with @agent_state and @agent_note, so
-# SessionStart, SessionEnd and the zsh precmd reaper each wipe all three
-# together and the three can't desync.
+#   SubagentStart     add agent_id to the set
+#   SubagentStop      remove agent_id from the set
+#   Stop, StopFailure reconcile the set against the payload's background_tasks
+#
+# The set is one empty-ish file per live subagent, under
+#   $TMPDIR/agent-subagents/<tmux server pid>-<window id>/<session id>/<agent id>
+# and the option is the number of files. Files rather than a list in a tmux
+# option because a model launching five agents in one message fires five
+# SubagentStart hooks at once, and a read-modify-write on one option drops
+# some of them; creating and deleting a file is atomic. A set rather than a
+# counter so a repeated event does nothing and a missed one leaves one file
+# that the next Stop removes.
+#
+# Why the start/stop events at all, when Stop alone lists what is attached:
+# Stop fires only at the end of a turn, so a count kept from Stop alone missed
+# agents launched mid-turn, kept finished ones until the turn ended, never saw
+# foreground subagents (born and gone within one turn), and counted a workflow
+# as 0, since background_tasks lists a workflow as ONE "workflow" entry while
+# each of its agents fires SubagentStart/SubagentStop as agent_type
+# "workflow-subagent" (probed on 2.1.280).
+#
+# Stop stays authoritative for background agents: a background_tasks entry's id
+# is the agent_id SubagentStart carried, so the reconcile keeps exactly the
+# files the payload still lists as running/pending. Workflow agents never
+# appear there by id, so they survive while any workflow entry is live. Only
+# Stop and StopFailure reconcile: at a turn's end no foreground agent can still
+# be running, whereas mid-turn a SubagentStop payload may not list a running
+# foreground sibling. Sessions get their own directory so two Claude panes in
+# one window don't reconcile away each other's agents.
+#
+# Nested subagents (a subagent's own Agent calls) count while they run, if
+# Claude fires SubagentStart for them in this process; they are not listed in
+# background_tasks, so a Stop that lands while one runs drops it. Harmless: the
+# parent subagent is still counted.
+#
+# Clearing when the session goes away: `agent-state none` calls `clear`, so
+# SessionStart, SessionEnd and the zsh precmd reaper wipe the set along with the
+# dot and the note. agent-state-sweep calls `clear @win` when it demotes a stale
+# blue dot.
 #
 # No-op outside tmux. Always exits 0 so a hook never surfaces an error.
 
-# Anything that isn't a plain positive integer clears the option rather than
-# being written through: this lands in a status bar that re-expands #[...] in
-# what it prints, so the value has to be something tmux can only read as a
-# number.
-n=$(printf '%s' "${1:-}" | tr -cd '0-9')
+base="${TMPDIR:-/tmp}/agent-subagents"
 
-if [ -n "${TMUX_PANE:-}" ]; then
-    win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
-    if [ -n "${win:-}" ]; then
-        if [ -z "$n" ] || [ "$n" -eq 0 ]; then
-            tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
-        else
-            tmux set-option -wt "$win" '@agent_subagents' "$n" 2>/dev/null || true
-        fi
+# Tell every attached client to redraw its status line now, so the "+N" moves
+# when an agent starts or finishes rather than on the next status-interval tick.
+redraw() {
+    tmux list-clients -F '#{client_name}' 2>/dev/null | while IFS= read -r c; do
+        tmux refresh-client -S -t "$c" 2>/dev/null || true
+    done
+}
+
+# publish <window id> <window dir>: write the file count to the option.
+publish() {
+    n=$(find "$2" -type f 2>/dev/null | wc -l | tr -d ' ')
+    if [ "${n:-0}" -gt 0 ]; then
+        tmux set-option -wt "$1" '@agent_subagents' "$n" 2>/dev/null || true
+    else
+        tmux set-option -wt "$1" -u '@agent_subagents' 2>/dev/null || true
     fi
+    redraw
+}
+
+if [ "${1:-}" = clear ]; then
+    if [ -n "${2:-}" ]; then
+        win=$2
+    elif [ -n "${TMUX_PANE:-}" ]; then
+        win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
+    fi
+    [ -n "${win:-}" ] || exit 0
+    pid=$(tmux display-message -p '#{pid}' 2>/dev/null)
+    [ -n "$pid" ] && rm -rf "$base/$pid-$win" 2>/dev/null
+    tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
+    exit 0
 fi
 
+payload=$(cat)
+[ -n "${TMUX_PANE:-}" ] || exit 0
+key=$(tmux display-message -t "$TMUX_PANE" -p '#{pid}-#{window_id}' 2>/dev/null)
+[ -n "$key" ] || exit 0
+win=${key#*-}
+root="$base/$key"
+
+# One jq pass, one field per line (read would collapse empty tab-separated
+# fields). live = subagent ids background_tasks still lists as running or
+# pending; wf = whether a workflow is still running. Builds that omit status
+# count an entry as live, the same permissive default agent-stop-state uses.
+{
+    read -r event
+    read -r sid
+    read -r aid
+    read -r atype
+    read -r live
+    read -r wf
+} <<EOF
+$(printf '%s' "$payload" | jq -r '
+    [(.background_tasks // [])[]
+        | select((.status // "running") == "running" or
+                 (.status // "running") == "pending")] as $t
+    | (.hook_event_name // ""), (.session_id // ""), (.agent_id // ""),
+      (.agent_type // ""),
+      ([$t[] | select(.type == "subagent") | .id] | join(" ")),
+      (any($t[]; .type == "workflow") | tostring)
+' 2>/dev/null)
+EOF
+
+# These become path components; keep them to what Claude's ids are made of.
+sid=$(printf '%s' "${sid:-}" | tr -cd 'A-Za-z0-9_-')
+aid=$(printf '%s' "${aid:-}" | tr -cd 'A-Za-z0-9_-')
+[ -n "$sid" ] || exit 0
+dir="$root/$sid"
+
+case "${event:-}" in
+    SubagentStart)
+        [ -n "$aid" ] || exit 0
+        mkdir -p "$dir" 2>/dev/null && printf '%s\n' "${atype:-}" > "$dir/$aid"
+        ;;
+    SubagentStop)
+        [ -n "$aid" ] && rm -f "$dir/$aid"
+        ;;
+    Stop|StopFailure)
+        for f in "$dir"/*; do
+            [ -f "$f" ] || continue
+            case " ${live:-} " in *" ${f##*/} "*) continue ;; esac
+            if [ "${wf:-}" = true ] && [ "$(cat "$f" 2>/dev/null)" = workflow-subagent ]; then
+                continue
+            fi
+            rm -f "$f"
+        done
+        rmdir "$dir" 2>/dev/null
+        ;;
+    *)
+        exit 0
+        ;;
+esac
+
+publish "$win" "$root"
 exit 0
