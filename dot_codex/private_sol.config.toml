@@ -8,8 +8,6 @@
 # Mac). The model id is identical on both — on Azure it names a deployment in
 # the aif-nwf-devtools account, upstream it names the model itself.
 #
-# GPT-5.6-sol is the heaviest variant of the generation (terra, the everyday
-# default, is the middle one; luna the lightest). It costs ~2x per token on
-# Azure and eats the subscription's limit correspondingly faster, so reach for
-# it on hard problems rather than by default.
-model = "gpt-5.6-sol"
+# GPT-6 Sol balances capability and cost for demanding coding and agent work.
+# GPT-5.6 Terra remains the everyday default.
+model = "gpt-6-sol"

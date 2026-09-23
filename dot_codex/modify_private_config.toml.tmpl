@@ -16,7 +16,8 @@
 #     so emitting `model_provider = "azure"` on macOS makes every session fail
 #     with "Missing environment variable: AZURE_OPENAI_API_KEY".
 # Only the provider differs: the subscription serves the same model ids
-# (gpt-5.6-terra/sol/luna) that the devbox names as Azure deployments.
+# (gpt-5.6-terra, gpt-6-sol, and gpt-6-luna) that the devbox names as Azure
+# deployments.
 #
 # Why Linux pins `model`: Codex rewrites `model` to a bare upstream model id
 # whenever you switch models — via the `/model` picker or its model-migration
@@ -29,9 +30,8 @@
 # `/model` switch was enough to break a live session, so it was dropped.
 # Switching to a model that isn't deployed (for example a future 5.7) still
 # 404s — correctly. Deployments live in the nwf-ai-platform-infra repo
-# (infra/global/platform.bicep, aif-nwf-devtools account); both are EU-resident
-# DataZoneStandard. terra costs the same per token as the gpt-5.4 it replaced;
-# sol is roughly 2x, hence opt-in.
+# (infra/global/platform.bicep, aif-nwf-devtools account); all are EU-resident
+# DataZoneStandard deployments.
 #
 # macOS deliberately does NOT pin the model: there is no deployment-name
 # mismatch to defend against, so a `/model` switch is safe and is carried over
