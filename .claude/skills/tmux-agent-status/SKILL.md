@@ -329,9 +329,10 @@ idle sleep — doesn't survive it; the only knob that does is pmset's undocument
   under work that resumed seconds later. Grace time counts toward the cap, and
   the cap's latch is only cleared once the quiet has outlasted the buffer —
   otherwise a capped batch could sneak straight back into a hold.
-- Guards against a stuck hold cooking the laptop in a bag: a 90-minute cap that
-  latches off until the running count hits 0 and stays there past the grace
-  buffer, a 30% battery floor (enforced mid-grace too), and the boot-reset
+- Guards against a stuck hold cooking the laptop in a bag: a 90-minute cap
+  (battery only — on AC there is no cap, plugging in clears the latch, and the
+  clock restarts on unplug) that latches off until the running count hits 0 and
+  stays there past the grace buffer, a 30% battery floor (enforced mid-grace too), and the boot-reset
   daemon for the case where the guard dies mid-hold.
 
 Only `running` counts — a red `needs-input` agent will never finish unattended.
