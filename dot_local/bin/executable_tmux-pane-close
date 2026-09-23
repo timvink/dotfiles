@@ -5,8 +5,9 @@
 # the polling below can't block the tmux server.
 #
 # Three kinds of pane, tried in order:
-#   agent   — claude/codex/agy/pi/… : save the pane's text to
-#             ~/.cache/tmux-pane-close/, clear the tab dot, then kill the pane.
+#   agent   — claude/codex/agy/pi/… : refuse while the prompt holds an unsent
+#             draft; otherwise save the pane's text to ~/.cache/tmux-pane-close/,
+#             clear the tab dot, then kill the pane.
 #             Lives at the tmux level because none of those tools expose
 #             configurable key bindings, so a uniform alt+e has to sit above
 #             them. SIGHUP semantics, same as the old bare-`e` hook had — pi
@@ -42,6 +43,22 @@ fi
 tty=$(tmux display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null)
 [ -n "$tty" ] || exit 0
 if ps -t "$tty" -o comm= 2>/dev/null | grep -qE '^(claude|codex|codex-.+|agy|antigravity|gemini|pi)$'; then
+  # An unsent draft in the input box blocks alt+e: the tab stays open with a
+  # flash saying why, the same contract as nvim's unsaved buffers. Send or clear
+  # the draft first. The input line is the last one starting with Claude Code's
+  # `❯` + NO-BREAK SPACE (sent messages use a plain space) or Codex's `› `; text
+  # on it, or on the lines below it up to the box's ─ rule, counts. Dim text is
+  # a placeholder, not a draft, and is stripped first. Other agents never match.
+  if tmux capture-pane -p -e -t "$pane" 2>/dev/null | perl -CS -e '
+      my @l = map { s/\e\[2m.*?(?=\e\[(?:22|0)?m|$)//g; s/\e\[[0-9;]*m//g; $_ } <STDIN>;
+      my $i; for (0..$#l) { $i = $_ if $l[$_] =~ /^(?:\x{276F}\x{A0}|\x{203A} )/ }
+      exit 1 unless defined $i;
+      my $t = substr($l[$i], 2);
+      for my $j ($i+1..$#l) { last if $l[$j] =~ /^\x{2500}/; $t .= $l[$j] }
+      exit($t =~ /\S/ ? 0 : 1)'; then
+    tmux display-message "tab kept open — unsent draft in the prompt"
+    exit 0
+  fi
   # Snapshot the pane first. kill-pane gives the agent no chance to save, and a
   # half-typed prompt lives only in its input box — an accidental alt+e used to
   # take a long draft with it. The capture holds the full scrollback plus that
