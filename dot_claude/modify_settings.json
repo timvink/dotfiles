@@ -192,6 +192,13 @@ status_cmd="bash $HOME/.claude/statusline-command.sh"
 # model actually uses what's in context.
 autocompact_pct=65
 
+# Built-in subagents (Explore, general-purpose, Plan) inherit the main model
+# unless told otherwise; route them to the `opus` alias so they track the
+# latest Opus (cheaper than Fable, and ahead on benchmarks as of 5.5) even when
+# the main session is switched to Fable. Custom agent files would set
+# `model: opus` / `effort: medium` themselves; there are none today.
+subagent_model=opus
+
 # Concise output style: trims the prose Claude Code wraps around answers
 # (explanatory commentary, preamble) in favour of short, direct responses.
 output_style=Concise
@@ -224,6 +231,7 @@ printf '%s' "$input" | jq \
     --argjson subagent "$subagent_hook" \
     --arg     statuscmd "$status_cmd" \
     --arg     autocompactpct "$autocompact_pct" \
+    --arg     subagentmodel "$subagent_model" \
     --arg     defaultmode "$default_permission_mode" \
     --arg     outstyle "$output_style" \
     --arg     instrfiles "$instruction_files" \
@@ -239,6 +247,7 @@ printf '%s' "$input" | jq \
    | .hooks.SubagentStop     = $subagent
    | .statusLine             = { "type": "command", "command": $statuscmd }
    | .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $autocompactpct
+   | .env.CLAUDE_CODE_SUBAGENT_MODEL = $subagentmodel
    | .permissions.defaultMode = $defaultmode
    | .outputStyle             = $outstyle
    | .pluginConfigs["agents-md@builtin"].options.instructionFiles = $instrfiles'
