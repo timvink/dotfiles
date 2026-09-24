@@ -26,15 +26,11 @@ Everything that ends a turn sets `done`; the only thing that clears it is
 Red is reserved for an **interactive blocker**: something on screen the session
 cannot move past until you answer it — a permission prompt, `AskUserQuestion`,
 `ExitPlanMode`, an MCP elicitation, or a `StopFailure`. A turn that simply ends
-by asking you a question is `done` like every other ending. It used to be red,
-inferred from a trailing `?` on the final line, which forced `agents/AGENTS.md`
-to tell every agent to punctuate its closing sentence according to whether it was
-waiting — a rule in the prompt propping up a signal in the status bar, and a tax
-on the writing besides. Splitting finished into `done` ● / `idle` ○ removed the
-need for it: an unread finished turn already stays filled until the tab has been
-in front of you, so a closing question gets collected without a colour of its
-own. Dropped 2026-08-20 from `agent-stop-state`, from agy's statusline, and from
-the prompt.
+by asking you a question is `done` like every other ending: an unread finished
+turn stays filled until the tab has been in front of you, so a closing question
+gets collected without a colour of its own. Don't infer red from the reply's
+text (a trailing `?`, say) — that needs a punctuation rule in `agents/AGENTS.md`
+to prop up the signal, which taxes every agent's writing.
 
 - **Claude Code / Codex** drive it from lifecycle hooks (`dot_claude/modify_settings.json`,
   `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`). Two turn
@@ -71,7 +67,7 @@ the prompt.
 A companion `@agent_note` window option carries **what** the agent is doing, since
 the dot only says whether it is doing anything — five working agents are five
 identical blue dots. Agents set it themselves with `~/.local/bin/agent-note`,
-instructed by the "Per-tab progress note" section of `agents/AGENTS.md`; nothing
+instructed by the "Scratch files and progress" section of `agents/AGENTS.md`; nothing
 polls or infers it, so a tab whose agent never calls it just has no note. Only
 `tmux-overview` (prefix+o) renders it — the tab bar is deliberately left alone,
 being far too narrow for a sentence. `agent-state none` unsets the note alongside
@@ -106,10 +102,10 @@ publishes the file count:
   workflow is live. Only turn ends reconcile: mid-turn, a running foreground
   agent may be missing from the list.
 
-Until 2026-09 the count came from Stop alone, which missed everything that
-happens inside a turn: agents launched mid-turn, finished ones lingering,
-foreground agents entirely, and a workflow's agents (counted as 0). Probed on
-2.1.280 with a `--settings` file logging the three payloads from `claude -p`.
+Stop alone can't drive the count: it misses agents launched mid-turn, finished
+ones lingering, foreground agents, and a workflow's agents. To re-verify the
+payloads, run `claude -p` with a `--settings` file whose hooks log all three
+(last checked on 2.1.280).
 
 `agent-state none` calls `agent-subagents clear`, dropping the set with the dot
 and the note, so a session killed mid-fan-out doesn't leave phantom subagents in
