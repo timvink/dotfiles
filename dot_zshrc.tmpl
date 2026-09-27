@@ -63,6 +63,8 @@ export PATH="$HOME/.local/bin:$PATH"
 # against OSV malware (MAL) advisories and abort before any malicious code runs.
 # Opt-in for now, so enable it everywhere. https://astral.sh/blog/uv-audit
 export UV_MALWARE_CHECK=1
+# Opting into the preview feature silences the "experimental" warning on every uv run.
+export UV_PREVIEW_FEATURES=malware-check
 
 {{ if eq .chezmoi.os "darwin" }}
 if [ -n "${HOMEBREW_PREFIX:-}" ]; then
