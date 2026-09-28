@@ -58,6 +58,10 @@ setopt sharehistory        # Share history across sessions
 
 # Update path for claude code
 export PATH="$HOME/.local/bin:$PATH"
+{{- if eq .chezmoi.os "darwin" }}
+# rustup from Homebrew is keg-only; cargo-installed tools land in ~/.cargo/bin.
+export PATH="/opt/homebrew/opt/rustup/bin:$HOME/.cargo/bin:$PATH"
+{{- end }}
 
 # uv malware scanning: on `uv add` / `uv sync`, check the locked resolution
 # against OSV malware (MAL) advisories and abort before any malicious code runs.
