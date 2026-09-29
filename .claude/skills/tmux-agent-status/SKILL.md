@@ -26,15 +26,11 @@ Everything that ends a turn sets `done`; the only thing that clears it is
 Red is reserved for an **interactive blocker**: something on screen the session
 cannot move past until you answer it — a permission prompt, `AskUserQuestion`,
 `ExitPlanMode`, an MCP elicitation, or a `StopFailure`. A turn that simply ends
-by asking you a question is `done` like every other ending. It used to be red,
-inferred from a trailing `?` on the final line, which forced `agents/AGENTS.md`
-to tell every agent to punctuate its closing sentence according to whether it was
-waiting — a rule in the prompt propping up a signal in the status bar, and a tax
-on the writing besides. Splitting finished into `done` ● / `idle` ○ removed the
-need for it: an unread finished turn already stays filled until the tab has been
-in front of you, so a closing question gets collected without a colour of its
-own. Dropped 2026-08-20 from `agent-stop-state`, from agy's statusline, and from
-the prompt.
+by asking you a question is `done` like every other ending: an unread finished
+turn stays filled until the tab has been in front of you, so a closing question
+gets collected without a colour of its own. Don't infer red from the reply's
+text (a trailing `?`, say) — that needs a punctuation rule in `agents/AGENTS.md`
+to prop up the signal, which taxes every agent's writing.
 
 - **Claude Code / Codex** drive it from lifecycle hooks (`dot_claude/modify_settings.json`,
   `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`). Two turn
@@ -71,7 +67,7 @@ the prompt.
 A companion `@agent_note` window option carries **what** the agent is doing, since
 the dot only says whether it is doing anything — five working agents are five
 identical blue dots. Agents set it themselves with `~/.local/bin/agent-note`,
-instructed by the "Per-tab progress note" section of `agents/AGENTS.md`; nothing
+instructed by the "Scratch files and progress" section of `agents/AGENTS.md`; nothing
 polls or infers it, so a tab whose agent never calls it just has no note. Only
 `tmux-overview` (prefix+o) renders it — the tab bar is deliberately left alone,
 being far too narrow for a sentence. `agent-state none` unsets the note alongside
@@ -90,17 +86,32 @@ out: how many subagents it has in flight. The status bar's agent count reads
 puts the `+11` on the row, in the detail pane and in the session roll-up. Claude
 Code exposes no ambient number for this (the status-line payload has no such
 field, and the `tasks/*.output` files on disk outlive the task that wrote them),
-but the **Stop hook payload carries `background_tasks`**, its own list of what is
-still attached to the session, each entry typed `subagent` / `shell` /
-`workflow` / …. So `agent-stop-state` — which already reads that array's length to
-decide the dot — counts the `subagent` entries and hands the number to
-`~/.local/bin/agent-subagents`. Recomputing from that list every turn is the whole
-point: a counter incremented on spawn and decremented on finish drifts the first
-time a process dies between the two and never recovers, whereas each Stop
-overwrites the option with the truth. `agent-state none` unsets it with the dot
+so `~/.local/bin/agent-subagents` keeps a **set** of live agent ids — one file
+each under `$TMPDIR/agent-subagents/<server pid>-<window>/<session>/` — and
+publishes the file count:
+
+- `SubagentStart` adds the `agent_id`, `SubagentStop` removes it. Both fire for
+  foreground, background and workflow agents, so the `+N` moves the moment an
+  agent starts or finishes. Files, not a list in a tmux option, because a batch
+  of spawns fires its hooks concurrently and a read-modify-write loses some.
+- **Stop and StopFailure reconcile** against the payload's `background_tasks`,
+  whose `subagent` entry ids are the same `agent_id`s: anything not still listed
+  as running/pending is deleted, so a missed `SubagentStop` costs one turn, not
+  forever. Workflow agents (`agent_type: workflow-subagent`) never appear there
+  by id — the workflow is one `workflow` entry — so they survive while any
+  workflow is live. Only turn ends reconcile: mid-turn, a running foreground
+  agent may be missing from the list.
+
+Stop alone can't drive the count: it misses agents launched mid-turn, finished
+ones lingering, foreground agents, and a workflow's agents. To re-verify the
+payloads, run `claude -p` with a `--settings` file whose hooks log all three
+(last checked on 2.1.280).
+
+`agent-state none` calls `agent-subagents clear`, dropping the set with the dot
 and the note, so a session killed mid-fan-out doesn't leave phantom subagents in
-the bar. The number is Claude-only by construction — Codex and Antigravity tabs
-count toward the `6` and can never add to the `+11`.
+the bar; `agent-state-sweep` does the same when it demotes a stale blue dot. The
+number is Claude-only by construction — Codex and Antigravity tabs count toward
+the `6` and can never add to the `+11`.
 
 ## done vs idle: the dot remembers whether you looked
 
@@ -329,9 +340,10 @@ idle sleep — doesn't survive it; the only knob that does is pmset's undocument
   under work that resumed seconds later. Grace time counts toward the cap, and
   the cap's latch is only cleared once the quiet has outlasted the buffer —
   otherwise a capped batch could sneak straight back into a hold.
-- Guards against a stuck hold cooking the laptop in a bag: a 90-minute cap that
-  latches off until the running count hits 0 and stays there past the grace
-  buffer, a 30% battery floor (enforced mid-grace too), and the boot-reset
+- Guards against a stuck hold cooking the laptop in a bag: a 90-minute cap
+  (battery only — on AC there is no cap, plugging in clears the latch, and the
+  clock restarts on unplug) that latches off until the running count hits 0 and
+  stays there past the grace buffer, a 30% battery floor (enforced mid-grace too), and the boot-reset
   daemon for the case where the guard dies mid-hold.
 
 Only `running` counts — a red `needs-input` agent will never finish unattended.

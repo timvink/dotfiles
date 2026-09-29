@@ -28,8 +28,9 @@ Where the numbers come from, since none of the CLIs ships a `usage` subcommand:
           real client, but agy hands the same buckets to its status line on every
           state change. So when the cache is stale, limits starts the agy TUI in
           a hidden terminal for the few seconds it takes to draw its first status
-          line, then kills it — no prompt is sent, nothing is spent. The table
-          shows the cached reading first and redraws when the fresh one lands.
+          line, then kills it — no prompt is sent, nothing is spent. That takes
+          ~5s, so it runs detached: limits shows the cached reading with its age
+          and returns to the prompt, and the next run shows the fresh one.
 
   openrouter
           openrouter.ai/api/v1/credits and /key, with the key from
@@ -509,6 +510,41 @@ def refresh_agy(timeout=AGY_REFRESH_TIMEOUT):
     return updated
 
 
+AGY_LOCK = os.path.expanduser("~/.gemini/antigravity-cli/cache/limits-refresh.lock")
+
+
+def refresh_agy_locked():
+    """refresh_agy, unless another limits is already running one."""
+    import fcntl
+
+    with open(AGY_LOCK, "w") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            return 0
+        return 0 if refresh_agy() else 1
+
+
+def spawn_agy_refresh():
+    """Run the agy refresh in its own session, outliving this process.
+
+    The relaunch takes seconds, which made limits the slowest thing in the
+    terminal for a reading that is fine one run late. Detached, the prompt
+    comes back as soon as claude and codex answer.
+    """
+    try:
+        subprocess.Popen(
+            [sys.executable, os.path.abspath(__file__), "--refresh-agy"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        return True
+    except OSError:
+        return False
+
+
 def fetch_agy():
     if not shutil.which("agy"):
         return None
@@ -729,23 +765,24 @@ def main():
     )
     ap.add_argument("--json", action="store_true", help="print the raw numbers")
     ap.add_argument("--no-color", action="store_true", help="plain text")
+    ap.add_argument("--refresh-agy", action="store_true", help=argparse.SUPPRESS)
     args = ap.parse_args()
+
+    if args.refresh_agy:
+        return refresh_agy_locked()
 
     global COLOR
     COLOR = not args.no_color and sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
 
     wanted = [args.provider] if args.provider else list(FETCHERS)
-    pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(wanted) + 1)
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=len(wanted))
     jobs = {pool.submit(FETCHERS[name]): name for name in wanted}
-    # The agy relaunch waits for codex: both start a heavy CLI, and running them
-    # side by side made codex, the reading that matters more, half a second slower.
-    refresh_due = "agy" in wanted and agy_stale()
-    refreshing = refresh_due
+    refreshing = "agy" in wanted and agy_stale() and spawn_agy_refresh()
 
     # On a terminal the table is drawn at once, a placeholder for every provider,
     # and redrawn in place as each one answers, so claude and codex show up in
-    # under a second instead of waiting on the slowest provider — openrouter's
-    # vault lookup, or the few seconds the agy relaunch takes. The order never
+    # under a second instead of waiting on the slowest provider, such as
+    # openrouter's vault lookup. The order never
     # changes. Anywhere else (--json, a pipe) there is nothing to redraw, so wait
     # and print once.
     live = not args.json and sys.stdout.isatty()
@@ -774,26 +811,15 @@ def main():
         draw()
 
     pending = set(jobs)
-    while pending or refresh_due:
-        if refresh_due and ("codex" in done or "codex" not in wanted):
-            refresh_due = False
-            job = pool.submit(refresh_agy)
-            jobs[job] = "agy refresh"
-            pending.add(job)
+    while pending:
         finished, pending = concurrent.futures.wait(
             pending, return_when=concurrent.futures.FIRST_COMPLETED
         )
         for job in finished:
             name = jobs[job]
-            if name == "agy refresh":
-                refreshing = False
-                name, result = "agy", fetch_agy()
-            else:
-                result = job.result()
-                if name == "agy" and not refreshing and "agy refresh" in jobs.values():
-                    result = fetch_agy()  # read the cache the refresh just rewrote
-                elif name == "agy" and refreshing and result and result.get("note"):
-                    result["note"] += " · refreshing…"
+            result = job.result()
+            if name == "agy" and refreshing and result and result.get("note"):
+                result["note"] += " · refreshing for next run"
             results[name] = result
             done.add(name)
             if live:

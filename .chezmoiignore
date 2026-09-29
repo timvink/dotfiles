@@ -32,6 +32,11 @@ agents
 .config/wireguard/protonvpn.conf
 {{ end }}
 {{ if not (dig "includePrivate" false .) }}
+# Shared Albert Heijn MCP server: my grocery account.
+.chezmoiscripts/setup-ah-mcp_darwin.sh
+Library/LaunchAgents/com.timvink.ah-mcp.plist
+{{ end }}
+{{ if not (dig "includePrivate" false .) }}
 .ssh/config
 # Both rbw paths — the OS blocks below pick which one a private machine gets.
 .config/rbw/config.json
@@ -51,10 +56,12 @@ Library/Application Support/rbw/config.json
 .chezmoiscripts/setup_finder_copypath_darwin.sh
 .chezmoiscripts/load-open-url-agent_darwin.sh
 .chezmoiscripts/setup-agent-sleep-guard_darwin.sh
+.chezmoiscripts/setup-ah-mcp_darwin.sh
 .local/bin/open-url-listener
 .local/bin/agent-sleep-guard
 Library/LaunchAgents/com.timvink.openurl.plist
 Library/LaunchAgents/com.timvink.agent-sleep-guard.plist
+Library/LaunchAgents/com.timvink.ah-mcp.plist
 # Karabiner-Elements is macOS-only, so its config is dead weight elsewhere.
 .config/karabiner
 {{ end }}

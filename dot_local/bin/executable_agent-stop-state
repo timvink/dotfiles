@@ -32,14 +32,13 @@
 # No-op outside tmux (agent-state is). Any parse failure falls through to done,
 # so a finished tab is never wrongly stuck blue.
 #
-# Same payload also feeds @agent_subagents (see agent-subagents), the count of
-# subagents this tab has in flight — the one number the status bar's "6+11" and
-# the prefix+o rows add to the dot.
+# Same payload also goes to agent-subagents, which reconciles its set of live
+# subagents (the "+11" in the status bar's "6+11") against background_tasks.
 
 dir=$(dirname "$0")
 payload=$(cat)
 
-# One pass over background_tasks for the two numbers this payload carries.
+# One pass over background_tasks decides the dot.
 # Entries name their kind — "subagent", "workflow", "monitor", "shell", "MCP
 # task", "teammate", "cloud session" — which splits them into two groups that
 # mean opposite things for the dot:
@@ -68,29 +67,19 @@ payload=$(cat)
 # "killed"); completed-and-not-yet-reaped entries must not hold the dot either.
 # Older builds that omit status count as before — (// "running") keeps the
 # filter permissive there rather than trusting an absent field.
-#
-# `subagents` is separate again and narrower than both: it feeds the status bar's
-# "6+11" and the prefix+o rows, which count fan-out rather than anything about
-# the dot. It gets the same liveness filter — a completed-but-unreaped subagent
-# entry is not fan-out in flight. (// [] covers builds predating
-# background_tasks.)
-set -- $(printf '%s' "$payload" | jq -r '
-    (.background_tasks // []) as $t
-    | "\([$t[] | select(.type != "shell" and .type != "monitor")
-                    | select((.status // "running") == "running" or
-                             (.status // "running") == "pending")] | length)
-      \([$t[] | select(.type == "subagent")
-                    | select((.status // "running") == "running" or
-                             (.status // "running") == "pending")] | length)"
+# (// [] covers builds predating background_tasks.)
+resumes=$(printf '%s' "$payload" | jq -r '
+    [(.background_tasks // [])[]
+        | select(.type != "shell" and .type != "monitor")
+        | select((.status // "running") == "running" or
+                 (.status // "running") == "pending")] | length
 ' 2>/dev/null)
-resumes=${1:-0}
-subagents=${2:-0}
+resumes=${resumes:-0}
 
-# Stamp the subagent count before deciding the dot, and on every path: Stop is
-# the one moment Claude Code hands over an authoritative list of what is still
-# running, so this is a recount rather than a tally kept across events, and a
-# turn that ends with nothing attached writes the 0 that clears the option.
-"$dir/agent-subagents" "$subagents"
+# Reconcile the subagent set on every path: Stop is the one moment Claude Code
+# hands over an authoritative list of what is still attached, so a turn that
+# ends with nothing attached clears whatever SubagentStart/SubagentStop left.
+printf '%s' "$payload" | "$dir/agent-subagents"
 
 # Agent-driven work still attached → the session auto-resumes; show running, not
 # "your turn". @agent_bg records WHY this one is blue, because from the outside

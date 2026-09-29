@@ -1,0 +1,58 @@
+#!/bin/sh
+# Run one shared Albert Heijn MCP server and point Claude Code at it over HTTP,
+# instead of letting every Claude session spawn its own stdio copy. See
+# ~/Library/LaunchAgents/com.timvink.ah-mcp.plist for why.
+#
+# ah-mcp is a hand-installed binary that this repo does not manage, so this
+# script skips machines that lack it. Gated on includePrivate and darwin in
+# .chezmoiignore.
+#
+# Codex keeps its stdio entry in dot_codex/modify_private_config.toml.tmpl: it
+# runs few long-lived sessions, and an HTTP entry would need the bearer token
+# rendered into its config.
+#
+# Hash makes the dependency explicit: editing the plist reloads it.
+# plist hash: {{ include "private_Library/LaunchAgents/com.timvink.ah-mcp.plist.tmpl" | sha256sum }}
+set -eu
+
+PATH="$HOME/.local/bin:$PATH"
+export PATH
+
+ah_bin="$HOME/.local/bin/ah-mcp"
+if [ ! -x "$ah_bin" ]; then
+	echo "setup-ah-mcp: $ah_bin not installed, skipping" >&2
+	exit 0
+fi
+
+url="http://127.0.0.1:47823/mcp"
+token_dir="$HOME/Library/Application Support/ah-mcp"
+token_file="$token_dir/bearer-token"
+
+# Generate the bearer token once; the launchd agent and Claude both read it.
+mkdir -p "$token_dir" "$HOME/Library/Logs"
+if [ ! -s "$token_file" ]; then
+	(umask 077 && openssl rand -hex 32 > "$token_file")
+fi
+token=$(cat "$token_file")
+
+plist="$HOME/Library/LaunchAgents/com.timvink.ah-mcp.plist"
+launchctl unload "$plist" 2>/dev/null || true
+launchctl load "$plist"
+echo "=== chezmoi: (re)loaded com.timvink.ah-mcp LaunchAgent ==="
+
+if ! command -v claude >/dev/null 2>&1; then
+	echo "setup-ah-mcp: claude not installed, skipping Claude registration" >&2
+	exit 0
+fi
+
+# Replace the old stdio registration, or one with a stale token. A token that
+# is not in the output means the header is missing or outdated.
+if current=$(claude mcp get ah 2>/dev/null); then
+	if printf '%s\n' "$current" | grep -qF "URL: $url" &&
+		printf '%s\n' "$current" | grep -qF "$token"; then
+		exit 0
+	fi
+	claude mcp remove ah -s user
+fi
+claude mcp add --transport http ah "$url" --scope user \
+	--header "Authorization: Bearer $token"

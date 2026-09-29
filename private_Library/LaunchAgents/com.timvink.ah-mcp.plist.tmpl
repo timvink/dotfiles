@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- One shared Albert Heijn MCP server for every agent session. Registered as a
+     stdio server, each Claude session spawned its own ah-mcp and kept it until the
+     session exited, so a day of work left a dozen copies running. Clients now
+     connect over streamable HTTP at http://127.0.0.1:47823/mcp.
+
+     ah-mcp has no bind-address option and listens on all interfaces, so it gets
+     a bearer token (AH_MCP_TOKEN) to keep the grocery account off the LAN. The
+     token lives in a 0600 file generated locally by the installer script; it is
+     not a vault secret because any machine can make a new one. The sh wrapper
+     reads it at launch so the token never appears in this plist.
+
+     KeepAlive restarts the server if it crashes. Managed by chezmoi and
+     (re)loaded by run_onchange_after_setup-ah-mcp_darwin.sh. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.ah-mcp</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/sh</string>
+        <string>-c</string>
+        <string>AH_MCP_TOKEN=$(cat "$HOME/Library/Application Support/ah-mcp/bearer-token") exec "$HOME/.local/bin/ah-mcp" --transport streamable-http</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>AH_MCP_PORT</key>
+        <string>47823</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/ah-mcp.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/ah-mcp.log</string>
+</dict>
+</plist>

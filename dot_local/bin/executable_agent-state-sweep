@@ -171,7 +171,7 @@ tmux list-panes -a -F '#{window_id}	#{@agent_state}	#{@agent_bg}	#{@agent_title_
                 # dot was the one that turned out to be wrong. Left alone, a turn
                 # that died without a Stop would keep adding its dead fan-out to
                 # the bar's "6+11" until the session ended.
-                tmux set-option -wt "$win" -u '@agent_subagents' 2>/dev/null || true
+                "$(dirname "$0")/agent-subagents" clear "$win"
                 ;;
             promote)
                 tmux set-option -wt "$win" '@agent_since' "$now" 2>/dev/null || true

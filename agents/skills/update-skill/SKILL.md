@@ -23,7 +23,7 @@ obsolete upstream files only after checking local references.
 Validate frontmatter and local links. Skills in `agents/skills/` are live through
 symlinks or pi's configured path, so content edits need no apply. Additions and
 removals need the chezmoi skill-link script to refresh the symlink inventory.
-Stage only the intended changes when a commit is requested.
+Stage only the intended changes, and commit them as the repo's `AGENTS.md` directs.
 
 If an installed plugin duplicates a vendored skill, report the collision. Don't
 change plugin configuration as an unrequested side effect of refreshing files.

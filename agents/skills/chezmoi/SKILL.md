@@ -29,5 +29,5 @@ permissions, `executable_` adds execution permission, `symlink_` creates a link,
 and `.tmpl` renders a template. `run_onchange_*` scripts rerun when their rendered
 content changes; `.chezmoitemplates/` holds shared partials.
 
-Stage only intended files. Commit when the user requests it; never include
-unrelated work with `git add -A`.
+Stage only intended files, by path; never include unrelated work with
+`git add -A`. Commit finished work as the source repo's `AGENTS.md` directs.
