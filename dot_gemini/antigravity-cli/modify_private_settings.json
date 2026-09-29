@@ -12,7 +12,9 @@
 #   .artifactReviewPolicy → "always-proceed" (auto-approve artifact and code reviews)
 #
 # Both blocks are {command, enabled} (the key is statusLine, camelCase — a
-# lowercase "statusline" is silently ignored). The command path is absolute,
+# lowercase "statusline" is silently ignored). They are merged into agy's own
+# object rather than replacing it: agy writes back an empty "type" key, and
+# dropping it made every apply show drift. The command path is absolute,
 # baked at apply time, and run via bash so it doesn't depend on the +x bit or on
 # agy doing ~ expansion.
 #
@@ -29,8 +31,8 @@ title_cmd="bash $HOME/.gemini/antigravity-cli/title.sh"
 printf '%s' "$input" | jq \
     --arg s "$status_cmd" \
     --arg t "$title_cmd" \
-    '.statusLine           = { "command": $s, "enabled": true }
-   | .title                = { "command": $t, "enabled": true }
+    '.statusLine           = (.statusLine // {}) + { "command": $s, "enabled": true }
+   | .title                = (.title // {}) + { "command": $t, "enabled": true }
    | .toolPermission       = "always-proceed"
    | .artifactReviewPolicy = "always-proceed"'
 
