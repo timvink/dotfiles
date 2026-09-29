@@ -24,8 +24,8 @@
 # maps each key to one row's command and never exposes which row is highlighted,
 # so "highlight a row, press y" is impossible there. fzf gives us a second verb
 # per row (--expect reports the key alongside the selection) while keeping the
-# one-key jumps (each letter is bound to pos(N)+accept). Typing is disabled
-# (--no-input) so the letters stay shortcuts instead of a search query.
+# one-key jumps (each letter is bound to pos(N)+accept). Search is disabled
+# (--disabled) so the letters stay shortcuts instead of filtering the list.
 #
 # Replaces Ghostty's cmd-click URL-open, which tmux's `set -g mouse on` swallows
 # before Ghostty sees it. Cross-platform (Darwin / Linux).
@@ -101,7 +101,7 @@ if [ "$mode" = pick ]; then
         binds="${binds:+$binds,}q:abort"
     fi
 
-    out=$(fzf --no-input --info=hidden --layout=reverse --no-scrollbar --ansi \
+    out=$(fzf --disabled --info=hidden --layout=reverse --no-scrollbar --ansi \
               --delimiter="$TAB" --with-nth='3..' \
               --header="$hdr" \
               --pointer='▌' --marker=' ' \
