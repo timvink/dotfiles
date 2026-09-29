@@ -67,6 +67,7 @@ PACKAGES=(
   diff-so-fancy
   visidata
   gnupg
+  pinentry # pinentry-tty: rbw master-password prompt (see .chezmoitemplates/rbw-config.json)
   pinentry-mac
   rbw # Bitwarden/Vaultwarden CLI; config managed by chezmoi (Library/Application Support/rbw on macOS, ~/.config/rbw on Linux)
   supabase/tap/supabase
