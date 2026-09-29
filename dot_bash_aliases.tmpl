@@ -451,15 +451,29 @@ _devbox_ensure_master() {
       -o ControlMaster=yes -o ControlPath="$sock" -o ControlPersist=30m \
       -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
       -o ExitOnForwardFailure=yes >/dev/null 2>"$log" & )
-  # Wait for the socket, or for the log to explain why there won't be one. az's exit
+  # Wait for the master to fork, or for the log to explain why it won't. az's exit
   # status is no help even when we do wait for it: it exits 0 whether ssh connected or
   # aborted on ExitOnForwardFailure.
+  #
+  # The socket alone is not enough: ssh opens the mux listener BEFORE the box answers
+  # the -R 2489 request, so when a stale session still holds 2489 the socket shows up
+  # and then vanishes as ExitOnForwardFailure kills the master. Taking the socket as
+  # success skipped the rc=2 reclaim and left the session to fail on a missing master.
+  # ssh defers the -f fork until every forward is confirmed, and the fork re-parents
+  # the master to launchd, so ppid 1 means the tunnels are up.
+  local up=0 pid
   for i in $(seq 1 90); do
-    [ -S "$sock" ] && break
     grep -qE 'remote port forwarding failed for listen port|Could not request|Permission denied|^ERROR:' "$log" 2>/dev/null && break
+    if [ -S "$sock" ]; then
+      pid="$(ssh -O check -o ControlPath="$sock" devbox 2>&1 | sed -n 's/.*pid=\([0-9]*\).*/\1/p')"
+      if [ -n "$pid" ] && [ "$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')" = 1 ]; then
+        up=1
+        break
+      fi
+    fi
     sleep 0.5
   done
-  if [ -S "$sock" ]; then
+  if [ "$up" -eq 1 ]; then
     rc=0
   elif grep -q 'remote port forwarding failed for listen port 2489' "$log" 2>/dev/null; then
     rc=2
