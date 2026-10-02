@@ -58,6 +58,7 @@ PACKAGES=(
   lazygit # git TUI; LazyVim binds <leader>gg to it
   lazydocker
   uv
+  rustup # keg-only; its bin and ~/.cargo/bin are on PATH in dot_zshrc.tmpl
   starship
   zsh
   zsh-completions
@@ -66,6 +67,7 @@ PACKAGES=(
   diff-so-fancy
   visidata
   gnupg
+  pinentry # pinentry-tty: rbw master-password prompt (see .chezmoitemplates/rbw-config.json)
   pinentry-mac
   rbw # Bitwarden/Vaultwarden CLI; config managed by chezmoi (Library/Application Support/rbw on macOS, ~/.config/rbw on Linux)
   supabase/tap/supabase
@@ -94,6 +96,9 @@ for pkg in "${PACKAGES[@]}"; do
 done
 
 brew install ${PACKAGES[@]}
+
+# rustup installs no toolchain by itself; projects pin theirs in rust-toolchain.toml.
+"$(brew --prefix rustup)/bin/rustup" default stable
 
 # Keep Chrome for Testing ready for headless UI checks. The command is
 # idempotent, so rerunning this setup script does not redownload the same build.

@@ -17,13 +17,15 @@
   - lock_timeout   : seconds the agent keeps the key after last use. 24h — the
                      machines are single-user and the key never leaves rbw-agent
                      memory, so re-typing the master password daily is enough.
-  - pinentry       : prompt program. pinentry-mac on macOS, pinentry-curses (TTY)
-                     otherwise.
+  - pinentry       : prompt program. pinentry-tty on macOS: pinentry-mac drew a
+                     focused field but its keystrokes went to the terminal (the
+                     agent-spawned dialog never became the active app).
+                     pinentry-curses (TTY) otherwise.
 */ -}}
 {
   "email": "vinktim@proton.me",
   "base_url": "https://vault.home.timvink.nl",
   "lock_timeout": 86400,
   "sync_interval": 3600,
-  "pinentry": "{{ if eq .chezmoi.os "darwin" }}pinentry-mac{{ else }}pinentry-curses{{ end }}"
+  "pinentry": "{{ if eq .chezmoi.os "darwin" }}pinentry-tty{{ else }}pinentry-curses{{ end }}"
 }
