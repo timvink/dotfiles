@@ -24,8 +24,11 @@
 # maps each key to one row's command and never exposes which row is highlighted,
 # so "highlight a row, press y" is impossible there. fzf gives us a second verb
 # per row (--expect reports the key alongside the selection) while keeping the
-# one-key jumps (each letter is bound to pos(N)+accept). Search is disabled
-# (--disabled) so the letters stay shortcuts instead of filtering the list.
+# one-key jumps (each letter is bound to pos(N)+accept). Typing is disabled
+# (--no-input, fzf >= 0.59) so the letters stay shortcuts instead of a search
+# query. Older fzf (a distro package on a remote VM) lacks it, so there we fall
+# back to --disabled, which still draws a prompt line and a separator; the popup
+# is made two rows taller for them, or they push the list out of view.
 #
 # Replaces Ghostty's cmd-click URL-open, which tmux's `set -g mouse on` swallows
 # before Ghostty sees it. Cross-platform (Darwin / Linux).
@@ -69,6 +72,16 @@ if ! command -v fzf >/dev/null 2>&1; then
     exit 0
 fi
 
+# --no-input when fzf has it, else --disabled plus 2 rows for its prompt and
+# separator (see the note at the top).
+if fzf --help 2>/dev/null | grep -q -- '--no-input'; then
+    fzf_noinput=--no-input
+    fzf_extra_rows=0
+else
+    fzf_noinput=--disabled
+    fzf_extra_rows=2
+fi
+
 TAB=$(printf '\t')
 ESC=$(printf '\033')
 DIM="$ESC[38;5;245m"
@@ -101,7 +114,7 @@ if [ "$mode" = pick ]; then
         binds="${binds:+$binds,}q:abort"
     fi
 
-    out=$(fzf --disabled --info=hidden --layout=reverse --no-scrollbar --ansi \
+    out=$(fzf $fzf_noinput --info=hidden --layout=reverse --no-scrollbar --ansi \
               --delimiter="$TAB" --with-nth='3..' \
               --header="$hdr" \
               --pointer='▌' --marker=' ' \
@@ -405,7 +418,7 @@ EOF
 pw=$((rowwidth + 4))
 [ "$pw" -lt $((${#hdr} + 4)) ] && pw=$((${#hdr} + 4))
 [ "$pw" -gt $((cw - 2)) ] && pw=$((cw - 2))
-ph=$((nrows + 3))
+ph=$((nrows + 3 + fzf_extra_rows))
 [ "$ph" -gt $((ch - 2)) ] && ph=$((ch - 2))
 
 [ "$mode" = kill ] && title=' kill ' || title=' open '
