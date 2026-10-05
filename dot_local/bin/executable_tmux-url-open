@@ -227,7 +227,7 @@ ellipsize_url() {
 # logs/markdown; normalise bare domains to https:// (so `open`/xdg-open treats
 # them as URLs, not local files); dedupe keeping the first occurrence, then emit
 # in reverse (last-discovered first) so the most recent on-screen URL sits at the
-# top of the menu with hotkey `a`. The a..z key cap
+# top of the menu with hotkey `a`; then fold paginated runs into one row each. The a..z key cap
 # (26) is applied in the loop below, AFTER server URLs are filtered out — capping
 # here would let localhost servers eat slots and silently drop on-screen URLs.
 # Only the open menu lists on-screen URLs; kill mode is servers-only.
@@ -278,7 +278,21 @@ if [ "$mode" = open ]; then
             ' \
             | sed -E 's/[.,;:)]+$//' \
             | sed -E '\#^https?://#!s#^#https://#' \
-            | awk '!seen[$0]++ { a[++n]=$0 } END { for (i = n; i >= 1; i--) print a[i] }'
+            | awk '!seen[$0]++ { a[++n]=$0 } END { for (i = n; i >= 1; i--) print a[i] }' \
+            | awk -v T="$TAB" '
+                # Collapse a paginated run (page=18..30, offset=34000..45000)
+                # into its most recent URL plus a count. URLs group when they
+                # match after every digit run in the QUERY STRING becomes "#";
+                # digits in the path still tell URLs apart (/pull/123 vs /456).
+                {
+                    q = index($0, "?")
+                    k = $0
+                    if (q) { qs = substr($0, q); gsub(/[0-9]+/, "#", qs); k = substr($0, 1, q - 1) qs }
+                    if (!(k in cnt)) order[++n] = k
+                    if (!(k in first)) first[k] = $0
+                    cnt[k]++
+                }
+                END { for (i = 1; i <= n; i++) print first[order[i]] T cnt[order[i]] }'
     )
 else
     urls=""
@@ -334,7 +348,7 @@ fi
 if [ -n "$urls" ]; then
     i=0
     header_done=
-    while IFS= read -r url; do
+    while IFS="$TAB" read -r url similar; do
         [ -n "$url" ] || continue
         # Skip an on-screen URL that's already listed as a server.
         case "$srv_urls" in *" $url$TAB"*) continue ;; esac
@@ -348,7 +362,12 @@ if [ -n "$urls" ]; then
         fi
         hotkey=$(awk -v c=$((97 + i)) 'BEGIN { printf "%c", c }')   # a, b, c, …
         i=$((i + 1))
-        addrow url "$url" "$hotkey" "$(ellipsize_url "$url" 90)"
+        if [ "${similar:-1}" -gt 1 ]; then
+            more=" +$((similar - 1))"
+            addrow url "$url" "$hotkey" "$(ellipsize_url "$url" $((90 - ${#more})))$DIM$more$OFF"
+        else
+            addrow url "$url" "$hotkey" "$(ellipsize_url "$url" 90)"
+        fi
         [ "$startpos" = 1 ] && startpos=$(printf '%s' "$rawrows" | grep -c '')
     done <<EOF
 $urls
