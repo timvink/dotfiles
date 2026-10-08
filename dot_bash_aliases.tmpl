@@ -524,17 +524,23 @@ _devbox_drop_dead_master() {
 # orphans outlive the 30m ControlPersist window indefinitely (one was seen at 43 minutes
 # and counting).
 #
-# Safety rule: kill the holder ONLY when its peer IP differs from the IP we are connecting
-# from now. Same IP ⇒ it's a live devbox session in another window of this Mac and the port
-# is legitimately taken — say so and leave it alone. `sudo -n` is required because the
+# Safety rule: kill the holder unless it can be a live session of ours. Every devbox window
+# on this Mac multiplexes over the one master, so a live session from here means a live
+# local master process carrying the -R 2489 forward. No such process ⇒ the holder is an
+# orphan whatever its peer IP — same-IP orphans are common, since a sleep/wake or a killed
+# master without a network change leaves the public IP as it was. Only when a local master
+# IS running and the holder's peer IP matches ours do we leave it alone. `sudo -n` is required because the
 # forward's listening socket belongs to sshd, and `ss` hides the owning pid without it (the
 # box has NOPASSWD sudo); lacking that we can see the port is taken but not by whom, which
 # is not enough to kill anything. Returns 0 when the port is free to retry, 1 when it isn't.
 _devbox_reclaim_fwd() {
-  local out
+  local out local_live=0
   printf '%s\n' "devbox: the box refused the -R 2489 bind — checking for a dead session…" >&2
+  # The ssh that az spawns for a master carries the forward spec in its args; the [s]
+  # keeps grep from matching itself.
+  ps -Ao args 2>/dev/null | grep -qE '^([^ ]*/)?[s]sh .*-R 2489:127\.0\.0\.1:2489' && local_live=1
   out="$(az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
-    -T -o BatchMode=yes -o ConnectTimeout=10 '
+    -T -o BatchMode=yes -o ConnectTimeout=10 "local_live=$local_live"'
       port=2489
       me=${SSH_CLIENT%% *}
       holder=$(sudo -n ss -ltnpH "( sport = :$port )" 2>/dev/null | grep -o "pid=[0-9]*" | head -1 | cut -d= -f2)
@@ -544,7 +550,7 @@ _devbox_reclaim_fwd() {
       fi
       peer=$(sudo -n ss -tnpH state established "( sport = :22 )" 2>/dev/null |
              grep "pid=$holder," | head -1 | awk "{print \$4}" | sed "s/:[0-9]*$//")
-      if [ -n "$peer" ] && [ "$peer" = "$me" ]; then echo RECLAIM:live; exit; fi
+      if [ "$local_live" = 1 ] && [ -n "$peer" ] && [ "$peer" = "$me" ]; then echo RECLAIM:live; exit; fi
       kill "$holder" 2>/dev/null || sudo -n kill "$holder" 2>/dev/null
       i=0
       while [ "$i" -lt 10 ]; do
