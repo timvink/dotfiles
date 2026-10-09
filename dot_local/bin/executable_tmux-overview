@@ -37,8 +37,8 @@ State lives in tmux options, not a dotfile of ours: @overview_view, @overview_de
 @overview_panes and @overview_agents on the server, and @overview_fold per session
 for what's folded. The per-window inputs are @agent_state / @agent_note (see the
 agent-state and agent-note scripts), @agent_since, the epoch second the state last
-changed, which is what "2m14s" counts from, and @agent_subagents (agent-subagents),
-how many subagents that tab has in flight.
+changed, which is what "2m14s" counts from, and @agent_subagents (set by the agent-pty
+shim from Claude's OSC 7501 child records), how many subagents that tab has in flight.
 
 Both views open with the cursor on the tab you pressed prefix+o in, so the
 first thing under it is where you came from and ↵ is the way back.
@@ -385,8 +385,8 @@ def doing(w):
 
 
 def sub_count(w):
-    """Subagents this tab has in flight, from @agent_subagents (see the
-    agent-subagents script); 0 for a tab that has none or never sets it.
+    """Subagents this tab has in flight, from @agent_subagents (set by the
+    agent-pty shim); 0 for a tab that has none or never sets it.
 
     Claude-only: Codex and Antigravity tabs never write the option, so their rows
     stay bare rather than claiming a zero they haven't measured."""

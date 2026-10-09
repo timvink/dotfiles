@@ -9,3 +9,11 @@
 # the terminal, so the app, its login LaunchAgent and its provider config go too.
 Library/LaunchAgents/com.timvink.codexbar.plist
 .config/codexbar
+
+# Claude Code's tab dot now comes from its own Program Status reports (OSC 7501),
+# read by the agent-pty shim, so the hook-era helpers that reconstructed it from
+# events, transcript tails and pane titles are gone.
+.local/bin/agent-interrupt-state
+.local/bin/agent-stop-state
+.local/bin/agent-subagents
+.local/bin/agent-state-sweep

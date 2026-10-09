@@ -22,4 +22,5 @@ workflow. Support macOS and Linux (including remote VMs over SSH).
 - For tmux agent status, read `dot_tmux.conf` and the relevant scripts under
   `dot_local/bin/` (`executable_agent-state*`, `executable_agent-note*`,
   `executable_agent-seen*`, `executable_agent-sleep-guard*`, `executable_tmux-overview*`).
-  Lifecycle hooks also live in tool configuration directories.
+  Claude Code's state comes from the OSC 7501 shim in `agent-pty/`; Codex's from
+  lifecycle hooks in its configuration directory.

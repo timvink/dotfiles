@@ -17,10 +17,8 @@
 //   session_shutdown   → none   /new, /resume, fork, quit — clear as you go
 //
 // No red: pi has no permission-prompt event an extension can observe, so
-// needs-input stays reserved for the agents that can report it. No pane-title
-// signal either — pi never writes spinner glyphs — so agent-state-sweep is
-// blind here by design; the zsh precmd reaper covers the exit-that-fires-
-// nothing case, exactly as it does for Codex.
+// needs-input stays reserved for the agents that can report it. The zsh precmd
+// reaper covers the exit-that-fires-nothing case, exactly as it does for Codex.
 //
 // Outside tmux every call is a no-op inside agent-state itself; the TMUX_PANE
 // check here just saves the spawn. Fire-and-forget: a failed tmux call must

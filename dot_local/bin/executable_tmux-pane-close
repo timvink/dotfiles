@@ -39,10 +39,13 @@ fi
 # 1. Agent pane. Don't trust #{pane_current_command} here: tmux reports the
 #    process *title*, which agents rewrite (pi shows as "node", Claude Code as
 #    its version string). Scan every process attached to the pane's tty instead
-#    — ps reports the real comm.
+#    — ps reports the real comm. Basenames: macOS prints a full path for a
+#    program started by path, which is how Claude's agent-pty shim
+#    (~/.local/libexec/agent-pty/claude) runs; Claude itself sits on the shim's
+#    inner pty, so the shim is the "claude" this scan finds.
 tty=$(tmux display-message -p -t "$pane" '#{pane_tty}' 2>/dev/null)
 [ -n "$tty" ] || exit 0
-if ps -t "$tty" -o comm= 2>/dev/null | grep -qE '^(claude|codex|codex-.+|agy|antigravity|gemini|pi)$'; then
+if ps -t "$tty" -o comm= 2>/dev/null | sed 's#.*/##' | grep -qE '^(claude|codex|codex-.+|agy|antigravity|gemini|pi)$'; then
   # An unsent draft in the input box blocks alt+e: the tab stays open with a
   # flash saying why, the same contract as nvim's unsaved buffers. Send or clear
   # the draft first. The input line is the last one starting with Claude Code's

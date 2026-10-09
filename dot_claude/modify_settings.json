@@ -1,175 +1,25 @@
 #!/bin/sh
-# Ensure ~/.claude/settings.json wires Claude Code's lifecycle hooks to the
-# `agent-state` script, which sets a per-window tmux user option that
-# window-status-format reads to render the per-tab indicator dot:
+# Ensure ~/.claude/settings.json carries the settings we manage (status line,
+# auto-compact threshold, subagent model, output style, AGENTS.md loading,
+# default permission mode) while preserving everything Claude Code writes at
+# runtime.
 #
-#   SessionStart                     → "none"        (no dot) a fresh session
-#                                                     hasn't finished a turn, so
-#                                                     it looks like a plain shell
-#                                                     tab — yellow ○ would wrongly
-#                                                     read as "your turn". Also
-#                                                     clears any stale state left
-#                                                     on a reused tmux window.
-#   SessionEnd                       → "none"        the agent exited (quit, /clear,
-#                                                     logout, prompt-input exit) —
-#                                                     clear the dot so a finished tab
-#                                                     dropped back to a bare shell
-#                                                     doesn't keep a stale dot. (The
-#                                                     zsh precmd reaper in
-#                                                     dot_zshrc.tmpl is the backstop
-#                                                     for Codex — which has no
-#                                                     SessionEnd — and for hard
-#                                                     crashes, which fire no hook.)
-#   Stop                             → delegated to `agent-stop-state`, which
-#                                                     reads the Stop payload and
-#                                                     picks: "running" ● if the
-#                                                     turn ended with agent-driven
-#                                                     work still attached that will
-#                                                     auto-resume the agent; else
-#                                                     "done" yellow ●, which
-#                                                     agent-seen opens to "idle" ○
-#                                                     once you've looked at the tab.
-#                                                     A turn that ended by asking
-#                                                     you something is "done" too —
-#                                                     red is for the blockers below,
-#                                                     which fire their own hook.
-#   UserPromptSubmit / PostToolUse   → "running"     blue ●  (Claude is working)
-#   PreToolUse                       → "running"     blue ● — EXCEPT the two tools
-#                                                     that block mid-turn waiting on
-#                                                     the user: AskUserQuestion and
-#                                                     ExitPlanMode (plan approval),
-#                                                     which go "needs-input" red ●.
-#                                                     Claude fires no Notification for
-#                                                     these and no further hook runs
-#                                                     while it waits, so without this
-#                                                     branch the dot would sit blue as
-#                                                     if working. PostToolUse restores
-#                                                     running once the user answers.
-#   Notification[permission_prompt]  → "needs-input" red ●   (blocked on an
-#                                                     approval). idle_prompt does
-#                                                     NOT touch a finished tab
-#                                                     (stays yellow, never red); it
-#                                                     only backstops the ESC-
-#                                                     interrupt case below.
-#   ESC interrupt                    → no hook fires AT ALL (anthropics/
-#                                                     claude-code#9516), so the dot
-#                                                     would sit stale on blue/red.
-#                                                     Covered outside the hooks:
-#                                                     `agent-interrupt-state` spots
-#                                                     the "[Request interrupted by
-#                                                     user]" marker at the transcript
-#                                                     tail and flips the dot idle ○ —
-#                                                     triggered by the status-line
-#                                                     refresh (fast path, see
-#                                                     executable_statusline-command.sh)
-#                                                     and by Notification[idle_prompt]
-#                                                     (~60s backstop).
+# Claude Code's tmux tab dot is NOT driven from here any more. Claude reports its
+# own state over the Program Status protocol (OSC 7501), which the agent-pty shim
+# reads (agent-pty/agent-pty.c, launched by the `claude` function in
+# dot_bash_aliases.tmpl). That replaced a dozen lifecycle hooks plus the helpers
+# that patched their gaps: ESC interrupts that fire no hook, StopFailure, the
+# pane-title sweep for stale blue dots, and SubagentStart/Stop bookkeeping. The
+# hook keys those used are deleted below, so a machine upgrading from the hook
+# era drops them; nothing else owns them.
 #
 # This is a chezmoi modify_ script: stdin = current target content, stdout
-# = new content. Idempotent — overwrites only the hook keys we manage and
-# preserves every other setting Claude Code adds at runtime.
+# = new content. Idempotent.
 
 set -eu
 
 input=$(cat)
 [ -z "$input" ] && input='{}'
-
-mk_hook() {
-    # build a one-element hooks array invoking `agent-state <arg>` with an empty
-    # matcher. The events these drive (SessionStart / SessionEnd / Stop /
-    # PostToolUse) aren't filtered by tool name, so the matcher is always "".
-    # $HOME is left literal so /bin/sh expands it when Claude Code runs the hook.
-    jq -n --arg cmd "\$HOME/.local/bin/agent-state $1" '[
-        {
-            "matcher": "",
-            "hooks": [
-                { "type": "command", "command": $cmd }
-            ]
-        }
-    ]'
-}
-
-none_hook=$(mk_hook "none")
-running_hook=$(mk_hook "running")
-# StopFailure fires when a turn ends in a terminal error instead of ending
-# normally — the context blown past what compaction can rescue (prompt_too_long),
-# a tool call that still won't parse after a retry, an image the model can't
-# take. Stop does NOT fire in those cases, so without this the tab keeps the blue
-# dot PostToolUse last set and reads as "still working" while the session sits
-# stuck. Red rather than yellow because it isn't an ordinary finished turn: the
-# session needs you to do something before it goes anywhere.
-#
-# It also carries background_tasks, so agent-subagents reconciles its subagent
-# set here too, the same as on Stop; otherwise a dead turn kept its old "+N".
-failed_cmd='p=$(cat); printf "%s" "$p" | $HOME/.local/bin/agent-subagents; $HOME/.local/bin/agent-state needs-input'
-failed_hook=$(jq -n --arg cmd "$failed_cmd" '[
-    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
-]')
-
-# SubagentStart / SubagentStop: add and remove the agent_id in agent-subagents'
-# set, so the status bar's "+N" moves the moment an agent starts or finishes
-# instead of only when the turn ends. Both fire for foreground, background and
-# workflow agents. Stop reconciles the set; see agent-subagents for why.
-subagent_cmd='$HOME/.local/bin/agent-subagents'
-subagent_hook=$(jq -n --arg cmd "$subagent_cmd" '[
-    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
-]')
-
-# Notification covers a dozen cases, distinguished by the payload's
-# "notification_type" field (NOT by the matcher — matchers only match tool
-# names, so the old matcher:"permission_prompt" matched nothing and the dot
-# never went red). Four of them mean the same thing to us: Claude has put a
-# dialog up and stopped until you answer it. permission_prompt is the common one;
-# worker_permission_prompt is its equivalent inside a worker; and the two
-# elicitation types are an MCP server asking a question through Claude, which
-# blocks the turn just as hard while firing nothing else. idle_prompt (the ~60s
-# "waiting for your input" nudge) must NOT turn a finished tab red — but it IS the
-# backstop for the one turn end that fires no hook at all: a user ESC interrupt (see
-# agent-interrupt-state, primary trigger in executable_statusline-command.sh).
-# That helper only flips the dot to idle when the transcript tail proves the
-# interrupt, so a legitimately yellow, red, or background-running blue tab is
-# left alone. Match all Notifications (matcher ""), gate on notification_type
-# inside the command. $HOME stays literal.
-perm_cmd='p=$(cat); case "$(printf "%s" "$p" | jq -r .notification_type)" in permission_prompt|worker_permission_prompt|elicitation_dialog|elicitation_url_dialog) $HOME/.local/bin/agent-state needs-input ;; idle_prompt) $HOME/.local/bin/agent-interrupt-state "$(printf "%s" "$p" | jq -r .transcript_path)" ;; esac'
-perm_hook=$(jq -n --arg cmd "$perm_cmd" '[
-    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
-]')
-
-# PreToolUse: normally "running", but AskUserQuestion and ExitPlanMode (plan
-# approval) block mid-turn waiting on the user with NO Notification and no
-# further hook until the user answers — so the generic running dot would sit
-# blue as if Claude were working. Branch on the payload's tool_name (read once
-# from stdin, same as perm_cmd) to send those two red instead; PostToolUse
-# flips back to running the moment the user responds. Matcher stays "" — the
-# tool-name test lives in the command, since matchers only gate which tools
-# fire the hook and we want ALL PreToolUse events to reach this one script.
-pretool_cmd='case "$(jq -r .tool_name)" in AskUserQuestion|ExitPlanMode) $HOME/.local/bin/agent-state needs-input ;; *) $HOME/.local/bin/agent-state running ;; esac'
-pretool_hook=$(jq -n --arg cmd "$pretool_cmd" '[
-    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
-]')
-
-# UserPromptSubmit: mark the tab running. One sequential script rather than a
-# separate hook on purpose: Claude Code may run an event's hooks concurrently,
-# so a standalone running-setter would race other event hooks.
-#
-# (A bare-`e`-to-exit hack used to live here, delegating to `agent-exit`; it was
-# removed in favour of alt+e → app.exit in pi-style tools and Ctrl+C-twice /
-# Ctrl+D natively in Claude Code. `agent-exit` itself stays — /oneoff uses it.)
-prompt_cmd='$HOME/.local/bin/agent-state running'
-prompt_hook=$(jq -n --arg cmd "$prompt_cmd" '[
-    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
-]')
-
-# Stop: the turn ended — delegated to `agent-stop-state`, which reads the payload
-# once and gets two things out of it: the dot (running ● when in-flight
-# background work will auto-resume the agent, done ● otherwise) and a reconcile
-# of agent-subagents' set, the fan-out the status bar's "6+11" adds up. $HOME
-# stays literal so /bin/sh expands it when Claude Code runs the hook; the script
-# reads the payload from stdin itself.
-stop_cmd='$HOME/.local/bin/agent-stop-state'
-stop_hook=$(jq -n --arg cmd "$stop_cmd" '[
-    { "matcher": "", "hooks": [ { "type": "command", "command": $cmd } ] }
-]')
 
 # Status line: a Catppuccin-coloured Starship-style line (path, git branch,
 # model, ctx%). The script lives in chezmoi too (executable_statusline-command.sh
@@ -221,30 +71,17 @@ instruction_files=claude-md-and-agents-md
 default_permission_mode=auto
 
 printf '%s' "$input" | jq \
-    --argjson none    "$none_hook" \
-    --argjson running "$running_hook" \
-    --argjson prompt  "$prompt_hook" \
-    --argjson pretool "$pretool_hook" \
-    --argjson perm    "$perm_hook" \
-    --argjson stop    "$stop_hook" \
-    --argjson failed  "$failed_hook" \
-    --argjson subagent "$subagent_hook" \
     --arg     statuscmd "$status_cmd" \
     --arg     autocompactpct "$autocompact_pct" \
     --arg     subagentmodel "$subagent_model" \
     --arg     defaultmode "$default_permission_mode" \
     --arg     outstyle "$output_style" \
     --arg     instrfiles "$instruction_files" \
-    '.hooks.SessionStart     = $none
-   | .hooks.SessionEnd       = $none
-   | .hooks.UserPromptSubmit = $prompt
-   | .hooks.PreToolUse       = $pretool
-   | .hooks.PostToolUse      = $running
-   | .hooks.Notification     = $perm
-   | .hooks.Stop             = $stop
-   | .hooks.StopFailure      = $failed
-   | .hooks.SubagentStart    = $subagent
-   | .hooks.SubagentStop     = $subagent
+    'del(.hooks.SessionStart, .hooks.SessionEnd, .hooks.UserPromptSubmit,
+         .hooks.PreToolUse, .hooks.PostToolUse, .hooks.Notification,
+         .hooks.Stop, .hooks.StopFailure, .hooks.SubagentStart,
+         .hooks.SubagentStop)
+   | if .hooks == {} then del(.hooks) else . end
    | .statusLine             = { "type": "command", "command": $statuscmd }
    | .env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE = $autocompactpct
    | .env.CLAUDE_CODE_SUBAGENT_MODEL = $subagentmodel

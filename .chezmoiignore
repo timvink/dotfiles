@@ -15,6 +15,10 @@ AGENTS.md
 # NOT also copy it to ~/agents.
 agents
 
+# C source for the OSC 7501 pty shim; compiled into ~/.local/libexec/agent-pty
+# by .chezmoiscripts/run_onchange_after_build-agent-pty.sh.tmpl, not copied.
+agent-pty
+
 # Machine-class gates, prompted at `chezmoi init` (see .chezmoi.toml.tmpl):
 #
 # includePrivate — private data: rbw/vault access, Proton VPN, ssh config with

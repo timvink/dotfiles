@@ -24,7 +24,7 @@
 #   agent-seen               poll: whichever window each FOCUSED attached client
 #                            is showing. Called from agent-state the moment it
 #                            sets done, so a tab you are already watching never
-#                            flashes, and from agent-state-sweep every status
+#                            flashes, and from tmux-agent-count every status
 #                            tick as the backstop for whatever the hooks miss.
 #
 # Focus is the whole difficulty in the polling form. tmux reports it in

@@ -3,10 +3,11 @@
 # tmux server, for the right side of the status bar (dot_tmux.conf), shown just
 # left of the session-dots chip, next to the hostname. Reads as one figure:
 #
-#   6      six windows are working: @agent_state is "running" (the blue ● the
-#          Claude/Codex lifecycle hooks set), counted server-wide.
+#   6      six windows are working: @agent_state is "running" (the blue ● set
+#          by the agent-pty shim for Claude and by lifecycle hooks for Codex),
+#          counted server-wide.
 #   6+11   …and between them those six have eleven subagents in flight, from
-#          @agent_subagents (see agent-subagents). The "+11" appears only when
+#          @agent_subagents (the shim's count of Claude's OSC 7501 child records). The "+11" appears only when
 #          there are any, in a lighter blue, because it answers a different
 #          question: six blue dots could be six agents each doing one thing, or
 #          two of them driving a wide fan-out, and the load on the machine and on
@@ -14,7 +15,7 @@
 #
 # The subagent half is Claude-only by construction — Codex and Antigravity
 # sessions count toward the first number and can never add to the second, since
-# only Claude Code reports its background work to a hook.
+# only Claude Code reports its subagents.
 #
 # Emits a tmux FORMAT-styled number, or NOTHING when nothing is working — so the
 # bar shows a figure only while something is, and the slot vanishes when nothing
@@ -28,15 +29,11 @@
 # bar bg is current (the hostname's @status_bg, before the dots chip's #313244).
 set -uo pipefail
 
-# Reconcile before counting. Every input to @agent_state is an event, and a
-# missed event leaves a tab stuck blue — so the number this script renders is
-# only as honest as the options it reads, which makes the counter the natural
-# place to hang the one check that doesn't depend on events arriving.
-# agent-state-sweep compares each dot against what Claude Code is broadcasting in
-# its pane title and demotes the ones that are lying. It runs here because the
-# status bar is the only thing tmux ticks on a timer; nothing about counting
-# needs it, and nothing about it needs counting.
-"$HOME/.local/bin/agent-state-sweep" 2>/dev/null || true
+# Resolve done → idle for whatever is on screen right now. The tmux hooks in
+# dot_tmux.conf catch a window becoming visible; this catches the rest, mainly a
+# turn that finished while you were already sitting in the tab. It runs here
+# because the status bar is the only thing tmux ticks on a timer.
+"$HOME/.local/bin/agent-seen" 2>/dev/null || true
 
 # One pass over every window for both halves: awk counts the running ones and
 # sums their subagents together, rather than asking tmux twice. A window that

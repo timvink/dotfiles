@@ -129,6 +129,21 @@ make() {
 }
 
 # LLMs
+#
+# Inside tmux, Claude Code runs behind agent-pty (agent-pty/agent-pty.c): Claude
+# reports its own state over OSC 7501 (working / blocked / done / idle, plus its
+# subagents), but only to a terminal that answers the protocol's probe, and tmux
+# doesn't. The shim answers it and turns the reports into the tab dot. Off a
+# terminal, outside tmux, or where the shim didn't build, it's plain `claude`.
+# Every wrapper below goes through this function.
+claude() {
+    local shim="$HOME/.local/libexec/agent-pty/claude"
+    if [ -n "${TMUX_PANE:-}" ] && [ -t 0 ] && [ -t 1 ] && [ -x "$shim" ]; then
+        "$shim" claude "$@"
+    else
+        command claude "$@"
+    fi
+}
 cc() {
     if [ $# -eq 0 ]; then
         claude --dangerously-skip-permissions

@@ -1,6 +1,6 @@
 ---
 name: tmux-agent-status
-description: Implementation details for the tmux per-tab agent-state dot, note, subagent count, prefix+o overview, and lid-close sleep guard — states, hooks, the stale-dot sweep, herdr glyph refresh, and known gotchas. Load when working on dot_tmux.conf, the agent-state/agent-note/agent-seen/agent-state-sweep/agent-sleep-guard scripts, or tmux-overview.
+description: Implementation details for the tmux per-tab agent-state dot, note, subagent count, prefix+o overview, and lid-close sleep guard — states, the agent-pty OSC 7501 shim for Claude Code, Codex/pi hooks, and known gotchas. Load when working on dot_tmux.conf, agent-pty/agent-pty.c, the agent-state/agent-note/agent-seen/agent-sleep-guard scripts, or tmux-overview.
 ---
 
 ## Per-tab agent dot + status line (tmux)
@@ -32,19 +32,15 @@ gets collected without a colour of its own. Don't infer red from the reply's
 text (a trailing `?`, say) — that needs a punctuation rule in `agents/AGENTS.md`
 to prop up the signal, which taxes every agent's writing.
 
-- **Claude Code / Codex** drive it from lifecycle hooks (`dot_claude/modify_settings.json`,
-  `dot_codex/private_hooks.json` → `agent-state` / `agent-stop-state`). Two turn
-  endings fire no `Stop`: an **ESC interrupt** (anthropics/claude-code#9516) and a
-  turn that dies on a terminal error, which goes to **`StopFailure`** instead
-  (context past what compaction can rescue, a tool call that still won't parse
-  after a retry). `StopFailure` is wired to red — the session is stuck and needs
-  you, which is not an ordinary finished turn. The ESC case is covered by
-  `agent-interrupt-state`, which spots the `[Request interrupted by user]` marker
-  at the transcript tail, triggered from the Claude statusline refresh (fast path)
-  and the `Notification[idle_prompt]` hook (~60s backstop). `Notification` also
-  goes red on `worker_permission_prompt` and the two `elicitation_*` types — an
-  MCP server asking a question through Claude blocks the turn as hard as a
-  permission prompt and fires nothing else.
+- **Claude Code** reports its own state over the Program Status protocol
+  (OSC 7501, [spec](https://superlogical.com/rex/docs/build/program-status)),
+  read by the **agent-pty** shim — see "Claude Code: OSC 7501 via agent-pty"
+  below. No Claude hooks drive the dot any more.
+- **Codex** drives it from lifecycle hooks (`dot_codex/private_hooks.json` →
+  `agent-state`): SessionStart → none, UserPromptSubmit/PreToolUse/PostToolUse →
+  running, PermissionRequest → needs-input, Stop → done. It has no SessionEnd,
+  so the zsh precmd reaper clears the dot when the shell prompt returns. Codex
+  0.162 has no OSC 7501 support; when it ships, it can move behind the shim too.
 - **Antigravity (`agy`)** has no permission/notification hook event, so the dot
   is driven from its **status line** instead (`dot_gemini/antigravity-cli/executable_statusline.sh`),
   the one payload that exposes `agent_state`, `tool_confirmation_pending` (blocked
@@ -61,8 +57,8 @@ to prop up the signal, which taxes every agent's writing.
   → `done`, `session_shutdown` → `none`. Settled, not `agent_end` — pi may
   auto-retry, auto-compact or drain queued follow-ups after a run ends, and
   only settled means it won't. No red (pi exposes no permission-prompt event)
-  and no pane-title glyphs, so agent-state-sweep is blind to pi tabs by design;
-  the zsh precmd reaper is the backstop, same as for Codex.
+  and no OSC 7501; the zsh precmd reaper is the backstop for an exit that
+  fires nothing, same as for Codex.
 
 A companion `@agent_note` window option carries **what** the agent is doing, since
 the dot only says whether it is doing anything — five working agents are five
@@ -84,34 +80,11 @@ A third window option, `@agent_subagents`, says **how wide** the agent has fanne
 out: how many subagents it has in flight. The status bar's agent count reads
 `6+11` — six working tabs, eleven subagents between them — and `tmux-overview`
 puts the `+11` on the row, in the detail pane and in the session roll-up. Claude
-Code exposes no ambient number for this (the status-line payload has no such
-field, and the `tasks/*.output` files on disk outlive the task that wrote them),
-so `~/.local/bin/agent-subagents` keeps a **set** of live agent ids — one file
-each under `$TMPDIR/agent-subagents/<server pid>-<window>/<session>/` — and
-publishes the file count:
-
-- `SubagentStart` adds the `agent_id`, `SubagentStop` removes it. Both fire for
-  foreground, background and workflow agents, so the `+N` moves the moment an
-  agent starts or finishes. Files, not a list in a tmux option, because a batch
-  of spawns fires its hooks concurrently and a read-modify-write loses some.
-- **Stop and StopFailure reconcile** against the payload's `background_tasks`,
-  whose `subagent` entry ids are the same `agent_id`s: anything not still listed
-  as running/pending is deleted, so a missed `SubagentStop` costs one turn, not
-  forever. Workflow agents (`agent_type: workflow-subagent`) never appear there
-  by id — the workflow is one `workflow` entry — so they survive while any
-  workflow is live. Only turn ends reconcile: mid-turn, a running foreground
-  agent may be missing from the list.
-
-Stop alone can't drive the count: it misses agents launched mid-turn, finished
-ones lingering, foreground agents, and a workflow's agents. To re-verify the
-payloads, run `claude -p` with a `--settings` file whose hooks log all three
-(last checked on 2.1.280).
-
-`agent-state none` calls `agent-subagents clear`, dropping the set with the dot
-and the note, so a session killed mid-fan-out doesn't leave phantom subagents in
-the bar; `agent-state-sweep` does the same when it demotes a stale blue dot. The
-number is Claude-only by construction — Codex and Antigravity tabs count toward
-the `6` and can never add to the `+11`.
+reports each background subagent as an OSC 7501 child record (`id=<agent id>`,
+`state=working`, a base64 `title`) and clears it (`state=clear:id=…`) when it
+finishes; agent-pty counts the live ones (working or blocked) and sets the
+option, unsetting it at zero. The number is Claude-only by construction — Codex
+tabs count toward the `6` and can never add to the `+11`.
 
 ## done vs idle: the dot remembers whether you looked
 
@@ -137,7 +110,7 @@ Two paths clear it, believable for different reasons. The tmux hooks
 `client-focus-in`) hand `agent-seen` the window that just became visible and need
 no focus test, because they only fire when you press something. The polling form
 runs from `agent-state` the moment it sets `done`, so a tab you are already
-watching never flashes, and from `agent-state-sweep` every status tick as the
+watching never flashes, and from `tmux-agent-count` every status tick as the
 backstop. Only ever `done` → `idle`: looking at a tab is not answering its
 question, so a red dot survives being glanced at.
 
@@ -156,133 +129,80 @@ lifetimes; we have one option per window, so the pair is precomputed into
 to mean "this pane is a plain shell", which is what an unset `@agent_state`
 already means here — the grey `·` in `tmux-overview` is the same thing.
 
-## Stale blue dots, and the one check that isn't an event
+## Claude Code: OSC 7501 via agent-pty
 
-Every input above is an **event**, and an event that never arrives leaves the last
-one standing — so the dot's failure mode is always the same shape: stuck on blue,
-which is the worst way to be wrong, since blue reads as "leave this one alone" and
-a finished agent goes unnoticed for as long as you believe it. Wiring
-`StopFailure` closes one hole and `agent-interrupt-state` closes another, but
-chasing holes one at a time never ends.
+Claude Code ≥ 2.1.295 emits Program Status reports, but **only after the
+terminal answers its `OSC 7501 ; ?` probe** (`programStatus` capability, settled
+by the startup probe; the only override is `CLAUDE_CODE_DISABLE_TERMINAL_TITLE`,
+which turns it *off*). tmux 3.7c neither answers nor forwards the probe, so
+inside tmux Claude stays silent. `agent-pty` (`agent-pty/agent-pty.c`, built per
+machine by `.chezmoiscripts/run_onchange_after_build-agent-pty.sh.tmpl` into
+`~/.local/libexec/agent-pty/claude`) sits between tmux and Claude: it answers the
+probe, strips every OSC 7501 sequence from the output, and maps the root record:
 
-`~/.local/bin/agent-state-sweep` is the level-triggered backstop, and it works
-because **Claude Code broadcasts its own state in the pane title**: a spinner
-glyph (`◐◑◒◓`, U+25D0-25D3; braille on ≤ 2.1.227) while it works, and `✳` the
-moment it stops. `tmux list-panes -a -F '#{pane_title}'` reads every pane's
-current state in one call — no hook, no transcript, no ESC special case — and a
-window claiming `running` while its Claude panes all show `✳` is simply wrong.
-Whatever sequence of missed events got the option into that state, the next sweep
-sets it right, because the title says what is true now rather than what happened
-once. It runs from `tmux-agent-count` on the status-interval tick: the status bar
-is the only thing tmux ticks on a timer, and a stale dot corrupts the count that
-script renders anyway. It demotes `running` → `done` and promotes `done`/`idle`
-→ `running`, both off the same premise, with three limits:
+| report | `@agent_state` |
+| --- | --- |
+| `working` | `running` |
+| `blocked` (`kind=permission` / `question` / `auth`), `error`, or any child `blocked` | `needs-input` |
+| `done` | `done` |
+| `idle` | `idle` after a turn; `none` before the first one (startup) |
+| `clear` without an id, or the program exits | `none` |
 
-- **red is never touched**, either way. A tab blocked on a permission prompt also
-  shows `✳`, and turning "answer me" into "nothing to see here" is worse than a
-  stale dot.
-- **`@agent_bg` is honoured.** `agent-stop-state` sets it when a turn ends with
-  agent-driven work still attached; that blue is deliberate, and Claude sits at
-  the prompt showing `✳` the whole time — the exact shape the sweep demotes.
-  `agent-state` drops the annotation on the next state change, so it can't outlive
-  its reason.
-- **non-Claude tabs are invisible to it.** Codex and Antigravity never write these
-  titles, so nothing matches and their dots are left to their own hooks.
+The `claude` shell function in `dot_bash_aliases.tmpl` routes through the shim
+when `$TMUX_PANE` is set, stdin and stdout are terminals, and the binary exists;
+otherwise it is plain `claude` (no dot). Every launcher (`cc`, `ccw`, `cca`, the
+sessionizer's `cc`) goes through that function.
 
-### The `✳` that doesn't mean "stopped"
+What the reports replaced, each of which was a hook-era workaround:
 
-The demotion first shipped as a bare `✳` test with no debounce, on the strength
-of a working tab sampled every 250ms for 22s never once dropping its spinner.
-That sample was taken mid-turn, and the failure lives at the edges of a turn:
-**a busy tab going yellow while it is plainly still working**, roughly a second
-in, and staying yellow until some later hook happened to set `running` again.
-Measured on a fresh session — turn starts at t=2.5s, sweep demotes at t=4.5s,
-model still thinking 35s later.
+- **ESC interrupt** fires no hook (anthropics/claude-code#9516) — Claude reports
+  `idle` immediately, so `agent-interrupt-state` and its status-line trigger are gone.
+- **StopFailure / missed events / stale blue** — the reports are Claude's own
+  current state, so the pane-title sweep (`agent-state-sweep`, the `✳`/spinner
+  glyphs borrowed from herdr, `@agent_title_spins`, `@agent_sweep_stopped`) is gone.
+- **Background work holding the dot** — Claude keeps the root `working` while a
+  background subagent runs (verified), and whatever it reports with only
+  background shells or monitors attached is taken as-is, so `agent-stop-state`
+  and `@agent_bg` are gone.
+- **Subagent bookkeeping** — child records replace `agent-subagents` and its
+  SubagentStart/Stop/Stop-reconcile set.
 
-Two things were wrong. **A session that has not written a title yet** holds the
-boot title `✳ Claude Code`: Claude only starts driving the title once the
-conversation has a summary, so that `✳` means "no summary yet", not "at the
-prompt". Every new session's first turn hit this, and a session nobody has
-attached to may never spin at all. And **the false demotion latched**, because
-the sweep only ever demoted — one bad reading poisoned the rest of the turn.
+Implementation notes worth keeping:
 
-Three guards, one per part:
+- **tmux calls run in a forked worker**, fed one line per change over a pipe and
+  executed in order: never inline (a slow `tmux` would freeze Claude's screen)
+  and never in parallel (`working` must not land after `done`; a blocked →
+  working → done sequence can take under a second). Changes are de-duplicated,
+  so `working` with a fresh `msg` costs nothing.
+- **Job control**: forkpty's child leads a new session, whose process group is
+  orphaned, and the kernel discards the SIGTSTP Claude sends itself on Ctrl+Z —
+  it printed "suspended" and kept running. The shim runs Claude in its own
+  foreground group under a small parent inside the pty (as a shell would); when
+  Claude stops, that parent SIGSTOPs itself, the outer shim sees it, restores
+  the terminal and stops itself, and `fg` resumes the chain.
+- **Process name**: the binary is named `claude`, so tmux's
+  `pane_current_command` (automatic-rename) and `tmux-pane-close`'s `ps -t` scan
+  still see "claude"; Claude itself is on the inner pty, invisible to both.
+  macOS `ps -o comm=` prints the full path for it, hence the basename `sed` there.
+- **The `msg`** (e.g. "Sleeping 60 seconds", "approve Bash: …") is not used yet;
+  `@agent_note` stays agent-authored.
 
-- **`@agent_title_spins`** — a window becomes demotable only once a spinner has
-  actually been seen in it, which is that window's own proof its Claude drives the
-  title. Until then, `✳` is not evidence and the window is left alone. Same shape
-  as `@agent_focus_reporting` in `agent-seen`: find out whether the signal is ever
-  reported before reading meaning into its absence. `agent-state none` clears it,
-  so a new session in a reused window starts unproven.
-- **`@agent_sweep_stopped`** — the debounce: `✳` has to survive two consecutive
-  sweeps. Costs up to 5s on a genuine stale-blue fix, which nobody is timing.
-- **the promotion** — a spinner over a `done` ● dot is the same lie in the other
-  direction, so anything that still slips through heals on the next tick instead
-  of lasting the turn. It also covers a `running` that was never set at all.
+To re-verify after a Claude update, run Claude behind the shim with hooks off
+(`--settings '{"disableAllHooks":true}'`) in a scratch tmux session and poll
+`#{@agent_state}` / `#{@agent_subagents}` through a permission prompt,
+AskUserQuestion, an ESC mid-tool, two background subagents, Ctrl+Z/`fg`, and
+exit. Check `strings` on the Claude binary for `OSC 7501` if reports stop: the
+probe gating lives next to the XTVERSION probe.
 
-The synthetic matrix that pins this down (fresh-session `✳`, mature-session `✳`,
-spinner over `done`, red, `@agent_bg`, spinner over `running`) is worth
-re-running whenever the sweep changes; it needs no Claude, just tmux windows with
-`select-pane -T` titles and hand-set options.
+## Borrowed from herdr
 
-The same pass fixed a stale blue that had nothing to do with missing events.
-`background_tasks` entries are typed and *statused* (running / pending /
-completed / failed / killed), and two of the types mean the opposite of the
-rest. A `run_in_background` shell is work the agent chose *not* to wait for —
-which is exactly what makes the turn over; counting shells pinned a tab blue for
-as long as a dev server stayed up. A `monitor` joined it after Claude 2.1.238
-began auto-arming one on every published artifact ("live updates for artifact
-…, auto-armed on publish", no ask from anyone): passive watchers that may never
-fire, re-listed in every Stop payload, each listing re-setting `@agent_bg` so
-nothing could ever overturn the blue. Only non-shell, non-monitor entries with
-a live status hold the dot now; when a monitor does fire, the session wakes and
-the hooks speak for themselves.
-
-The pane-title signal and the "never latch, default to idle" principle come from
-reading herdr, which drove Claude Code from these same lifecycle hooks, hit these
-same stale-state bugs, and removed the hooks entirely in favour of screen
-detection. See "Borrowed from herdr" below for what to re-check when Claude
-changes its title glyphs again.
-
-## Borrowed from herdr, and how to refresh it
-
-Parts of the agent-dot design came from reading [herdr](https://github.com/herdrdev/herdr),
-a terminal multiplexer that tracks coding-agent state for a living. **Read at
-v0.8.1, commit `5203a5dc0f39a082938ea0f9836d6257ea7e155f`. Apache-2.0.** No files
-were copied, so there is no licence obligation beyond this credit — but one piece
-is upstream *data* that will go stale, and that is the row to care about.
-
-| what we took | upstream | goes stale? |
-| --- | --- | --- |
-| The pane-title glyphs Claude Code broadcasts — `◐◑◒◓` working, `✳` stopped — used by `agent-state-sweep` | `website/agent-detection/claude.toml`, rules `osc_title_working` / `osc_title_idle` | **Yes.** Claude changed these once already (braille → half-circles at 2.1.228). Verified current at 2.1.237 |
-| "Never latch: an unmatched screen means idle, never working" | `src/detect/manifest.rs`, `DEFAULT_KNOWN_AGENT_IDLE_FALLBACK` | No — a principle |
-| `done` vs `idle` as finished-and-unseen vs finished-and-seen | `src/app/api_helpers.rs` `pane_agent_status`, `src/pane/state.rs` `seen` | No |
-| The attention ladder `blocked > done > working > idle > unknown` | `src/app/api_helpers.rs`, `src/ui/sidebar.rs`, `src/workspace/aggregate.rs` | No |
-| Debounce the working→idle edge (3 checks / 100ms, 700ms cap) — **considered and not taken**, see the note in `agent-state-sweep` | `src/pane/agent_detection.rs` | No |
-
-**To refresh the glyphs**, don't clone the repo — herdr publishes the same
-manifests over HTTP, which is the channel its own binary updates from:
-
-```bash
-curl -s https://herdr.dev/agent-detection/claude.toml | awk '/osc_title/,/^$/'
-```
-
-Compare the `regex` lines against the glyph list in
-`~/.local/bin/agent-state-sweep`. We implement a deliberate subset — the
-half-circles only, not the pre-2.1.228 braille range, and without upstream's
-trailing-space requirement — so a diff is expected; what matters is whether
-upstream has *added* a codepoint we don't match. The catalog at
-`https://herdr.dev/agent-detection/index.toml` lists every agent they track,
-including `codex.toml` and `antigravity.toml`, if the title trick is ever wanted
-for those tabs too.
-
-The symptom of a stale glyph list is a working tab going yellow while it is
-plainly still busy (a new spinner codepoint stops matching, so the sweep reads
-"not working"), or a finished tab staying blue (a new idle marker stops matching).
-Check the glyphs against a live pane before believing the first symptom, though —
-it has a second cause that has nothing to do with upstream, and that one turned
-out to be the real one the first time it appeared: see "The `✳` that doesn't mean
-stopped" above.
+The `done` vs `idle` split (finished-and-unseen vs finished-and-seen) and the
+attention ladder `blocked > done > working > idle > unknown` came from reading
+[herdr](https://github.com/herdrdev/herdr) v0.8.1
+(`5203a5dc0f39a082938ea0f9836d6257ea7e155f`, Apache-2.0; no files copied). The
+pane-title glyph detection that was also borrowed from there is gone with the
+sweep. herdr itself has no OSC 7501 support as of v0.9.3: issue #5069 was closed
+under its bugs-only policy and discussion #5073 is open.
 
 ## The prefix+o overview, and its two views
 

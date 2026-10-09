@@ -1,0 +1,30 @@
+#!/bin/sh
+# Compile agent-pty, the pty shim that turns Claude Code's Program Status reports
+# (OSC 7501) into the tmux tab dot (see agent-pty/agent-pty.c). Built on each
+# machine rather than committed as a binary, so macOS and Linux VMs each get a
+# native one; reruns whenever the source changes.
+#
+# source hash: {{ include "agent-pty/agent-pty.c" | sha256sum }}
+#
+# Installed as libexec/agent-pty/claude, outside PATH: the file name is what tmux
+# shows as the pane's command, and the `claude` shell function
+# (dot_bash_aliases.tmpl) calls it by full path. Without a C compiler the
+# function falls back to plain `claude`, which runs fine but shows no tab dot.
+
+set -eu
+
+src="{{ .chezmoi.sourceDir }}/agent-pty/agent-pty.c"
+dest="$HOME/.local/libexec/agent-pty/claude"
+
+if ! command -v cc >/dev/null 2>&1; then
+    echo "agent-pty: no C compiler (cc); Claude tabs will have no status dot" >&2
+    exit 0
+fi
+
+mkdir -p "$(dirname "$dest")"
+libs=""
+[ "$(uname -s)" = Linux ] && libs="-lutil"   # forkpty
+# Build beside the target and rename over it: replacing a binary that a running
+# Claude session is executing must not touch the inode it has open.
+cc -O2 -Wall -o "$dest.new" "$src" $libs
+mv -f "$dest.new" "$dest"
