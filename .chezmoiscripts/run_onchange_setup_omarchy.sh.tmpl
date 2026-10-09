@@ -1,0 +1,42 @@
+{{- /*
+  Omarchy-only desktop setup. Omarchy is Arch-based but identifies itself as
+  ID=omarchy in /etc/os-release, so gating on that keeps this off my Macs and my
+  other (apt-based) Linux boxes: there it renders empty and chezmoi skips it.
+  `dig` because macOS has no osRelease at all.
+
+  Defaults go through Omarchy's own commands rather than raw xdg-settings, so
+  Omarchy's menus and Super+Return keep agreeing with what we pick.
+*/ -}}
+{{- if eq (dig "osRelease" "id" "" .chezmoi) "omarchy" -}}
+#!/bin/bash
+set -euo pipefail
+
+echo "=== chezmoi: omarchy setup ==="
+
+# Terminal: Ghostty, not Omarchy's default foot (no tabs). `install terminal`
+# also points xdg-terminal-exec (Super+Return) at it; idempotent.
+if [ "$(omarchy default terminal)" != "ghostty" ]; then
+    omarchy install terminal ghostty
+fi
+
+# Browser: Chrome (packaged in Omarchy's own repo, so plain `pkg add`).
+omarchy pkg add google-chrome
+if [ "$(omarchy default browser)" != "chrome" ]; then
+    omarchy default browser chrome
+fi
+
+# Bitwarden extension, via Chrome's external-extensions mechanism: Chrome
+# fetches it from the Web Store on next start and asks once to enable it. Not a
+# managed policy on purpose: that would brand Chrome "managed by your
+# organization" and make the extension unremovable. Points at my self-hosted
+# vault, set inside the extension after install.
+BITWARDEN_ID=nngceckbapebfimnlniiiahkandclblb
+ext_json=/usr/share/google-chrome/extensions/$BITWARDEN_ID.json
+if [ ! -f "$ext_json" ]; then
+    sudo mkdir -p "$(dirname "$ext_json")"
+    echo '{ "external_update_url": "https://clients2.google.com/service/update2/crx" }' \
+        | sudo tee "$ext_json" >/dev/null
+fi
+
+echo "=== chezmoi: omarchy setup done ==="
+{{ end -}}

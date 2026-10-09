@@ -75,3 +75,11 @@ remove-devbox-browser-cruft_linux.sh
 .local/bin/ssh-pty-resize
 .config/rbw/config.json
 {{ end }}
+# Omarchy (Arch, ID=omarchy in os-release) is linux, but the linux package
+# scripts are apt-based and would abort `chezmoi apply` there; it gets its own
+# pacman/omarchy setup in .chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl.
+# The devbox cruft only exists on the work VM image.
+{{ if eq (dig "osRelease" "id" "" .chezmoi) "omarchy" }}
+setup_packages_linux.sh
+remove-devbox-browser-cruft_linux.sh
+{{ end }}
