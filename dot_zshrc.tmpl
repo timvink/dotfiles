@@ -93,17 +93,10 @@ export BROWSER="$HOME/.local/bin/xdg-open"
 # fzf — fuzzy finder key bindings + completion.
 #   ctrl-r  fuzzy history search      ctrl-t  insert file path
 #   alt-c   cd into a subdir          **<tab> fuzzy-complete any command's arg
-# Newer fzf (>=0.48, e.g. Homebrew) ships `fzf --zsh`; older apt builds don't,
-# so fall back to sourcing the key-binding/completion files they drop on disk.
-if command -v fzf >/dev/null 2>&1; then
-    if fzf --zsh >/dev/null 2>&1; then
-        eval "$(fzf --zsh)"
-    else
-        for d in /usr/share/doc/fzf/examples /usr/share/fzf; do
-            [ -f "$d/key-bindings.zsh" ] && source "$d/key-bindings.zsh"
-            [ -f "$d/completion.zsh" ]   && source "$d/completion.zsh"
-        done
-    fi
+# `fzf --zsh` needs fzf >= 0.48: Homebrew on macOS, the upstream binary that the
+# linux package script installs (apt's is too old).
+if command -v fzf >/dev/null 2>&1 && fzf --zsh >/dev/null 2>&1; then
+    eval "$(fzf --zsh)"
 fi
 
 # scaleway cli

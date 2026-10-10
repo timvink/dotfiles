@@ -76,10 +76,27 @@ install_if_missing rg ripgrep
 # trash-cli — provides 'trash-put'; bash_aliases aliases 'del' to it on linux
 install_if_missing trash-put trash-cli
 
-# fzf — fuzzy finder (ctrl-r history, ctrl-t files). Ubuntu's apt fzf is older
-# than 0.48, so it lacks `fzf --zsh`; the shell rc falls back to sourcing the
-# key-binding files this package drops under /usr/share.
-install_if_missing fzf fzf
+# fzf — fuzzy finder (ctrl-r history, ctrl-t files). Not from apt: Ubuntu's fzf
+# (0.44 on 24.04) predates `fzf --bash`/`--zsh` (0.48), which the shell rcs use to
+# load the key bindings, and lags the --no-input that tmux-url-open wants (0.59).
+# Install the pinned upstream static binary into ~/.local/bin, which shadows any
+# leftover /usr/bin/fzf. Bump FZF_VERSION to upgrade.
+FZF_VERSION=0.74.4
+if [ "$(fzf --version 2>/dev/null | awk '{print $1}')" != "$FZF_VERSION" ] \
+    || [ "$(command -v fzf)" != "$HOME/.local/bin/fzf" ]; then
+    case "$(uname -m)" in
+        x86_64) fzf_arch=linux_amd64 ;;
+        aarch64) fzf_arch=linux_arm64 ;;
+        *) echo "Unsupported arch for fzf prebuilt: $(uname -m)" >&2; exit 1 ;;
+    esac
+    mkdir -p "$HOME/.local/bin"
+    tmp=$(mktemp -d)
+    curl -fsSL -o "$tmp/fzf.tar.gz" \
+        "https://github.com/junegunn/fzf/releases/download/v${FZF_VERSION}/fzf-${FZF_VERSION}-${fzf_arch}.tar.gz"
+    tar -xzf "$tmp/fzf.tar.gz" -C "$tmp"
+    install -m 755 "$tmp/fzf" "$HOME/.local/bin/fzf"
+    rm -rf "$tmp"
+fi
 
 # xclip — clipboard backend for img-clip.nvim (paste images into markdown).
 # X11 only; if a VM ever runs Wayland, swap to wl-clipboard.

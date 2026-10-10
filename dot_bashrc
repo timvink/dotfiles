@@ -45,3 +45,11 @@ shopt -s histappend
 # for setting history length see HISTSIZE and HISTFILESIZE in bash(1)
 HISTSIZE=1000
 HISTFILESIZE=2000
+
+# fzf — fuzzy finder key bindings + completion (mirrors dot_zshrc.tmpl).
+#   ctrl-r  fuzzy history search      ctrl-t  insert file path
+#   alt-c   cd into a subdir          **<tab> fuzzy-complete any command's arg
+# `fzf --bash` needs fzf >= 0.48; the linux package script installs upstream's.
+if command -v fzf >/dev/null 2>&1 && fzf --bash >/dev/null 2>&1; then
+    eval "$(fzf --bash)"
+fi
