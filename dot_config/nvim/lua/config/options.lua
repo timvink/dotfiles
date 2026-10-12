@@ -66,6 +66,14 @@ vim.opt.spelllang = { "en", "nl" }
 --    B's stale register content instead.)
 --  * No tmux: fall back to nvim's own unnamed register (the last local yank).
 --
+-- Copy inside tmux goes through `tmux load-buffer -w`, not a raw OSC 52 from
+-- nvim. tmux forwards a pane's OSC 52 to the outer terminal on its drawing path
+-- and silently drops it while that pane or client has a redraw pending (tmux 3.4
+-- screen_write_set_client_cb / tty_client_ready) — over a laggy SSH link that hit
+-- the first yank after a big redraw (e.g. explorer `Y`), so it took two presses.
+-- `load-buffer -w` hands the text to the client directly, and still fills the
+-- tmux buffer the paste below reads. Needs tmux >= 3.2.
+--
 -- Either way, pasting *host*-clipboard text (copied in a Mac app) into nvim
 -- stays a normal terminal paste (⌘V) — neither source sees the Mac clipboard.
 if vim.env.SSH_CONNECTION then
@@ -74,7 +82,13 @@ if vim.env.SSH_CONNECTION then
     return { vim.fn.split(vim.fn.getreg(""), "\n"), vim.fn.getregtype("") }
   end
   local paste = from_reg
+  local copy = { ["+"] = osc52.copy("+"), ["*"] = osc52.copy("*") }
   if vim.env.TMUX then
+    -- :wait() keeps a `p` right after the yank from reading the old buffer.
+    local tmux_copy = function(lines)
+      vim.system({ "tmux", "load-buffer", "-w", "-" }, { stdin = table.concat(lines, "\n") }):wait()
+    end
+    copy = { ["+"] = tmux_copy, ["*"] = tmux_copy }
     paste = function()
       local text = vim.fn.system({ "tmux", "show-buffer" })
       if vim.v.shell_error ~= 0 then
@@ -91,7 +105,7 @@ if vim.env.SSH_CONNECTION then
   end
   vim.g.clipboard = {
     name = "OSC 52",
-    copy = { ["+"] = osc52.copy("+"), ["*"] = osc52.copy("*") },
+    copy = copy,
     paste = { ["+"] = paste, ["*"] = paste },
   }
   vim.api.nvim_create_autocmd("User", {
