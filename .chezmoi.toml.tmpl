@@ -10,10 +10,9 @@
 # agent harnesses like pi. Homelab boxes and headless VMs answer "no"; my daily
 # drivers answer "yes", regardless of OS.
 #
-# includePrivate gates private data: rbw/vault access at apply time, the Proton
-# VPN wireguard conf, and ~/.ssh/config with my home hosts. Work machines answer
-# "no" — installing rbw is cheap, but my home network topology is not something
-# a work box should hold. Defaults to false, so `chezmoi apply` never calls
+# includePrivate gates personal vault/VPN tools (rbw, bw, WireGuard), vault
+# access at apply time, the Proton VPN config, and ~/.ssh/config with my home
+# hosts. Work machines answer "no". Defaults to false, so `chezmoi apply` never calls
 # `rbw get` on a machine whose config predates this flag until it re-inits.
 #
 # codingAgent picks which agent the `t` tmux bootstrap launches in tab 1 (and,

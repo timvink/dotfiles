@@ -1,0 +1,8 @@
+#!/bin/sh
+# Match the private vault and VPN configuration gates in .chezmoiignore.
+{{ if dig "includePrivate" false . }}
+set -eu
+export HOMEBREW_NO_ASK=1
+export HOMEBREW_NO_ENV_HINTS=1
+brew install rbw wireguard-tools wireguard-go
+{{ end }}

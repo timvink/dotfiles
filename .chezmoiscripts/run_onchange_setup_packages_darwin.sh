@@ -69,7 +69,6 @@ PACKAGES=(
   gnupg
   pinentry # pinentry-tty: rbw master-password prompt (see .chezmoitemplates/rbw-config.json)
   pinentry-mac
-  rbw # Bitwarden/Vaultwarden CLI; config managed by chezmoi (Library/Application Support/rbw on macOS, ~/.config/rbw on Linux)
   supabase/tap/supabase
   bjarneo/cliamp/cliamp # terminal music player: playlists, EQ, lyrics, streaming (Spotify/Qobuz/YT Music/Plex/Jellyfin)
   databricks/tap/databricks # Databricks CLI
@@ -84,8 +83,6 @@ PACKAGES=(
   imagemagick # `magick` CLI; snacks.image uses it to render .png/.jpg previews in nvim
   node # pi and agent-browser use Node; agent-browser needs Node >= 24
   agent-browser # browser automation for coding agents
-  wireguard-tools # wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn` CLI)
-  wireguard-go # userspace WireGuard backend (macOS has no kernel module)
   vde # provides `dpipe`, used by devmount() to reverse-mount ~/Downloads onto the devbox via sshfs
 )
 # Trust every third-party tapped formula above (the owner/tap/name entries) before

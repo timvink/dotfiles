@@ -337,48 +337,7 @@ if ! command -v pi >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/pi" ]; then
     fi
 fi
 
-# pinentry-curses — TTY pass-phrase prompt used by rbw on this headless box.
-install_if_missing pinentry-curses pinentry-curses
-
-# rbw — unofficial Bitwarden/Vaultwarden CLI with an ssh-agent-style daemon
-# (rbw-agent) that holds the decrypted vault key in memory so scripts don't
-# re-prompt. Not packaged in Ubuntu apt, so build it from crates.io. Needs a
-# Rust toolchain + a C compiler; install rustup for the user (NOT root) if cargo
-# is missing — matches the upstream-installer pattern used above (agy, uv).
-# Config lives in ~/.config/rbw/config.json (managed by chezmoi); the encrypted
-# vault cache + device registration stay machine-local under ~/.local/share/rbw.
-if ! command -v rbw >/dev/null 2>&1; then
-    install_if_missing cc build-essential
-    install_if_missing pkg-config pkg-config
-    if ! command -v cargo >/dev/null 2>&1; then
-        [ -f "$HOME/.cargo/env" ] || \
-            curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y
-        . "$HOME/.cargo/env"
-    fi
-    cargo install rbw
-fi
-
-# bw — the *official* Bitwarden CLI. rbw above is the day-to-day reader (it has
-# the agent, so no re-prompting), but it only ever writes to the personal vault:
-# it cannot create items owned by an organization. bw can, which is what the
-# shared "Vink Family" org needs — bulk import into a collection, org-scoped
-# item creation, org exports. Ships as an npm global, so it rides on the
-# vendored node above and gets symlinked into ~/.local/bin the same way pi does.
-if ! command -v bw >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/bw" ]; then
-    (
-        export PATH="$HOME/.local/bin:$PATH"
-        npm install -g @bitwarden/cli
-    )
-    if [ ! -e "$HOME/.local/bin/bw" ] && [ -x "$HOME/.local/opt/node/bin/bw" ]; then
-        ln -sf "$HOME/.local/opt/node/bin/bw" "$HOME/.local/bin/bw"
-    fi
-fi
-
-# wireguard-tools — wg/wg-quick for the ProtonVPN tunnel (see the `protonvpn`
-# CLI). Linux has in-kernel WireGuard, so no userspace backend is needed. If
-# `wg-quick up` later complains about resolvconf for the DNS line, install
-# openresolv or drop the `DNS =` line from ~/.config/wireguard/protonvpn.conf.
-install_if_missing wg wireguard-tools
+# Personal vault and VPN tools are installed by setup_private_packages_linux.
 
 # sshfs — lets this box reverse-mount the Mac's ~/Downloads (read-only) at
 # ~/mac-downloads automatically while I'm connected (devbox()/homelab() in
