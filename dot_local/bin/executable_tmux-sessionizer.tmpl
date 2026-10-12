@@ -38,7 +38,7 @@
 # the picker has exited, back where stdout is ours again.
 #
 # Alt+y copies the highlighted row's absolute folder path instead of opening it
-# (system clipboard and the tmux paste buffer, same two sinks as tmux-url-open).
+# (system clipboard — local tool or OSC52 over SSH — and the tmux paste buffer).
 # Same become() trick: it emits `copy\t<whole row>` and the copy runs after fzf
 # exits. A session row carries only its name, so its path is the session's
 # start dir (#{session_path}).
@@ -88,9 +88,12 @@ TAB=$'\t'   # field delimiter for the tmux -F tables below; '|' is legal in a
 # CLIENT is resolved lazily on first use — keeping that tmux call off the path
 # to showing the popup, so fzf paints as early as possible.
 CLIENT=""
-go() {
+resolve_client() {
   [ -z "$CLIENT" ] && CLIENT=$(tmux list-clients -F '#{client_activity} #{client_name}' \
     2>/dev/null | sort -rn | head -1 | cut -d' ' -f2- || true)
+}
+go() {
+  resolve_client
   if [ -n "$CLIENT" ]; then
     tmux switch-client -c "$CLIENT" -t "=$1"
   elif [ -n "${TMUX:-}" ]; then
@@ -263,7 +266,12 @@ if [ "$copy" = 1 ]; then
     dir)     path=$target ;;
     *)       exit 0 ;;
   esac
-  tmux set-buffer -- "$path"
+  # -w also pushes it to the client's terminal clipboard via OSC52 (needs
+  # set-clipboard on, see dot_tmux.conf) — the only sink on a remote VM over SSH
+  # with no clipboard tool. -t names the client: from a popup, tmux has no
+  # current client to send the escape to (same reason as go()).
+  resolve_client
+  tmux set-buffer -w ${CLIENT:+-t "$CLIENT"} -- "$path"
   if command -v pbcopy >/dev/null 2>&1; then printf '%s' "$path" | pbcopy
   elif [ -n "${WAYLAND_DISPLAY:-}" ] && command -v wl-copy >/dev/null 2>&1; then printf '%s' "$path" | wl-copy
   elif command -v xclip >/dev/null 2>&1; then printf '%s' "$path" | xclip -selection clipboard
