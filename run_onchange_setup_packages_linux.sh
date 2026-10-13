@@ -20,8 +20,25 @@ install_if_missing() {
     fi
 }
 
-# tmux — terminal multiplexer (in the default apt repos)
-install_if_missing tmux tmux
+# tmux — terminal multiplexer. Not from apt: Ubuntu 24.04 ships 3.4. Upstream
+# publishes only a source tarball, so build the pinned release into ~/.local
+# (binary in ~/.local/bin shadows any leftover /usr/bin/tmux). Bump TMUX_VERSION
+# to upgrade. A running server keeps its old version until `tmux kill-server`.
+TMUX_VERSION=3.8
+if [ "$(tmux -V 2>/dev/null | awk '{print $2}')" != "$TMUX_VERSION" ] \
+    || [ "$(command -v tmux)" != "$HOME/.local/bin/tmux" ]; then
+    if [ "$NEED_UPDATE" -eq 0 ]; then
+        sudo apt-get update -y
+        NEED_UPDATE=1
+    fi
+    sudo apt-get install -y build-essential pkg-config bison libevent-dev libncurses-dev
+    tmp=$(mktemp -d)
+    curl -fsSL -o "$tmp/tmux.tar.gz" \
+        "https://github.com/tmux/tmux/releases/download/${TMUX_VERSION}/tmux-${TMUX_VERSION}.tar.gz"
+    tar -xzf "$tmp/tmux.tar.gz" -C "$tmp"
+    ( cd "$tmp/tmux-${TMUX_VERSION}" && ./configure --prefix="$HOME/.local" && make -j"$(nproc)" && make install )
+    rm -rf "$tmp"
+fi
 
 # jq — JSON processor. Needed at apply time, not just interactively: the
 # modify_ scripts that merge managed keys into ~/.claude/settings.json and
