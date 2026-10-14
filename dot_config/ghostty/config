@@ -16,7 +16,7 @@ minimum-contrast = 3
 # glyphs the tmux status bar draws. Narrow and tall, so more columns fit per pane.
 # Ghostty enables ligatures (calt/liga) by default, so -> => != >= etc. render as
 # ligatures with no extra config; add `font-feature = -calt` to disable.
-font-family = Iosevka Nerd Font
+font-family = Iosevka Nerd Font Mono
 font-size = 14
 
 # Tabs — Cmd-based, so Option/Alt stays free for tmux on remote machines.
