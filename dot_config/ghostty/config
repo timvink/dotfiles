@@ -12,10 +12,11 @@ theme = Catppuccin Mocha
 # drop to ~2 if that bothers you.
 minimum-contrast = 3
 
-# JetBrains Mono (Nerd Font patch — keeps the icon glyphs the tmux status bar
-# draws). Ghostty enables ligatures (calt/liga) by default, so -> => != >= etc.
-# render as ligatures with no extra config; add `font-feature = -calt` to disable.
-font-family = JetBrainsMono Nerd Font
+# Iosevka (https://typeof.net/Iosevka/), Nerd Font patch — keeps the icon
+# glyphs the tmux status bar draws. Narrow and tall, so more columns fit per pane.
+# Ghostty enables ligatures (calt/liga) by default, so -> => != >= etc. render as
+# ligatures with no extra config; add `font-feature = -calt` to disable.
+font-family = Iosevka Nerd Font
 font-size = 14
 
 # Tabs — Cmd-based, so Option/Alt stays free for tmux on remote machines.
