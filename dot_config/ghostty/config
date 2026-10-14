@@ -17,7 +17,7 @@ minimum-contrast = 3
 # Ghostty enables ligatures (calt/liga) by default, so -> => != >= etc. render as
 # ligatures with no extra config; add `font-feature = -calt` to disable.
 font-family = Iosevka Nerd Font Mono
-font-size = 14
+font-size = 15
 
 # Tabs — Cmd-based, so Option/Alt stays free for tmux on remote machines.
 # (super+j / super+k are taken by Ghostty defaults scroll_to_selection /
