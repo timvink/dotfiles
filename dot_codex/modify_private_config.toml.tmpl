@@ -62,6 +62,12 @@ if AZURE:
 model = "''' + DEFAULT_MODEL + '''"
 model_provider = "azure"
 model_reasoning_effort = "''' + DEFAULT_EFFORT + '''"
+# Fixed loopback callback for headless MCP OAuth. The Mac's devbox() connection
+# forwards this same port with -L; provider redirects therefore reach this box
+# without rewriting redirect_uri or relying on browser proxy settings.
+# Keep in sync with _devbox_ensure_master in dot_bash_aliases.tmpl.
+# macOS keeps ephemeral callbacks so local Codex doesn't claim the tunnel port.
+mcp_oauth_callback_port = 43127
 '''
 else:
     DEFAULTS = '''# Interactive defaults. Pointed straight at OpenAI on my personal ChatGPT
@@ -126,7 +132,9 @@ MCP = '''
 # streamable-HTTP transport from the `url` key alone; no extra flags needed.
 # This file holds only server definitions — OAuth tokens live in Codex's own
 # auth store (not here), so they survive `chezmoi apply`. For each hosted server
-# below, authenticate once with `codex mcp login <name>`.
+# below, authenticate once with `codex mcp login <name>`. Over SSH without the
+# callback tunnel, use `codex mcp login <name> --no-browser` and paste the full
+# final callback URL into its hidden terminal prompt (even if the page fails).
 #
 # context7 uses its dedicated OAuth endpoint (/mcp/oauth, not /mcp), per
 # https://context7.com/docs/howto/oauth — keyless, so no API key in this repo.
