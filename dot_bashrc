@@ -27,6 +27,13 @@ fi
 # Update path for claude code
 export PATH="$HOME/.local/bin:$PATH"
 
+# Match the Linux zsh setup: headless browser launchers (including Codex's
+# OAuth client) need BROWSER explicitly; finding xdg-open on PATH isn't enough.
+# The shim opens URLs on the host Mac through the SSH reverse tunnel.
+if [ "$(uname -s)" = "Linux" ]; then
+    export BROWSER="$HOME/.local/bin/xdg-open"
+fi
+
 ## Pretty prompts, https://starship.rs/
 if command -v starship >/dev/null 2>&1; then
     eval "$(starship init bash)"

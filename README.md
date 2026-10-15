@@ -79,6 +79,13 @@ callback should load successfully and the CLI should confirm login. Restart an
 already running Codex session to load the authenticated tools. Codex owns its
 OAuth credential store; tokens do not belong in this repo or `config.toml`.
 
+Linux bash and zsh export `BROWSER="$HOME/.local/bin/xdg-open"`, which sends
+the authorization link through the reverse SSH tunnel to the Mac's URL opener.
+If an existing shell reports "Browser launch failed", apply `~/.bashrc` on the
+devbox and run `export BROWSER="$HOME/.local/bin/xdg-open"` in that shell.
+New shells load the setting automatically. Use normal `mcp login` for automatic
+opening; `--no-browser` deliberately leaves opening the link to you.
+
 ### Fallback when the callback tunnel is unavailable
 
 Both installed clients support a callback paste flow:
