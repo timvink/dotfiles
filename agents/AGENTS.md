@@ -39,6 +39,14 @@ quick questions and one-line edits. Never clear the note; it is safe outside tmu
 
 ## Machine configuration and secrets
 
+For authenticated browsing from a headless machine, use `host-browser` when
+available. It forwards `agent-browser` commands to visible Chrome sessions on
+the host Mac through the devbox/homelab SSH tunnel. Use `--session NAME` with a
+distinct name per agent; profiles retain logins on the Mac. Complete SSO/MFA in
+the host window. File arguments and screenshot paths refer to the Mac.
+See the chezmoi README for setup; an unavailable bridge needs the Mac-side
+setup, not another unauthenticated browser on the headless machine.
+
 Load `chezmoi` before changing dotfiles, agent configuration, or installed tools.
 Declare changes in the source repo; never hand-edit managed live files.
 
