@@ -47,6 +47,7 @@ CASKS=(
     font-3270-nerd-font
     font-caskaydia-mono-nerd-font
     font-jetbrains-mono-nerd-font
+    font-iosevka-nerd-font # default terminal font; https://typeof.net/Iosevka/
     firefox
     # codex is deliberately NOT here — it moved to the npm build in
     # run_onchange_setup_packages_darwin.sh. See the comment there.
