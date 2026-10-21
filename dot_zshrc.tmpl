@@ -88,6 +88,11 @@ skip_global_compinit=1
 # URL to the browser on my host Mac over the SSH reverse tunnel (and falls back
 # to printing a clickable link). Overrides cloud-init's /etc/profile.d default.
 export BROWSER="$HOME/.local/bin/xdg-open"
+# Node's bundled roots and Azure CLI's certifi can lag OS security fixes.
+# Use the OS trust store patched for the October 2026 eMudhra compromise.
+export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--use-openssl-ca"
+export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+export PIP_CERT=/etc/ssl/certs/ca-certificates.crt
 {{ end }}
 
 # fzf — fuzzy finder key bindings + completion.

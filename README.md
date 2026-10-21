@@ -39,6 +39,59 @@ Apps:
 - Editors: tmux and neovim
 - Tiling manager: Rectangle
 
+## Browser sessions on the Mac from the devbox
+
+`host-browser` runs `agent-browser` on the Mac through the existing port **2489**
+reverse SSH tunnel. It works with `devbox()` and `homelab()`, and also runs
+directly on the Mac. Each named session has its own visible Chrome window and
+persistent profile under `~/.local/share/host-browser/profiles/` on the Mac.
+Complete SSO and MFA in that window; later commands reuse the login.
+These are separate profiles from your everyday Firefox or Chrome browser.
+
+After syncing this repo, apply the bridge on the Mac:
+
+```bash
+chezmoi apply ~/.local/bin/host-browser ~/.local/bin/open-url-listener \
+  ~/Library/LaunchAgents/com.timvink.openurl.plist
+```
+
+The apply reloads the existing URL listener. `agent-browser` and Chrome for
+Testing are already declared in the macOS package setup. If absent, run that
+setup before using the bridge. On the devbox, apply the client:
+
+```bash
+chezmoi apply --exclude scripts ~/.local/bin/host-browser
+```
+
+Use ordinary `agent-browser` commands with the `host-browser` executable:
+
+```bash
+host-browser --session work open https://example.com
+host-browser --session work snapshot -i
+host-browser --session work click @e3
+host-browser --session work tab list
+host-browser --session work screenshot
+host-browser --session work close
+host-browser session list
+```
+
+Snapshots supply fresh element refs; take another snapshot after a page change.
+Closing a session closes that browser and keeps its profile for next time.
+`work` is the default session; use different names for independent agents or
+accounts. Sessions are named `host-<name>` in the Mac's `agent-browser` list.
+Do not use `close --all` when other sessions should keep running.
+
+Piped stdin is forwarded, including `eval --stdin`. Screenshots, PDFs, uploads,
+downloads, and other file paths refer to the **Mac's filesystem**. Output and
+exit status return to the devbox; files are not copied automatically.
+Commands have a 90-second host timeout, a 1 MiB request limit, and an 8 MiB
+output limit. Interactive terminal prompts are unsupported; complete sign-in
+in the visible Mac browser.
+
+No debugging port or additional SSH forward is needed. The existing URL opener
+continues to handle `xdg-open`. Keep the bridge bound to loopback: anyone with
+access to it can control the browser and its signed-in accounts.
+
 ## MCP sign-in from the headless devbox
 
 Codex's Linux configuration pins `mcp_oauth_callback_port = 43127`. The Mac's

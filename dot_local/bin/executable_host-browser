@@ -1,0 +1,72 @@
+#!/usr/bin/perl
+# Control visible Chrome sessions on the Mac through the URL-opening SSH tunnel.
+# Profiles stay on the Mac; no cookies are exported to the devbox.
+use strict;
+use warnings;
+use Config;
+use IO::Socket::INET;
+use JSON::PP;
+
+my $local = @ARGV && $ARGV[0] eq '--local' ? shift @ARGV : '';
+if (!@ARGV || $ARGV[0] eq '--help') {
+    print <<'HELP';
+Usage: host-browser [--session NAME] <agent-browser command> [arguments...]
+
+  host-browser --session work open https://example.com
+  host-browser --session work snapshot -i
+  host-browser --session work click @e3
+  host-browser --session work close
+  host-browser session list
+
+Runs on the Mac, with a visible browser and a persistent profile per session.
+From Linux, requires the devbox/homelab SSH URL-opening tunnel on port 2489.
+Files (screenshots, uploads, downloads) refer to paths on the Mac.
+Piped stdin is forwarded, for example: host-browser eval --stdin < script.js
+The default session is 'work'; use distinct names for independent agents.
+HELP
+    exit 0;
+}
+
+if ($local || $Config{osname} eq 'darwin') {
+    my $session = 'work';
+    if ($ARGV[0] eq '--session') {
+        shift @ARGV;
+        $session = shift @ARGV // '';
+    }
+    die "host-browser: session must use letters, digits, _ or - (1-64 characters)\n"
+        unless $session =~ /\A[a-zA-Z0-9_-]{1,64}\z/;
+    die "host-browser: missing browser command\n" unless @ARGV;
+    # LaunchAgents have a minimal PATH; prefer the managed native CLI, then brew.
+    local $ENV{PATH} = "$ENV{HOME}/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin";
+    delete @ENV{qw(AGENT_BROWSER_CDP AGENT_BROWSER_AUTO_CONNECT AGENT_BROWSER_PROVIDER
+        AGENT_BROWSER_PROFILE AGENT_BROWSER_SESSION AGENT_BROWSER_RESTORE
+        AGENT_BROWSER_SESSION_NAME)};
+    exec 'agent-browser', '--session', "host-$session", '--headed',
+        '--profile', "$ENV{HOME}/.local/share/host-browser/profiles/$session", @ARGV;
+    die "host-browser: cannot start agent-browser: $!\n";
+}
+
+my $input = '';
+if (!-t STDIN) {
+    local $/;
+    $input = <STDIN> // '';
+}
+my $request = encode_json({args => \@ARGV, stdin => $input});
+die "host-browser: request exceeds 1 MiB\n" if length($request) > 1024 * 1024;
+my $socket = IO::Socket::INET->new(
+    PeerAddr => '127.0.0.1', PeerPort => 2489, Proto => 'tcp', Timeout => 5,
+) or die "host-browser: host bridge unavailable -- connect using devbox/homelab and apply the host browser setup on the Mac\n";
+$socket->autoflush(1);
+local $SIG{ALRM} = sub { die "host-browser: host command timed out after 100 seconds\n" };
+alarm 100;
+print {$socket} "BROWSER $request\n" or die "host-browser: send failed: $!\n";
+my $line = <$socket>;
+alarm 0;
+close $socket;
+die "host-browser: host bridge returned no response -- update chezmoi on the Mac\n" unless defined $line;
+my $response = eval { decode_json($line) };
+die "host-browser: incompatible host bridge response -- update chezmoi on the Mac\n"
+    unless ref($response) eq 'HASH' && defined $response->{exit_code};
+print STDOUT $response->{stdout} // '';
+print STDERR $response->{stderr} // '';
+exit $response->{exit_code};
