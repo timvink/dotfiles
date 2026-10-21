@@ -32,6 +32,11 @@ export PATH="$HOME/.local/bin:$PATH"
 # The shim opens URLs on the host Mac through the SSH reverse tunnel.
 if [ "$(uname -s)" = "Linux" ]; then
     export BROWSER="$HOME/.local/bin/xdg-open"
+    # Node's bundled roots and Azure CLI's certifi can lag OS security fixes.
+    # Use the OS trust store patched for the October 2026 eMudhra compromise.
+    export NODE_OPTIONS="${NODE_OPTIONS:+$NODE_OPTIONS }--use-openssl-ca"
+    export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+    export PIP_CERT=/etc/ssl/certs/ca-certificates.crt
 fi
 
 ## Pretty prompts, https://starship.rs/
