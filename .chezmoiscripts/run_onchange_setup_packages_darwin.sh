@@ -83,6 +83,7 @@ PACKAGES=(
   imagemagick # `magick` CLI; snacks.image uses it to render .png/.jpg previews in nvim
   node # pi and agent-browser use Node; agent-browser needs Node >= 24
   agent-browser # browser automation for coding agents
+  scrcpy # mirror/control the homelab's debug phone through its adb server (tunnelled over ssh)
   vde # provides `dpipe`, used by devmount() to reverse-mount ~/Downloads onto the devbox via sshfs
 )
 # Trust every third-party tapped formula above (the owner/tap/name entries) before

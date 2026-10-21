@@ -363,4 +363,11 @@ fi
 # the Mac side provides dpipe via `vde`.
 install_if_missing sshfs sshfs
 
+# adb — the homelab hosts a spare Android phone on USB for on-device debugging;
+# agents drive it over `ssh homelab adb …`. The apt package pulls in the udev
+# rules that let the plugdev group open the device without root.
+if [ "$(hostname)" = "homelab" ]; then
+    install_if_missing adb adb
+fi
+
 echo "=== chezmoi: linux CLI tools ready ==="
