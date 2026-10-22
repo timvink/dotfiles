@@ -285,14 +285,12 @@ fi
 # v24 LTS *line* rather than a pinned patch, so reapplying picks up security
 # releases; the version gate below means that only happens on a box whose node
 # is missing or too old, never as a surprise upgrade.
-NODE_MIN_MAJOR=24
-NODE_MIN_MINOR=0
+NODE_MIN_VERSION=24.22.1
 NODE_LTS_DIST=https://nodejs.org/dist/latest-v24.x
 node_ok=0
 if command -v node >/dev/null 2>&1; then
-    ver=$(node --version | sed -E 's/^v([0-9]+)\.([0-9]+).*/\1 \2/')
-    maj=${ver% *}; min=${ver#* }
-    if [ "$maj" -gt "$NODE_MIN_MAJOR" ] || { [ "$maj" -eq "$NODE_MIN_MAJOR" ] && [ "$min" -ge "$NODE_MIN_MINOR" ]; }; then
+    ver=$(node --version | sed 's/^v//')
+    if dpkg --compare-versions "$ver" ge "$NODE_MIN_VERSION"; then
         node_ok=1
     fi
 fi
@@ -313,9 +311,14 @@ if [ "$node_ok" -eq 0 ]; then
     fi
     tmp=$(mktemp -d)
     curl -fsSL -o "$tmp/node.tar.gz" "$NODE_LTS_DIST/$node_tarball"
-    tar -xzf "$tmp/node.tar.gz" -C "$tmp"
-    rm -rf "$HOME/.local/opt/node"
-    mv "$tmp/${node_tarball%.tar.gz}" "$HOME/.local/opt/node"
+    curl -fsSL -o "$tmp/SHASUMS256.txt" "$NODE_LTS_DIST/SHASUMS256.txt"
+    checksum=$(awk -v filename="$node_tarball" '$2 == filename { print $1 }' "$tmp/SHASUMS256.txt")
+    [ -n "$checksum" ] || { echo 'Node release checksum is missing' >&2; exit 1; }
+    printf '%s  %s\n' "$checksum" "$tmp/node.tar.gz" | sha256sum --check --status
+    # Preserve global tools (pi, bw, agent-browser) during runtime upgrades.
+    mkdir -p "$HOME/.local/opt/node"
+    tar -xzf "$tmp/node.tar.gz" --strip-components=1 -C "$HOME/.local/opt/node"
+    dpkg --compare-versions "$("$HOME/.local/opt/node/bin/node" --version | sed 's/^v//')" ge "$NODE_MIN_VERSION"
     # ~/.local/bin comes first on PATH, so these shadow any apt-installed node.
     for node_bin in node npm npx; do
         ln -sf "$HOME/.local/opt/node/bin/$node_bin" "$HOME/.local/bin/$node_bin"
