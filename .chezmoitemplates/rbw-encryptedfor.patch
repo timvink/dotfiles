@@ -1,0 +1,55 @@
+diff --git a/src/api.rs b/src/api.rs
+index a817fb2..044ff58 100644
+--- a/src/api.rs
++++ b/src/api.rs
+@@ -749,6 +749,8 @@ struct SyncResPasswordHistory {
+ 
+ #[derive(serde::Serialize, Debug)]
+ struct CiphersPostReq {
++    #[serde(rename = "encryptedFor", skip_serializing_if = "Option::is_none")]
++    encrypted_for: Option<String>,
+     #[serde(rename = "type")]
+     ty: u32, // XXX what are the valid types?
+     #[serde(rename = "folderId")]
+@@ -764,6 +766,8 @@ struct CiphersPostReq {
+ 
+ #[derive(serde::Serialize, Debug)]
+ struct CiphersPutReq {
++    #[serde(rename = "encryptedFor", skip_serializing_if = "Option::is_none")]
++    encrypted_for: Option<String>,
+     #[serde(rename = "type")]
+     ty: u32, // XXX what are the valid types?
+     #[serde(rename = "folderId")]
+@@ -1203,6 +1207,7 @@ impl Client {
+         folder_id: Option<&str>,
+     ) -> Result<()> {
+         let mut req = CiphersPostReq {
++            encrypted_for: user_id_from_access_token(access_token),
+             ty: 1,
+             folder_id: folder_id.map(std::string::ToString::to_string),
+             name: name.to_string(),
+@@ -1330,6 +1335,7 @@ impl Client {
+         history: &[crate::db::HistoryEntry],
+     ) -> Result<()> {
+         let mut req = CiphersPutReq {
++            encrypted_for: user_id_from_access_token(access_token),
+             ty: match data {
+                 crate::db::EntryData::Login { .. } => 1,
+                 crate::db::EntryData::SecureNote => 2,
+@@ -1766,3 +1772,16 @@ fn classify_login_error(error_res: &ConnectErrorRes, code: u16) -> Error {
+     log::warn!("unexpected error received during login: {error_res:?}");
+     Error::RequestFailed { status: code }
+ }
++
++// Vaultwarden 1.37 requires `encryptedFor` (the user id the cipher is
++// encrypted for) on cipher create/update; it is the `sub` claim of the
++// access token.
++fn user_id_from_access_token(access_token: &str) -> Option<String> {
++    use base64::Engine as _;
++    let payload = access_token.split('.').nth(1)?;
++    let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
++        .decode(payload.trim_end_matches('='))
++        .ok()?;
++    let claims: serde_json::Value = serde_json::from_slice(&bytes).ok()?;
++    claims.get("sub")?.as_str().map(std::string::ToString::to_string)
++}

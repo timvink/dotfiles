@@ -34,7 +34,17 @@ if ! command -v rbw >/dev/null 2>&1; then
             curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y
         . "$HOME/.cargo/env"
     fi
-    cargo install rbw
+    # Built from the 1.15.0 tag plus a patch, not plain `cargo install rbw`:
+    # Vaultwarden 1.37+ rejects `rbw add`/`rbw edit` with 422 because stock rbw
+    # omits the `encryptedFor` field (doy/rbw#385). The patch is the issue's
+    # fix (fills it from the access token's `sub` claim). Drop it and go back
+    # to `cargo install rbw` once doy/rbw#386 is released.
+    rbw_src=$(mktemp -d)
+    git clone -q --depth 1 --branch 1.15.0 https://github.com/doy/rbw "$rbw_src"
+    git -C "$rbw_src" apply - <<'PATCH'
+{{ include ".chezmoitemplates/rbw-encryptedfor.patch" }}PATCH
+    cargo install --locked --path "$rbw_src"
+    rm -rf "$rbw_src"
 fi
 
 # bw — the *official* Bitwarden CLI. rbw above is the day-to-day reader (it has
