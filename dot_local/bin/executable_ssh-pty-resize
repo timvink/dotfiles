@@ -17,7 +17,7 @@
 # kernel believes sshd, and a terminal size query sent through tmux's
 # passthrough never gets its reply back (tmux eats it).
 #
-# So the Mac tells us instead. _devbox_winch_bg (dot_bash_aliases.tmpl) watches
+# So the Mac tells us instead. _devbox_winch_bg (the Mac's ~/.local/bin/devbox) watches
 # the local pty for the whole session and calls this over the existing mux
 # socket whenever the size changes. Setting the size with stty is enough on its
 # own: the kernel delivers SIGWINCH to the pty's foreground process group, tmux

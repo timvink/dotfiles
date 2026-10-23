@@ -15,7 +15,7 @@
 #     it: ctrl+v. We just send that.
 #
 # Local vs remote is decided PER WINDOW, and only from the frontmost one.
-# devbox()/homelab() in ~/.bash_aliases report a marker path as their window's
+# the devbox/homelab scripts in ~/.local/bin report a marker path as their window's
 # working directory (OSC 7) for the length of the session; Ghostty tracks that
 # per surface and publishes it as the front window's AXDocument, so reading it
 # back asks "is the window I'm pasting into the one that's in a session?" The
@@ -57,7 +57,7 @@ export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 SESSIONS="devbox $HOME/.ssh/cm-devbox.sock
 homelab $HOME/.ssh/cm-homelab.sock"
 
-# The directory devbox()/homelab() report as their window's cwd, one child per
+# The directory devbox/homelab report as their window's cwd, one child per
 # host: .../remote-window/devbox. Deliberately a path that does NOT exist — a new
 # tab opened from a marked window inherits that window's cwd, and inheriting a
 # real marker directory would make the fresh local tab look like a session too.

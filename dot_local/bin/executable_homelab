@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# SSH into the homelab and drop into the timvink-homelab repo. A script rather than a
+# plain `ssh homelab`, so — like `devbox` — it can mark this window as the image-paste
+# session (see _remote_window) and auto-mount ~/Downloads at homelab:~/mac-downloads for
+# the duration of the connection. Both ride the reusable ControlMaster socket set up in
+# ~/.ssh/config's `Host homelab` block. Shared helpers: ~/.local/lib/remote-session.sh.
+. "$HOME/.local/lib/remote-session.sh"
+
+_homelab_dest() { REMOTE_DEST=(homelab); }
+
+_remote_window homelab
+_remote_window_warn_tmux homelab
+# Retire a master that no longer answers, or the connect below mux-attaches to it and hangs.
+_ssh_drop_dead_master homelab "$HOME/.ssh/cm-homelab.sock" _homelab_dest
+
+# The backgrounded waiter brings the mount up once the master is live; $mnt is that
+# waiter, killed in case it's still polling when we leave.
+_revmount_bg homelab _homelab_dest &
+mnt=$!
+
+# Runs however the session ends: a normal exit, or the terminal closing (SIGHUP) or a
+# kill, which turn into an exit below so this still runs. Terminal modes first, before
+# the slow unmount, so few stray mouse reports pile up.
+_finish() {
+  _term_restore
+  kill "$mnt" 2>/dev/null
+  _revumount homelab homelab
+  _remote_window
+}
+trap _finish EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+ssh -t homelab "cd /media/storage/private/timvink-homelab/ && exec \$SHELL -l"

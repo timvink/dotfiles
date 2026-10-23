@@ -2,8 +2,8 @@
 # downloadfile — copy a file (or directory) from this box to the Mac's ~/Downloads.
 #
 # Mechanism: a plain `cp` into ~/mac-downloads, the reverse sshfs mount that the
-# Mac's devbox()/homelab() shell function sets up read-write for the life of the
-# SSH session (see dot_bash_aliases.tmpl, "Reverse ~/Downloads mounts"). sshfs
+# Mac's devbox/homelab session script sets up read-write for the life of the
+# SSH session (see ~/.local/lib/remote-session.sh, "Reverse ~/Downloads mounts"). sshfs
 # streams the write back to the Mac over the existing SSH ControlMaster — no new
 # connection and no extra auth. Only meaningful on the box; on the Mac itself the
 # mount doesn't exist and it errors out.

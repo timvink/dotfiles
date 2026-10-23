@@ -360,8 +360,8 @@ fi
 # Personal vault and VPN tools are installed by setup_private_packages_linux.
 
 # sshfs — lets this box reverse-mount the Mac's ~/Downloads (read-only) at
-# ~/mac-downloads automatically while I'm connected (devbox()/homelab() in
-# dot_bash_aliases.tmpl bring it up on connect). Only the sshfs client + FUSE are
+# ~/mac-downloads automatically while I'm connected (the Mac's `devbox`/`homelab`
+# scripts bring it up on connect). Only the sshfs client + FUSE are
 # needed here (kernel /dev/fuse + fusermount3, both present on the Ubuntu images);
 # the Mac side provides dpipe via `vde`.
 install_if_missing sshfs sshfs

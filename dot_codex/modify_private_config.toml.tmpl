@@ -62,10 +62,10 @@ if AZURE:
 model = "''' + DEFAULT_MODEL + '''"
 model_provider = "azure"
 model_reasoning_effort = "''' + DEFAULT_EFFORT + '''"
-# Fixed loopback callback for headless MCP OAuth. The Mac's devbox() connection
+# Fixed loopback callback for headless MCP OAuth. The Mac's devbox connection
 # forwards this same port with -L; provider redirects therefore reach this box
 # without rewriting redirect_uri or relying on browser proxy settings.
-# Keep in sync with _devbox_ensure_master in dot_bash_aliases.tmpl.
+# Keep in sync with _devbox_ensure_master in dot_local/bin/executable_devbox.
 # macOS keeps ephemeral callbacks so local Codex doesn't claim the tunnel port.
 mcp_oauth_callback_port = 43127
 '''

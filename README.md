@@ -42,7 +42,7 @@ Apps:
 ## Browser sessions on the Mac from the devbox
 
 `host-browser` runs `agent-browser` on the Mac through the existing port **2489**
-reverse SSH tunnel. It works with `devbox()` and `homelab()`, and also runs
+reverse SSH tunnel. It works with `devbox` and `homelab`, and also runs
 directly on the Mac. Each named session has its own visible Chrome window and
 persistent profile under `~/.local/share/host-browser/profiles/` on the Mac.
 Complete SSO and MFA in that window; later commands reuse the login.
@@ -95,7 +95,7 @@ access to it can control the browser and its signed-in accounts.
 ## MCP sign-in from the headless devbox
 
 Codex's Linux configuration pins `mcp_oauth_callback_port = 43127`. The Mac's
-`devbox()` SSH connection forwards **Mac `127.0.0.1:43127` → devbox
+`devbox` SSH connection forwards **Mac `127.0.0.1:43127` → devbox
 `127.0.0.1:43127`**. OAuth redirects then reach Codex even though the browser
 runs on the Mac. Both ends bind to loopback. macOS Codex keeps its usual temporary
 ports, so signing in locally does not claim the devbox tunnel's port.
@@ -106,12 +106,11 @@ Apply the relevant sources on each machine:
 # On the devbox:
 chezmoi apply ~/.codex/config.toml
 # On the Mac, after syncing this repo:
-chezmoi apply ~/.bash_aliases
-source ~/.bash_aliases
+chezmoi apply ~/.local/bin/devbox
 ```
 
 A newly created `devbox` connection includes the callback forward. An existing
-SSH master keeps its old forwards even after sourcing the function. To add the
+SSH master keeps its old forwards even after the script is updated. To add the
 forward to that connection without closing any sessions, run **on the Mac**:
 
 ```bash

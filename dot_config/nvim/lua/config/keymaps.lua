@@ -72,7 +72,7 @@ vim.keymap.set("n", "N", "Nzzzv")
 -- ':Download [path]' — copy a file to the Mac's ~/Downloads when working on the
 -- devbox/homelab over SSH. No arg = the current buffer's file. Runs the
 -- ~/.local/bin/downloadfile script, which writes into the reverse ~/mac-downloads
--- sshfs mount (see dot_bash_aliases.tmpl "Reverse ~/Downloads mounts").
+-- sshfs mount (see dot_local/lib/remote-session.sh "Reverse ~/Downloads mounts").
 vim.api.nvim_create_user_command("Download", function(opts)
   local path = opts.args ~= "" and vim.fn.expand(opts.args) or vim.fn.expand("%:p")
   if path == "" then
