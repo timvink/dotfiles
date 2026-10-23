@@ -431,7 +431,7 @@
                         ]
                     },
                     {
-                        "description": "Hyper + R to open Notion (repeat to cycle windows)",
+                        "description": "Hyper + R to open Obsidian (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
@@ -449,7 +449,7 @@
                                 },
                                 "conditions": [
                                     { "type": "variable_if", "name": "hyper_app", "value": "r" },
-                                    { "type": "frontmost_application_if", "bundle_identifiers": ["notion.id"] }
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["md.obsidian"] }
                                 ]
                             },
                             {
@@ -457,7 +457,7 @@
                                 "from": { "key_code": "r", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
                                     { "set_variable": { "name": "hyper_app", "value": "r" } },
-                                    { "software_function": { "open_application": { "bundle_identifier": "notion.id" } } }
+                                    { "software_function": { "open_application": { "bundle_identifier": "md.obsidian" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [

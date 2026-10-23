@@ -29,7 +29,7 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 | `F` | Firefox | Firefox |
 | `W` | Signal ⇄ WhatsApp | "Whisper" / WhatsApp (toggles between the two, Signal first) |
 | `E` | Finder | "Explorer" |
-| `R` | Notion | "Records" |
+| `R` | Obsidian | "Records" |
 | `T` | Todoist | "Todo" |
 
 
