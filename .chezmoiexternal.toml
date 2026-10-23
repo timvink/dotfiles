@@ -1,0 +1,14 @@
+# tmux plugins, pinned to release tags and loaded straight from dot_tmux.conf
+# with run-shell (no TPM). Bump the tag here to upgrade; `exact` removes files
+# an older release had that the new one dropped.
+[".tmux/plugins/tmux-resurrect"]
+    type = "archive"
+    url = "https://github.com/tmux-plugins/tmux-resurrect/archive/refs/tags/v4.0.0.tar.gz"
+    exact = true
+    stripComponents = 1
+
+[".tmux/plugins/tmux-continuum"]
+    type = "archive"
+    url = "https://github.com/tmux-plugins/tmux-continuum/archive/refs/tags/v3.1.0.tar.gz"
+    exact = true
+    stripComponents = 1
