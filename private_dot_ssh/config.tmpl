@@ -31,3 +31,10 @@ Host homelab
     ControlMaster auto
     ControlPath ~/.ssh/cm-homelab.sock
     ControlPersist 30m
+    # Let the master notice a dead network and exit on its own (~60s) instead of
+    # lingering wedged: without this, every later `ssh homelab` mux-attaches to it
+    # and hangs. Same values as the devbox master and herdr's remote bridge.
+    # ConnectTimeout bounds the fresh connect when the box is off or unreachable.
+    ServerAliveInterval 15
+    ServerAliveCountMax 4
+    ConnectTimeout 10

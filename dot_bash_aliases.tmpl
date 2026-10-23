@@ -289,6 +289,7 @@ _term_restore() {
 homelab() {
   _remote_window homelab
   _remote_window_warn_tmux homelab
+  _homelab_drop_dead_master
   # Auto-mount ~/Downloads (read-write) at homelab:~/mac-downloads for this session
   # (see the reverse-mount helpers below); the backgrounded waiter brings it up once
   # the master is live, and it's torn down on exit. $_mnt is that waiter, killed in
@@ -306,6 +307,23 @@ homelab() {
   _revumount homelab homelab
   trap - INT TERM HUP
   _remote_window
+}
+
+# Retire a homelab master that no longer answers, so the connect below opens a fresh
+# one instead of mux-attaching to it and hanging. ServerAliveInterval in ~/.ssh/config
+# makes a master exit on its own once its network is gone, but only after ~60s, and
+# not while the Mac slept through it; this covers that window. Mirrors
+# _devbox_drop_dead_master: a bounded probe, then stop it and whatever rides it.
+_homelab_drop_dead_master() {
+  local sock="$HOME/.ssh/cm-homelab.sock"
+  [ -S "$sock" ] || return 0
+  command -v timeout >/dev/null 2>&1 || return 0
+  timeout 8 ssh -n -o BatchMode=yes homelab true 2>/dev/null && return 0
+  printf '%s\n' "homelab: the previous session's master is unreachable — dropping it" >&2
+  timeout 5 ssh -O exit homelab 2>/dev/null
+  pkill -f 'cm-homelab\.sock' 2>/dev/null
+  rm -f "$sock"
+  _revumount homelab
 }
 
 # Unlock the encrypted ZFS dataset on the homelab after a reboot and
