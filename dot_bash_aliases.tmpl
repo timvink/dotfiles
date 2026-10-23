@@ -265,6 +265,21 @@ _remote_window_warn_tmux() {
   return 0
 }
 
+# Undo terminal modes a remote program (tmux, vim) switched on and never got to switch
+# off because the connection dropped. Without this, Ghostty keeps reporting every mouse
+# move to the local shell, which prints them as ^[[<35;x;yM garbage. Turns off mouse
+# tracking (1000/1002/1003, SGR 1006, urxvt 1015), focus events (1004), bracketed paste
+# (2004), the alternate screen (1049) and application cursor keys, pops the kitty
+# keyboard protocol and shows the cursor; then discards reports already queued on the
+# tty. Called right after ssh returns, before the slow unmount, so few reports pile up.
+_term_restore() {
+  [ -t 1 ] || return 0
+  printf '\033[?1000l\033[?1002l\033[?1003l\033[?1006l\033[?1015l\033[?1004l\033[?2004l\033[?1049l\033[?1l\033>\033[<u\033[?25h' > /dev/tty 2>/dev/null
+  sleep 0.05
+  perl -MPOSIX -e 'tcflush(0, TCIFLUSH)' < /dev/tty 2>/dev/null
+  return 0
+}
+
 ## Home server
 # SSH into the homelab and drop into the timvink-homelab repo. A function, not an
 # alias, so — like devbox() below — it can mark this window as the image-paste
@@ -284,8 +299,9 @@ homelab() {
   # closed → SIGHUP, or killed) and skips the normal cleanup below; the handler clears
   # itself so the trap never leaks into the interactive shell. INT/TERM/HUP behave the
   # same in bash and zsh.
-  trap "_remote_window; kill $_mnt 2>/dev/null; _revumount homelab homelab; trap - INT TERM HUP" INT TERM HUP
+  trap "_term_restore; _remote_window; kill $_mnt 2>/dev/null; _revumount homelab homelab; trap - INT TERM HUP" INT TERM HUP
   ssh -t homelab "cd /media/storage/private/timvink-homelab/ && exec \$SHELL -l"
+  _term_restore
   kill "$_mnt" 2>/dev/null
   _revumount homelab homelab
   trap - INT TERM HUP
@@ -402,7 +418,7 @@ _devbox_session() {
   # closed → SIGHUP, or killed) and skips the normal cleanup below; the handler clears
   # itself so the trap never leaks into the interactive shell. INT/TERM/HUP behave the
   # same in bash and zsh.
-  trap "_remote_window; kill $_mnt $_winch 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
+  trap "_term_restore; _remote_window; kill $_mnt $_winch 2>/dev/null; _revumount_devbox; trap - INT TERM HUP" INT TERM HUP
   # The shell itself is a plain mux client, NOT az — and that is what makes exiting
   # instant. az waits on the ssh process it spawns, and under ControlMaster that same
   # process goes on to serve the master, so an az-run session can't return until the
@@ -413,6 +429,7 @@ _devbox_session() {
   # spam the forwards emit (a browser tab still pointing at a devbox:<port> dev server
   # that has since stopped) belong to the master and now land in its log, not here.
   ssh -o ControlPath="$HOME/.ssh/cm-devbox.sock" -o User="$user" "$host"
+  _term_restore
   kill "$_mnt" "$_winch" 2>/dev/null
   _revumount_devbox
   trap - INT TERM HUP
