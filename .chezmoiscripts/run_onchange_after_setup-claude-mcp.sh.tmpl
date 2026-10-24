@@ -55,6 +55,16 @@ add_http() {
 	fi
 }
 
+# add_stdio <name> <command...> -- register a stdio server at user scope.
+# Additive like add_http: an existing entry is left alone (remove it to pick
+# up a changed command).
+add_stdio() {
+	name=$1
+	shift
+	claude mcp get "$name" >/dev/null 2>&1 && return 0
+	claude mcp add --scope user "$name" -- "$@"
+}
+
 add_http context7       https://mcp.context7.com/mcp/oauth
 add_http notion         https://mcp.notion.com/mcp
 add_http todoist        https://ai.todoist.net/mcp
@@ -66,6 +76,23 @@ add_http gethumandesign https://api.gethumandesign.com/mcp
 add_http activecampaign https://stilstaanbijjezelf1.activehosted.com/api/agents/mcp/http
 {{ end }}
 add_http atlassian      https://mcp.atlassian.com/v1/mcp/authv2
+{{ if dig "includePrivate" false . }}
+# Obsidian vault, served by the openclaw-obsidian-mcp container on the homelab
+# (timvink-homelab repo, openclaw/README.md). Stdio, not HTTP, on purpose: each
+# session `docker exec`s a fresh mcpvault inside that container, so the vault
+# gets no network listener at all -- off the homelab, the only way in is SSH
+# over NetBird, with the key that already gates the box. Needs the container
+# up, i.e. after the post-unlock start.
+#
+# Off the homelab: no ControlMaster, so this background ssh can't become the
+# mux master that interactive `ssh homelab` sessions then attach to -- and
+# ClearAllForwardings keeps it from grabbing the Host block's tunnel ports.
+{{-   if eq .chezmoi.hostname "homelab" }}
+add_stdio obsidian docker exec -i openclaw-obsidian-mcp node_modules/.bin/mcpvault /vault
+{{-   else }}
+add_stdio obsidian ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes homelab docker exec -i openclaw-obsidian-mcp node_modules/.bin/mcpvault /vault
+{{-   end }}
+{{ end }}
 
 # Albert Heijn (ah) is registered by run_onchange_after_setup-ah-mcp_darwin.sh,
 # which also runs the shared server it connects to.
