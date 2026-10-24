@@ -357,6 +357,32 @@ if ! command -v pi >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/pi" ]; then
     fi
 fi
 
+# bubblewrap — Codex's sandbox. Codex falls back to a bundled bwrap without it,
+# but Ubuntu 24.04+ restricts unprivileged user namespaces through AppArmor
+# (kernel.apparmor_restrict_unprivileged_userns=1), and only the packaged
+# /usr/bin/bwrap has the AppArmor profile that allows them. With the bundled
+# one every sandboxed command dies with "bwrap: loopback: Failed RTM_NEWADDR".
+install_if_missing bwrap bubblewrap
+# Ubuntu 24.04's apparmor ships no bwrap profile, so give /usr/bin/bwrap (and
+# only it) the `userns` permission, in the same shape as the stock profiles
+# for buildah, chrome and the rest. Everything else stays restricted.
+if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ] \
+    && [ ! -e /etc/apparmor.d/bwrap ] && ! grep -qs 'profile bwrap' /etc/apparmor.d/*; then
+    sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+# Lets bubblewrap create unprivileged user namespaces (Codex's sandbox).
+# Installed by chezmoi run_onchange_setup_packages_linux.sh.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+
+  include if exists <local/bwrap>
+}
+PROFILE
+    sudo apparmor_parser -r /etc/apparmor.d/bwrap
+fi
+
 # codex — OpenAI's Codex CLI (the `co` alias). The npm build, as on macOS: it
 # vendors the `codex-code-mode-host` sidecar that every command spawns (see
 # setup_packages_darwin). Same vendored-node prefix and symlink as
