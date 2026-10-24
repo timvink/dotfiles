@@ -92,6 +92,14 @@ add_stdio obsidian docker exec -i openclaw-obsidian-mcp node_modules/.bin/mcpvau
 {{-   else }}
 add_stdio obsidian ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes homelab docker exec -i openclaw-obsidian-mcp node_modules/.bin/mcpvault /vault
 {{-   end }}
+# Task lists (CalDAV in Nextcloud), served by the tasks-mcp container on the
+# homelab (timvink-homelab repo, tasks-mcp/README.md). Same stdio-over-
+# docker-exec pattern as the vault, for the same reasons.
+{{-   if eq .chezmoi.hostname "homelab" }}
+add_stdio tasks docker exec -i tasks-mcp tasks-mcp
+{{-   else }}
+add_stdio tasks ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes homelab docker exec -i tasks-mcp tasks-mcp
+{{-   end }}
 {{ end }}
 
 # Albert Heijn (ah) is registered by run_onchange_after_setup-ah-mcp_darwin.sh,

@@ -205,6 +205,16 @@ args = ["exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/v
 command = "ssh"
 args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/vault"]
 {{-   end }}
+
+# Task lists on the homelab — mirrors the Claude entry.
+[mcp_servers.tasks]
+{{-   if eq .chezmoi.hostname "homelab" }}
+command = "docker"
+args = ["exec", "-i", "tasks-mcp", "tasks-mcp"]
+{{-   else }}
+command = "ssh"
+args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "tasks-mcp", "tasks-mcp"]
+{{-   end }}
 {{ end }}
 '''
 
