@@ -357,6 +357,18 @@ if ! command -v pi >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/pi" ]; then
     fi
 fi
 
+# codex — OpenAI's Codex CLI (the `co` alias). The npm build, as on macOS: it
+# vendors the `codex-code-mode-host` sidecar that every command spawns (see
+# setup_packages_darwin). Same vendored-node prefix and symlink as
+# agent-browser. `codex update` self-updates, so this only covers a box that
+# has no codex yet.
+if ! command -v codex >/dev/null 2>&1; then
+    export PATH="$HOME/.local/bin:$PATH"
+    hash -r 2>/dev/null || true
+    npm install --global --prefix "$HOME/.local/opt/node" @openai/codex
+    ln -sf "$HOME/.local/opt/node/bin/codex" "$HOME/.local/bin/codex"
+fi
+
 # Personal vault and VPN tools are installed by setup_private_packages_linux.
 
 # sshfs — lets this box reverse-mount the Mac's ~/Downloads (read-only) at
