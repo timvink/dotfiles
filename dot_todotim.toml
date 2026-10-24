@@ -1,0 +1,16 @@
+# TodoTim — native macOS Todoist clone that syncs to Nextcloud over WebDAV.
+# https://github.com/timvink/todotim
+#
+# Managed by chezmoi (dot_todotim.toml). While this file has a [sync] table the
+# app uses it instead of its Settings window, which shows the fields read-only.
+repository = "https://github.com/timvink/todotim"
+
+[sync]
+enabled = true
+# Homelab Nextcloud; reachable on the LAN and through NetBird elsewhere.
+server_url = "https://nextcloud.home.timvink.nl/remote.php/dav/files/timvink/"
+username = "timvink"
+folder = "TodoTim"
+# Runs once when the Keychain has no password for this user; TodoTim then keeps
+# it in the Keychain ("TodoTim WebDAV"). Needs an unlocked rbw vault that time.
+password_command = "rbw get nextcloud.home.timvink.nl timvink"
