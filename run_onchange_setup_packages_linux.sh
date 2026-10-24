@@ -253,7 +253,7 @@ fi
 # Install the tagged release tree into ~/.local/opt and symlink the script.
 DSF_VERSION=1.4.10
 if ! command -v diff-so-fancy >/dev/null 2>&1 \
-    || [ "$(diff-so-fancy --version 2>/dev/null | awk '/^Diff-so-fancy/ {print $2; exit}')" != "$DSF_VERSION" ]; then
+    || [ "$(diff-so-fancy --version </dev/null 2>/dev/null | awk '/^Diff-so-fancy/ {print $2; exit}')" != "$DSF_VERSION" ]; then
     mkdir -p "$HOME/.local/opt" "$HOME/.local/bin"
     tmp=$(mktemp -d)
     curl -fsSL -o "$tmp/dsf.tar.gz" \
