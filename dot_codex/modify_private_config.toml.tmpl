@@ -193,6 +193,18 @@ url = "https://mcp.atlassian.com/v1/mcp/authv2"
 [mcp_servers.ah]
 command = "/Users/timvink/.local/bin/ah-mcp"
 args = ["--transport", "stdio"]
+
+# Obsidian vault on the homelab — mirrors the Claude entry, see the comment
+# there for why it's stdio through docker exec (no network listener) and why
+# the off-homelab ssh skips the ControlMaster and port forwards.
+[mcp_servers.obsidian]
+{{-   if eq .chezmoi.hostname "homelab" }}
+command = "docker"
+args = ["exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/vault"]
+{{-   else }}
+command = "ssh"
+args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/vault"]
+{{-   end }}
 {{ end }}
 '''
 
