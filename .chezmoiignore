@@ -46,8 +46,9 @@ Library/LaunchAgents/com.timvink.ah-mcp.plist
 Library/Application Support/rbw/config.json
 {{ end }}
 {{ if or (not (dig "includePrivate" false .)) (ne .chezmoi.os "darwin") }}
-# TodoTim (macOS app) syncing to the homelab Nextcloud.
+# TodoTim (macOS app) syncing to the homelab Nextcloud, installed from its GitHub releases.
 .todotim.toml
+.chezmoiscripts/install-todotim_darwin.sh
 {{ end }}
 {{ if not (dig "includeDesktop" false .) }}
 private_dot_pi
