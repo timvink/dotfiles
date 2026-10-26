@@ -17,7 +17,8 @@ username = "timvink"
 share_with = ["tasks-agent"]
 # A Nextcloud app password of its own ("TodoTim (macOS)" under Settings >
 # Security > Devices & sessions), not the login password, so it can be revoked
-# without touching anything else. Runs once when the Keychain has no password
-# for this user; TodoTim then keeps it in the Keychain ("TodoTim WebDAV").
-# Needs an unlocked rbw vault that time.
+# without touching anything else. Runs once per launch (and again on Sync Now
+# while it has not produced a password); TodoTim keeps the password in memory
+# and does not use the Keychain, whose prompt returned with every ad-hoc signed
+# update. Needs an unlocked rbw vault at launch.
 password_command = "rbw get 'Nextcloud TodoTim app password (homelab)' timvink"
