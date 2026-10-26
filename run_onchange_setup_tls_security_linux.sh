@@ -16,7 +16,8 @@ if [ "$ID" = ubuntu ] && [ "$VERSION_ID" = 24.04 ]; then
 fi
 
 # uv has its own bundled Rust roots; updating the OS store alone is insufficient.
-uv_security_version=0.13.4
+# 0.13.5 also publishes managed Python builds with patched pip/ensurepip bundles.
+uv_security_version=0.13.5
 installed_uv_version=$(uv --version 2>/dev/null | awk '{print $2}' || true)
 if [ -z "$installed_uv_version" ] || ! dpkg --compare-versions "$installed_uv_version" ge "$uv_security_version"; then
     curl -fsSL "https://astral.sh/uv/${uv_security_version}/install.sh" \
