@@ -13,3 +13,14 @@
 # create the parent dir itself, so ensure it exists.
 export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
 [ -d "$TMUX_TMPDIR" ] || mkdir -p "$TMUX_TMPDIR"
+
+# Inside tmux, route a bare `claude` through agent-pty even where the shell
+# function in .bash_aliases isn't loaded (non-interactive `zsh -c`, e.g. a tab
+# opened with `tmux new-window 'claude …'`). See
+# dot_local/libexec/agent-pty/bin/executable_claude.
+if [ -n "${TMUX_PANE:-}" ]; then
+    case ":$PATH:" in
+        *":$HOME/.local/libexec/agent-pty/bin:"*) ;;
+        *) export PATH="$HOME/.local/libexec/agent-pty/bin:$PATH" ;;
+    esac
+fi
