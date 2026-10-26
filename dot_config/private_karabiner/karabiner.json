@@ -351,7 +351,7 @@
                         ]
                     },
                     {
-                        "description": "Hyper + T to open Todoist (repeat to cycle windows)",
+                        "description": "Hyper + T to open TodoTim (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
@@ -369,7 +369,7 @@
                                 },
                                 "conditions": [
                                     { "type": "variable_if", "name": "hyper_app", "value": "t" },
-                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.todoist.mac.Todoist"] }
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["nl.timvink.todotim"] }
                                 ]
                             },
                             {
@@ -377,7 +377,7 @@
                                 "from": { "key_code": "t", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
                                     { "set_variable": { "name": "hyper_app", "value": "t" } },
-                                    { "software_function": { "open_application": { "bundle_identifier": "com.todoist.mac.Todoist" } } }
+                                    { "software_function": { "open_application": { "bundle_identifier": "nl.timvink.todotim" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [

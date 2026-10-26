@@ -30,7 +30,7 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 | `W` | Signal ⇄ WhatsApp | "Whisper" / WhatsApp (toggles between the two, Signal first) |
 | `E` | Finder | "Explorer" |
 | `R` | Obsidian | "Records" |
-| `T` | Todoist | "Todo" |
+| `T` | TodoTim | "Todo" |
 
 
 Apps:
