@@ -39,6 +39,17 @@ Apps:
 - Editors: tmux and neovim
 - Tiling manager: Rectangle
 
+Azure CLI on Linux has its own Python certificate bundle and pip under `/opt/az`.
+The managed `setup_tls_security_linux.sh` updates OS trust and uv;
+`setup_azurecli_security_linux.sh` then checks the CLI's certifi and pip on each
+apply and patches only those packages when needed. After an Azure CLI package
+upgrade, run the targeted check if its bundled versions regress below certifi
+2026.10.19 or pip 26.2.2:
+
+```bash
+chezmoi apply ~/setup_azurecli_security_linux.sh
+```
+
 ## Browser sessions on the Mac from the devbox
 
 `host-browser` runs `agent-browser` on the Mac through the existing port **2489**
