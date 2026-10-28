@@ -30,7 +30,7 @@
 # compromised eMudhra roots (https://emudhra.we-have-a-problem.com/apple.html),
 # and git's macOS libcurl reads it. Homebrew's ca-certificates bundle has them
 # removed. Drop this (and ~/.curlrc) once Apple ships a fix; verify with
-# `/usr/bin/git ls-remote https://git-emudhra.we-have-a-problem.com/check.git`
+# `GIT_CONFIG_GLOBAL=/dev/null git ls-remote https://git-emudhra.we-have-a-problem.com/check.git`
 # — a certificate error means the system bundle is safe.
 [http]
 	sslCAInfo = /opt/homebrew/etc/ca-certificates/cert.pem
