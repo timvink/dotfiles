@@ -26,6 +26,17 @@
 {{- end }}
 
 {{ if eq .chezmoi.os "darwin" -}}
+# TEMPORARY (2026-10-28): macOS 27.2's /etc/ssl/cert.pem still trusts the
+# compromised eMudhra roots (https://emudhra.we-have-a-problem.com/apple.html),
+# and git's macOS libcurl reads it. Homebrew's ca-certificates bundle has them
+# removed. Drop this (and ~/.curlrc) once Apple ships a fix; verify with
+# `/usr/bin/git ls-remote https://git-emudhra.we-have-a-problem.com/check.git`
+# — a certificate error means the system bundle is safe.
+[http]
+	sslCAInfo = /opt/homebrew/etc/ca-certificates/cert.pem
+{{- end }}
+
+{{ if eq .chezmoi.os "darwin" -}}
 [commit]
 	gpgsign = true
 {{- end }}
