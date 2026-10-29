@@ -11,7 +11,8 @@
 # .tmpl suffix): chezmoi renders it per-machine, then runs it.
 #   * Linux (the devbox) → Azure OpenAI, billed to the shared dev-tools account,
 #     key from the AZURE_OPENAI_API_KEY env var set by /etc/profile.d/codex.sh.
-#   * macOS (this laptop) → OpenAI directly on my personal ChatGPT subscription
+#   * macOS (this laptop) and the homelab (personal Linux box, no Azure key)
+#     → OpenAI directly on my personal ChatGPT subscription
 #     (`codex login`, credentials in ~/.codex/auth.json). No API key exists here,
 #     so emitting `model_provider = "azure"` on macOS makes every session fail
 #     with "Missing environment variable: AZURE_OPENAI_API_KEY".
@@ -40,8 +41,9 @@
 # chezmoi feeds the current target file on stdin; we emit the desired file.
 import sys, re
 
-# Rendered by chezmoi: True on the Azure devbox, False on the ChatGPT-sub Mac.
-AZURE = {{ if eq .chezmoi.os "darwin" }}False{{ else }}True{{ end }}
+# Rendered by chezmoi: True on the Azure devbox, False on the ChatGPT-sub Mac
+# and homelab.
+AZURE = {{ if or (eq .chezmoi.os "darwin") (eq .chezmoi.hostname "homelab") }}False{{ else }}True{{ end }}
 
 DEFAULT_MODEL = "gpt-6.1-sol"
 DEFAULT_EFFORT = "medium"
@@ -144,9 +146,6 @@ url = "https://mcp.context7.com/mcp/oauth"
 [mcp_servers.todoist]
 url = "https://ai.todoist.net/mcp"
 
-[mcp_servers.notion]
-url = "https://mcp.notion.com/mcp"
-
 [mcp_servers.cloudflare]
 url = "https://mcp.cloudflare.com/mcp"
 
@@ -193,6 +192,28 @@ url = "https://mcp.atlassian.com/v1/mcp/authv2"
 [mcp_servers.ah]
 command = "/Users/timvink/.local/bin/ah-mcp"
 args = ["--transport", "stdio"]
+
+# Obsidian vault on the homelab — mirrors the Claude entry, see the comment
+# there for why it's stdio through docker exec (no network listener) and why
+# the off-homelab ssh skips the ControlMaster and port forwards.
+[mcp_servers.obsidian]
+{{-   if eq .chezmoi.hostname "homelab" }}
+command = "docker"
+args = ["exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/vault"]
+{{-   else }}
+command = "ssh"
+args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/vault"]
+{{-   end }}
+
+# Task lists on the homelab — mirrors the Claude entry.
+[mcp_servers.tasks]
+{{-   if eq .chezmoi.hostname "homelab" }}
+command = "docker"
+args = ["exec", "-i", "tasks-mcp", "tasks-mcp"]
+{{-   else }}
+command = "ssh"
+args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "tasks-mcp", "tasks-mcp"]
+{{-   end }}
 {{ end }}
 '''
 

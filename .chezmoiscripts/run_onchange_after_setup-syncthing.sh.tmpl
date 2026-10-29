@@ -1,0 +1,86 @@
+{{- /*
+  Syncthing client for the Obsidian vault (replaces Notion). Syncs
+  ~/Obsidian/vault with the always-on hub on the homelab; see
+  timvink-homelab/syncthing/README.md for the hub side and the security model.
+
+  Gated to private desktop machines on macOS and Omarchy: the vault is personal,
+  so work machines never get it, and headless boxes don't need it (the homelab
+  runs the hub in Docker).
+
+  Config goes through Syncthing's REST API, so a re-run repairs drift made in
+  the web UI. The hub only accepts device IDs listed in its devices.txt, so a
+  new machine syncs once its ID (printed at the end) is added there.
+*/ -}}
+{{- $omarchy := eq (dig "osRelease" "id" "" .chezmoi) "omarchy" -}}
+{{- if and (dig "includePrivate" false .) (dig "includeDesktop" false .) (or (eq .chezmoi.os "darwin") $omarchy) -}}
+#!/bin/bash
+set -euo pipefail
+
+echo "=== chezmoi: syncthing (Obsidian vault) ==="
+
+# The homelab hub's device ID: the fingerprint of its public key, not a secret.
+HUB_ID=4P67Z3G-2OMPMT6-2HDFZJQ-KLW32SC-2FUAAJ7-G2K7TSF-KONRFXT-WX5IPA6
+# Global discovery is off on both ends, so this device dials the hub directly:
+# the LAN address at home, the NetBird address abroad.
+HUB_ADDRESSES='["tcp://192.168.68.200:22000", "tcp://100.111.242.12:22000"]'
+# Not under ~/Documents: macOS can mirror that folder to iCloud, and two sync
+# engines on one folder fight over every file.
+VAULT="$HOME/Obsidian/vault"
+
+{{ if eq .chezmoi.os "darwin" -}}
+export HOMEBREW_NO_ASK=1 HOMEBREW_NO_ENV_HINTS=1
+brew list --formula syncthing >/dev/null 2>&1 || brew install syncthing
+# A launchd agent, so Syncthing runs at login without a window.
+brew services list | grep -qE '^syncthing +started' || brew services start syncthing
+{{- else -}}
+omarchy pkg add syncthing
+systemctl --user enable --now syncthing.service
+{{- end }}
+
+config_xml=$(syncthing paths | awk '/^Configuration file:/ { getline; sub(/^[ \t]+/, ""); print; exit }')
+for _ in $(seq 60); do [ -s "$config_xml" ] && break; sleep 1; done
+apikey=$(sed -n 's:.*<apikey>\(.*\)</apikey>.*:\1:p' "$config_xml")
+gui=$(sed -n '/<gui /,/<\/gui>/ s:.*<address>\(.*\)</address>.*:\1:p' "$config_xml")
+api() {
+    local method=$1 path=$2; shift 2
+    curl -fsS -X "$method" -H "X-API-Key: $apikey" -H 'Content-Type: application/json' \
+        "http://$gui/rest$path" "$@"
+}
+for _ in $(seq 60); do api GET /system/ping >/dev/null 2>&1 && break; sleep 1; done
+self_id=$(api GET /system/status | jq -r .myID)
+
+# Same posture as the hub: no public discovery servers, relays, UPnP, or
+# usage reporting. LAN discovery stays on.
+api PATCH /config/options -d '{
+  "globalAnnounceEnabled": false,
+  "relaysEnabled": false,
+  "natEnabled": false,
+  "localAnnounceEnabled": true,
+  "urAccepted": -1,
+  "crashReportingEnabled": false
+}'
+
+api PUT "/config/devices/$HUB_ID" -d "$(jq -n --arg id "$HUB_ID" --argjson a "$HUB_ADDRESSES" \
+    '{deviceID: $id, name: "homelab", addresses: $a, autoAcceptFolders: false}')"
+
+# Syncthing creates a "Default Folder" (~/Sync) on first start; it isn't used.
+api DELETE /config/folders/default >/dev/null 2>&1 || true
+
+mkdir -p "$VAULT"
+base=$(api GET /config/folders/obsidian-vault 2>/dev/null || api GET /config/defaults/folder)
+api PUT /config/folders/obsidian-vault -d "$(jq --arg p "$VAULT" --arg self "$self_id" --arg hub "$HUB_ID" '. + {
+  id: "obsidian-vault",
+  label: "Obsidian vault",
+  path: $p,
+  type: "sendreceive",
+  fsWatcherEnabled: true,
+  devices: [{deviceID: $self}, {deviceID: $hub}]
+}' <<<"$base")"
+
+# Per-device UI state that Obsidian rewrites constantly; syncing it only makes
+# conflict copies. Not synced itself, so every device sets it.
+printf '%s\n' .obsidian/workspace.json .obsidian/workspace-mobile.json > "$VAULT/.stignore"
+
+echo "Syncthing device ID of this machine: $self_id"
+echo "  Not yet in timvink-homelab/syncthing/devices.txt? Add it there and run syncthing/bootstrap.sh."
+{{ end -}}

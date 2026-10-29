@@ -1,0 +1,24 @@
+#!/bin/sh
+# Store registry credentials with osxkeychain instead of Docker Desktop's
+# "desktop" helper, preserving everything else Docker writes to this file.
+#
+# With credsStore "desktop", every `docker login` (the gethumandesign deploy
+# scripts log in to the Scaleway registry on each run) POSTs
+# /registry/credstore-updated to Docker Desktop. Desktop then re-checks its
+# Docker Hub sign-in, finds no Hub token, signs out and brings its window to
+# the front — dozens of times a day with agents deploying in parallel.
+# osxkeychain reads and writes the same keychain entries, so existing logins
+# keep working; Desktop just isn't told.
+#
+# If Docker Desktop resets credsStore on an update, the next apply restores
+# it. macOS-only (gated in .chezmoiignore).
+#
+# This is a chezmoi modify_ script: stdin = current target content, stdout
+# = new content. Idempotent.
+
+set -eu
+
+input=$(cat)
+[ -z "$input" ] && input='{}'
+
+printf '%s\n' "$input" | jq --tab '.credsStore = "osxkeychain"'

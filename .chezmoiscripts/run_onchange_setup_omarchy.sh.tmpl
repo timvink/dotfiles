@@ -25,6 +25,10 @@ if [ "$(omarchy default browser)" != "chrome" ]; then
     omarchy default browser chrome
 fi
 
+# Notes (replaces Notion). Omarchy ships Obsidian, but declare it so a
+# removal is undone; the vault is synced by run_onchange_after_setup-syncthing.
+omarchy pkg add obsidian
+
 # Bitwarden extension, via Chrome's external-extensions mechanism: Chrome
 # fetches it from the Web Store on next start and asks once to enable it. Not a
 # managed policy on purpose: that would brand Chrome "managed by your

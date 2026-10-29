@@ -37,9 +37,9 @@ brew update
 # Cask programs
 CASKS=(
     visual-studio-code
+    obsidian # notes; vault synced by run_onchange_after_setup-syncthing.sh.tmpl
     rectangle
     spotify
-    notion
     font-roboto
     font-fira-code
     font-powerline-symbols

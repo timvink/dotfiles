@@ -73,7 +73,6 @@ PACKAGES=(
   bjarneo/cliamp/cliamp # terminal music player: playlists, EQ, lyrics, streaming (Spotify/Qobuz/YT Music/Plex/Jellyfin)
   databricks/tap/databricks # Databricks CLI
   j178/tap/prek # prek: fast pre-commit runner (Rust); see the pre-commit skill
-  resend/cli/resend # Resend email-API CLI
   stripe/stripe-cli/stripe # Stripe CLI
   scw
   watch

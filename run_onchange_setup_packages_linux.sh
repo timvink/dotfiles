@@ -253,7 +253,7 @@ fi
 # Install the tagged release tree into ~/.local/opt and symlink the script.
 DSF_VERSION=1.4.10
 if ! command -v diff-so-fancy >/dev/null 2>&1 \
-    || [ "$(diff-so-fancy --version 2>/dev/null | awk '/^Diff-so-fancy/ {print $2; exit}')" != "$DSF_VERSION" ]; then
+    || [ "$(diff-so-fancy --version </dev/null 2>/dev/null | awk '/^Diff-so-fancy/ {print $2; exit}')" != "$DSF_VERSION" ]; then
     mkdir -p "$HOME/.local/opt" "$HOME/.local/bin"
     tmp=$(mktemp -d)
     curl -fsSL -o "$tmp/dsf.tar.gz" \
@@ -355,6 +355,44 @@ if ! command -v pi >/dev/null 2>&1 && [ ! -x "$HOME/.local/bin/pi" ]; then
     if [ ! -e "$HOME/.local/bin/pi" ] && [ -x "$HOME/.local/opt/node/bin/pi" ]; then
         ln -sf "$HOME/.local/opt/node/bin/pi" "$HOME/.local/bin/pi"
     fi
+fi
+
+# bubblewrap — Codex's sandbox. Codex falls back to a bundled bwrap without it,
+# but Ubuntu 24.04+ restricts unprivileged user namespaces through AppArmor
+# (kernel.apparmor_restrict_unprivileged_userns=1), and only the packaged
+# /usr/bin/bwrap has the AppArmor profile that allows them. With the bundled
+# one every sandboxed command dies with "bwrap: loopback: Failed RTM_NEWADDR".
+install_if_missing bwrap bubblewrap
+# Ubuntu 24.04's apparmor ships no bwrap profile, so give /usr/bin/bwrap (and
+# only it) the `userns` permission, in the same shape as the stock profiles
+# for buildah, chrome and the rest. Everything else stays restricted.
+if [ "$(sysctl -n kernel.apparmor_restrict_unprivileged_userns 2>/dev/null)" = 1 ] \
+    && [ ! -e /etc/apparmor.d/bwrap ] && ! grep -qs 'profile bwrap' /etc/apparmor.d/*; then
+    sudo tee /etc/apparmor.d/bwrap >/dev/null <<'PROFILE'
+# Lets bubblewrap create unprivileged user namespaces (Codex's sandbox).
+# Installed by chezmoi run_onchange_setup_packages_linux.sh.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile bwrap /usr/bin/bwrap flags=(unconfined) {
+  userns,
+
+  include if exists <local/bwrap>
+}
+PROFILE
+    sudo apparmor_parser -r /etc/apparmor.d/bwrap
+fi
+
+# codex — OpenAI's Codex CLI (the `co` alias). The npm build, as on macOS: it
+# vendors the `codex-code-mode-host` sidecar that every command spawns (see
+# setup_packages_darwin). Same vendored-node prefix and symlink as
+# agent-browser. `codex update` self-updates, so this only covers a box that
+# has no codex yet.
+if ! command -v codex >/dev/null 2>&1; then
+    export PATH="$HOME/.local/bin:$PATH"
+    hash -r 2>/dev/null || true
+    npm install --global --prefix "$HOME/.local/opt/node" @openai/codex
+    ln -sf "$HOME/.local/opt/node/bin/codex" "$HOME/.local/bin/codex"
 fi
 
 # Personal vault and VPN tools are installed by setup_private_packages_linux.

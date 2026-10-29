@@ -1,0 +1,24 @@
+# TodoTim — native macOS Todoist clone that syncs to Nextcloud over CalDAV.
+# https://github.com/timvink/todotim
+#
+# Managed by chezmoi (dot_todotim.toml). While this file has a [sync] table the
+# app uses it instead of its Settings window, which shows the fields read-only.
+repository = "https://github.com/timvink/todotim"
+
+[sync]
+enabled = true
+# Homelab Nextcloud's DAV root; reachable on the LAN and through NetBird
+# elsewhere. Each project is a task list (VTODO calendar), so other CalDAV
+# clients and the homelab tasks MCP server see the same tasks.
+server_url = "https://nextcloud.home.timvink.nl/remote.php/dav/"
+username = "timvink"
+# New lists are shared read-write with the tasks MCP server's own user right
+# away (the homelab also re-shares nightly, see tasks-mcp/README.md).
+share_with = ["tasks-agent"]
+# A Nextcloud app password of its own ("TodoTim (macOS)" under Settings >
+# Security > Devices & sessions), not the login password, so it can be revoked
+# without touching anything else. Runs once per launch (and again on Sync Now
+# while it has not produced a password); TodoTim keeps the password in memory
+# and does not use the Keychain, whose prompt returned with every ad-hoc signed
+# update. Needs an unlocked rbw vault at launch.
+password_command = "rbw get 'Nextcloud TodoTim app password (homelab)' timvink"

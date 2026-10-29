@@ -45,6 +45,11 @@ Library/LaunchAgents/com.timvink.ah-mcp.plist
 .config/rbw/config.json
 Library/Application Support/rbw/config.json
 {{ end }}
+{{ if or (not (dig "includePrivate" false .)) (ne .chezmoi.os "darwin") }}
+# TodoTim (macOS app) syncing to the homelab Nextcloud, installed from its GitHub releases.
+.todotim.toml
+.chezmoiscripts/install-todotim_darwin.sh
+{{ end }}
 {{ if not (dig "includeDesktop" false .) }}
 private_dot_pi
 .chezmoiscripts/setup_pi-packages.sh
@@ -66,6 +71,8 @@ Library/Application Support/rbw/config.json
 Library/LaunchAgents/com.timvink.openurl.plist
 Library/LaunchAgents/com.timvink.agent-sleep-guard.plist
 Library/LaunchAgents/com.timvink.ah-mcp.plist
+# Docker credsStore override targets osxkeychain, which only exists on macOS.
+.docker/config.json
 # Karabiner-Elements is macOS-only, so its config is dead weight elsewhere.
 .config/karabiner
 {{ end }}

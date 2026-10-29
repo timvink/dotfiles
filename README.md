@@ -29,8 +29,8 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 | `F` | Firefox | Firefox |
 | `W` | Signal ⇄ WhatsApp | "Whisper" / WhatsApp (toggles between the two, Signal first) |
 | `E` | Finder | "Explorer" |
-| `R` | Notion | "Records" |
-| `T` | Todoist | "Todo" |
+| `R` | Obsidian | "Records" |
+| `T` | TodoTim | "Todo" |
 
 
 Apps:
@@ -132,7 +132,6 @@ ssh -S ~/.ssh/cm-devbox.sock -O forward \
 Then run **on the devbox**, one login at a time:
 
 ```bash
-codex mcp login notion
 codex mcp login atlassian
 codex mcp list
 ```
@@ -154,10 +153,8 @@ opening; `--no-browser` deliberately leaves opening the link to you.
 Both installed clients support a callback paste flow:
 
 ```bash
-codex mcp login notion --no-browser
 codex mcp login atlassian --no-browser
 # For Claude Code's separate credential store:
-claude mcp login notion --no-browser
 claude mcp login atlassian --no-browser
 ```
 
@@ -173,7 +170,7 @@ If port 43127 is occupied on either machine, use a temporary listener for that
 Codex login instead of stopping the process that owns the port:
 
 ```bash
-codex mcp login notion --no-browser -c mcp_oauth_callback_port=0
+codex mcp login atlassian --no-browser -c mcp_oauth_callback_port=0
 ```
 
 The existing `xdg-open` rewrite from `localhost` to `devbox` only affects URLs

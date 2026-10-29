@@ -151,7 +151,11 @@ probe, strips every OSC 7501 sequence from the output, and maps the root record:
 The `claude` shell function in `dot_bash_aliases.tmpl` routes through the shim
 when `$TMUX_PANE` is set, stdin and stdout are terminals, and the binary exists;
 otherwise it is plain `claude` (no dot). Every launcher (`cc`, `ccw`, `cca`, the
-sessionizer's `cc`) goes through that function.
+sessionizer's `cc`) goes through that function. A non-interactive shell never
+loads it — `tmux new-window 'claude …'`, an agent opening a sibling tab — so
+`dot_zshenv` also puts `~/.local/libexec/agent-pty/bin` first on PATH inside
+tmux, whose `claude` script applies the same test and hands the shim the real
+binary by full path (so the shim's `execvp` can't loop back into it).
 
 What the reports replaced, each of which was a hook-era workaround:
 
