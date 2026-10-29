@@ -7,6 +7,9 @@ description: End this agent session and its terminal tab or tmux pane when the u
 
 Finish and verify any requested work, then report anything material before the
 closing action. If a blocker needs the user's decision, keep the session open.
+Report completion in commentary, then invoke the closing tool in commentary.
+Do not send a final answer before invoking it: tool calls after the final answer
+can be rendered as literal text instead of executing, leaving the terminal open.
 
 Choose the closing action from the capabilities available in this session:
 
