@@ -1,5 +1,5 @@
 #!/bin/sh
-# Watch for the TCP port(s) a `make serve` server starts listening on and
+# Watch for the TCP port(s) a `make serve` or `just serve` server listens on and
 # publish them (space-separated) to the current tmux window's @server_port
 # option, so the status bar and prefix+o overview can show e.g. "8000 8080".
 #
@@ -14,9 +14,9 @@
 # choose. (If some unrelated server starts mid-serve it's also caught, but
 # that's rare on a dev box.)
 #
-# Lifetime: started fire-and-forget by the make wrapper (dot_bash_aliases.tmpl),
+# Lifetime: started fire-and-forget by the make/just wrappers (dot_bash_aliases.tmpl),
 # which sets @server_state to running before launching us and back to off when
-# `make serve` exits (normal exit, Ctrl-C, or a detached server). We poll that
+# the command exits (normal exit, Ctrl-C, or a detached server). We poll that
 # flag and exit the moment it leaves "running" — so the wrapper needs no PID and
 # can launch us silently in a subshell. No-op outside tmux. Resolves its window
 # once from $TMUX_PANE (inherited from the wrapper).
@@ -35,8 +35,14 @@ win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null) || exi
 # otherwise be misattributed to the server. Persistent low-port daemons are
 # already excluded by the baseline; this only filters the churning ones.
 ports() {
-    lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null \
-        | awk 'NR>1 {n=split($9,a,":"); p=a[n]; if (p+0 < 49152) print p}' \
+    # Linux lsof cannot see root-owned docker-proxy sockets as a regular user.
+    # ss lists the sockets without needing permission to inspect their owners.
+    if command -v ss >/dev/null 2>&1; then
+        ss -H -ltn 2>/dev/null | awk '{print $4}'
+    else
+        lsof -nP -iTCP -sTCP:LISTEN 2>/dev/null | awk 'NR>1 {print $9}'
+    fi \
+        | awk '{n=split($0,a,":"); p=a[n]; if (p+0 < 49152) print p}' \
         | sort -un
 }
 

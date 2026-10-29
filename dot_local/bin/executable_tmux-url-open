@@ -3,7 +3,7 @@
 # on-screen URL. Bound from .tmux.conf to `prefix u`.
 #
 # Two sections, two key styles so they never collide and picking is fast:
-#   Servers (1-9): every running `make serve` across ALL sessions, keyed off the
+#   Servers (1-9): every running `make serve`/`just serve` across ALL sessions, keyed off the
 #     @server_port we track per window (see server-port-watch / the make
 #     wrapper). Opens http://localhost:PORT. The server in the current tab is
 #     marked →. This works workspace-wide, so a server in another session is one
