@@ -9,13 +9,13 @@
 # devbox's is resolved off the live master, since the VM's IP changes.
 REMOTE_DEST=()
 
-# Mark THIS Ghostty window as being in a session on <host>, so its ⌘V uploads a
+# Mark THIS terminal window (Ghostty or Rex) as being in a session on <host>, so its ⌘V uploads a
 # clipboard image to that box instead of handing it to a local app. Pass the host
 # to mark, nothing to clear. ssh-image-paste reads it back.
 #
 # The channel is OSC 7, the escape a shell uses to tell the terminal its working
 # directory: we report a marker path instead, .../remote-window/<host>, and
-# Ghostty hands it back per surface as the window's AXDocument. That makes the
+# Ghostty hands it back per surface as the window's AXDocument (Rex per pane, via its CLI). That makes the
 # mark per WINDOW, which a file next to the cm-*.sock files could never be — with
 # one global flag, a devbox open in one window sent an image ⌘V in another, local
 # window to the box and typed back a path this Mac doesn't have.

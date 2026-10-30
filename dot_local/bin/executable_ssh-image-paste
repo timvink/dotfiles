@@ -1,6 +1,7 @@
 #!/bin/sh
-# ssh-image-paste — smart ⌘V for Ghostty, invoked by Karabiner on every ⌘V in
-# that app. See the matching rule in ~/.config/karabiner/karabiner.json.
+# ssh-image-paste — smart ⌘V for Ghostty and Rex, invoked by Karabiner on every
+# ⌘V in those apps with the app's name as $1 (ghostty | rex). See the matching
+# rule in ~/.config/karabiner/karabiner.json.
 #
 # ⌘V is the ONE image-paste key, local and remote, because the two cases need
 # opposite mechanisms and remembering which is which is the bug this fixes:
@@ -29,6 +30,14 @@
 # indistinguishable from a live local one. OSC 7 is written by shell integration
 # only — no TUI touches it — and Ghostty drops any whose hostname isn't this
 # Mac's, so the box at the far end cannot forge a marker either.
+#
+# Rex publishes no AXDocument, so for Rex we ask its CLI instead: the front
+# window's session, that session's active tab, its focused pane, and the
+# directory that pane last reported. Rex does NOT drop OSC 7 with a foreign
+# hostname, so we check the hostname ourselves, and also require that the report
+# came from a local bash (the devbox/homelab wrappers). Anything the box prints
+# reaches Rex through the local `ssh` process, so it is reported as owned by
+# ssh and can't pass as a marker.
 #
 # Known flaw: tmux consumes OSC 7 rather than forwarding it, so a devbox or
 # homelab started INSIDE a local tmux pane never marks its window, and ⌘V there
@@ -77,13 +86,52 @@ paste_image_local() {
   osascript -e 'tell application "System Events" to keystroke "v" using control down'
 }
 
-# The host whose session owns the frontmost Ghostty window, empty for a local
-# one. Reading AXDocument keeps this inside the Accessibility permission the two
+# The marker URL of the frontmost Ghostty window, empty for a local one.
+# Reading AXDocument keeps this inside the Accessibility permission the two
 # keystroke helpers already need; Ghostty fills it from the focused surface's
-# reported cwd. Anything unexpected — no marker, an unreadable window, a host
-# that isn't in SESSIONS — falls through as local, the harmless way to be wrong.
+# reported cwd.
+ghostty_window_doc() {
+  osascript -e 'tell application "System Events" to tell process "ghostty" to get value of attribute "AXDocument" of front window' 2>/dev/null
+}
+
+# The Rex CLI ships inside the app's server bundle and isn't necessarily on PATH.
+REX_CLI="$HOME/Library/Application Support/com.superlogical.rex/RexServer/Versions/Current/Rex Server.app/Contents/MacOS/rex"
+command -v rex >/dev/null 2>&1 && REX_CLI=rex
+
+# The marker URL of the focused pane in the frontmost Rex window, empty for a
+# local one. The app client may have several sessions open; the front window's
+# title ends in " - <session label>", which picks one. Falls back to the only
+# session when there's just one. Only a report from a local bash counts, see the
+# header.
+rex_window_doc() {
+  sessions=$("$REX_CLI" client ls --json 2>/dev/null \
+    | jq -r '.clients[] | select(.info.kind == "app") | .session_ids[]?') || return 0
+  [ -n "$sessions" ] || return 0
+  title=$(osascript -e 'tell application "System Events" to tell process "Rex" to get title of front window' 2>/dev/null)
+  label=${title##* - }
+  session=
+  for s in $sessions; do
+    [ "$("$REX_CLI" session inspect "$s" --json 2>/dev/null | jq -r .label)" = "$label" ] && { session=$s; break; }
+  done
+  [ -z "$session" ] && [ "$(printf '%s\n' "$sessions" | wc -l)" -eq 1 ] && session=$sessions
+  [ -n "$session" ] || return 0
+  block=$("$REX_CLI" session inspect "$session" --json 2>/dev/null \
+    | jq -r '.active_window_id as $w | .windows[] | select(.window_id == $w) | .focused_block_id') || return 0
+  [ -n "$block" ] || return 0
+  "$REX_CLI" block call -b "$block" pwd 2>/dev/null \
+    | jq -r --arg host "$(hostname)" \
+        'select(.owner.name == "bash" and (.pwd | startswith("file://" + $host + "/"))) | .pwd | sub("^file://[^/]*"; "file://")'
+}
+
+# The host whose session owns the frontmost terminal window, empty for a local
+# one. Reads the window's marker URL for the app Karabiner named in $1. Anything
+# unexpected — no marker, an unreadable window, a host that isn't in SESSIONS —
+# falls through as local, the harmless way to be wrong.
 front_window_host() {
-  doc=$(osascript -e 'tell application "System Events" to tell process "ghostty" to get value of attribute "AXDocument" of front window' 2>/dev/null) || return 0
+  case "$1" in
+    rex) doc=$(rex_window_doc) ;;
+    *) doc=$(ghostty_window_doc) ;;
+  esac
   case "$doc" in
     "file://$REMOTE_WINDOW_MARK/"?*) ;;
     *) return 0 ;;
@@ -118,7 +166,7 @@ fi
 # Which session is this window in, if any — and is that master still up? A marked
 # window whose master has gone (the session died before its shell reached a new
 # prompt and cleared the marker) counts as local rather than dropping the paste.
-host=$(front_window_host)
+host=$(front_window_host "${1:-ghostty}")
 sock=
 [ -n "$host" ] && sock=$(session_socket "$host")
 if [ -z "$sock" ] || [ ! -S "$sock" ] || ! ssh -S "$sock" -O check "$host" >/dev/null 2>&1; then

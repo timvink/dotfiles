@@ -14,7 +14,7 @@
                 },
                 "rules": [
                     {
-                        "description": "Ghostty: ⌘V is the one image-paste key, local and remote. Over SSH it uploads a clipboard image to the box's /tmp and types its path; locally it hands the image to the app as ctrl+v. Plain-text pastes pass through. See ~/.local/bin/ssh-image-paste.",
+                        "description": "Ghostty and Rex: ⌘V is the one image-paste key, local and remote. Over SSH it uploads a clipboard image to the box's /tmp and types its path; locally it hands the image to the app as ctrl+v. Plain-text pastes pass through. See ~/.local/bin/ssh-image-paste.",
                         "manipulators": [
                             {
                                 "type": "basic",
@@ -22,7 +22,15 @@
                                     { "type": "frontmost_application_if", "bundle_identifiers": ["^com\\.mitchellh\\.ghostty$"] }
                                 ],
                                 "from": { "key_code": "v", "modifiers": { "mandatory": ["command"], "optional": ["caps_lock"] } },
-                                "to": [{ "shell_command": "$HOME/.local/bin/ssh-image-paste" }]
+                                "to": [{ "shell_command": "$HOME/.local/bin/ssh-image-paste ghostty" }]
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["^com\\.superlogical\\.rex$"] }
+                                ],
+                                "from": { "key_code": "v", "modifiers": { "mandatory": ["command"], "optional": ["caps_lock"] } },
+                                "to": [{ "shell_command": "$HOME/.local/bin/ssh-image-paste rex" }]
                             }
                         ]
                     },
