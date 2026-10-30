@@ -489,7 +489,7 @@
                                 },
                                 "conditions": [
                                     { "type": "variable_if", "name": "hyper_app", "value": "d" },
-                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.mitchellh.ghostty"] }
+                                    { "type": "frontmost_application_if", "bundle_identifiers": ["com.superlogical.rex"] }
                                 ]
                             },
                             {
@@ -497,7 +497,7 @@
                                 "from": { "key_code": "d", "modifiers": { "mandatory": ["command", "control", "option", "shift"] } },
                                 "to": [
                                     { "set_variable": { "name": "hyper_app", "value": "d" } },
-                                    { "software_function": { "open_application": { "bundle_identifier": "com.mitchellh.ghostty" } } }
+                                    { "software_function": { "open_application": { "bundle_identifier": "com.superlogical.rex" } } }
                                 ],
                                 "to_delayed_action": {
                                     "to_if_invoked": [

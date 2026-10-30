@@ -25,7 +25,7 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 |-----|-----|----------|
 | `A` | Spotify | "Audio" |
 | `S` | Teams | "Social" |
-| `D` | Ghostty | "Dev" |
+| `D` | Rex | "Dev" |
 | `F` | Firefox | Firefox |
 | `W` | Signal ⇄ WhatsApp | "Whisper" / WhatsApp (toggles between the two, Signal first) |
 | `E` | Finder | "Explorer" |
@@ -35,7 +35,7 @@ left-hand so the right hand stays free for the mouse. Mnemonics:
 
 Apps:
 
-- Terminal: `zsh` on Ghostty with starship.
+- Terminal: `zsh` on Rex (private beta; Ghostty still configured) with starship.
 - Editors: tmux and neovim
 - Tiling manager: Rectangle
 
