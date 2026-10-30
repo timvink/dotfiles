@@ -201,7 +201,10 @@ ccw() {
 # permissions: trust the agent, lean on git to undo. A plain alias suffices —
 # codex takes a positional prompt natively, so `co`, `co "<prompt>"` and
 # `co exec "<prompt>"` all just work.
-alias co='codex --yolo'
+# Codex 0.166's shared server inherits TMUX_PANE from its first launcher, so
+# hooks and agent-note from later tabs update that first tab. Keep each launch's
+# server local to its process so the per-tab dots and notes stay with its pane.
+alias co='codex --no-daemon --yolo'
 # Claude Code via Azure AI Foundry (Sweden Central) instead of the
 # Anthropic subscription — routes inference + billing through the platform's
 # `aif-nwf-claude` Foundry account, authenticating with your `az login` token
