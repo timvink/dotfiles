@@ -471,7 +471,7 @@
                         ]
                     },
                     {
-                        "description": "Hyper + D to open Ghostty (repeat to cycle windows)",
+                        "description": "Hyper + D to open Rex (repeat to cycle windows)",
                         "manipulators": [
                             {
                                 "type": "basic",
