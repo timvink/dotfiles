@@ -35,19 +35,6 @@
                         ]
                     },
                     {
-                        "description": "Rex: Shift+Enter → Ctrl+J (bare LF = newline, not submit). Rex has no keybinding config; this mirrors Ghostty's `shift+enter=text:\\n` (see dot_config/ghostty/config), which works through tmux without relying on extended keys.",
-                        "manipulators": [
-                            {
-                                "type": "basic",
-                                "conditions": [
-                                    { "type": "frontmost_application_if", "bundle_identifiers": ["^com\\.superlogical\\.rex$"] }
-                                ],
-                                "from": { "key_code": "return_or_enter", "modifiers": { "mandatory": ["shift"], "optional": ["caps_lock"] } },
-                                "to": [{ "key_code": "j", "modifiers": ["control"] }]
-                            }
-                        ]
-                    },
-                    {
                         "description": "Caps Lock: Tap for Escape, Hold for Hyper Key (MacBook Keyboard Only)",
                         "manipulators": [
                             {

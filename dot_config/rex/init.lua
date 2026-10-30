@@ -18,3 +18,8 @@ end
 -- sequences (dot_zshrc.tmpl).
 rex.bind("alt+left", typer("\27[1;3D"))
 rex.bind("alt+right", typer("\27[1;3C"))
+
+-- Shift+Enter → bare LF (what Ctrl+J sends): newline, not submit. Rex sends a
+-- plain CR otherwise, which submits in Claude Code. Mirrors Ghostty's
+-- `shift+enter=text:\n`; LF passes through tmux without needing extended keys.
+rex.bind("shift+enter", typer("\n"))
