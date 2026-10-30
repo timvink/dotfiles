@@ -23,7 +23,9 @@ sync.
 ~/.local/share/chezmoi/agents/skills/vault/env-vault-sync.sh check  <path/to/.env>   # is it current?
 ```
 
-`update` rewrites the vault note from the current `.env`. It needs the vault
+`update` rewrites the vault note from the current `.env`, split across
+`<item>`, `<item> (part 2)`, … when its keys outgrow one note's 10000-character
+cap, and reads the result back before it reports success. It needs the vault
 unlocked — on exit **2 (locked)**, ask the user to `rbw unlock` and retry; you
 never handle the master password yourself.
 

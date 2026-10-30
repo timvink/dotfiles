@@ -1,0 +1,10 @@
+{{ if eq .chezmoi.os "darwin" -}}
+# TEMPORARY (2026-10-28): /usr/bin/curl's system bundle (/etc/ssl/cert.pem)
+# still trusts the compromised eMudhra roots on macOS 27.2
+# (https://emudhra.we-have-a-problem.com/apple.html). Use Homebrew's
+# ca-certificates bundle, which removed them. Delete this file and the
+# http.sslCAInfo block in dot_gitconfig.tmpl once Apple ships a fix; verify with
+# `curl -q https://dv-g3b-noct-emudhra.we-have-a-problem.com/` (certificate
+# error = safe; -q skips this file).
+cacert = /opt/homebrew/etc/ca-certificates/cert.pem
+{{- end }}

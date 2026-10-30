@@ -4,5 +4,23 @@
 set -eu
 export HOMEBREW_NO_ASK=1
 export HOMEBREW_NO_ENV_HINTS=1
-brew install rbw wireguard-tools wireguard-go
+brew install pinentry rustup wireguard-tools wireguard-go
+
+# rbw is built from the 1.15.0 tag plus the encryptedFor patch, as on Linux:
+# Homebrew's stock 1.15.0 gets 422 from Vaultwarden 1.37+ on `rbw add`/`rbw edit`
+# (doy/rbw#385), which breaks the vault backup helpers. Go back to
+# `brew install rbw` once doy/rbw#386 is released.
+if brew list --formula rbw >/dev/null 2>&1; then
+    brew uninstall --formula rbw
+fi
+if [ ! -x "$HOME/.cargo/bin/rbw" ]; then
+    export PATH="$(brew --prefix rustup)/bin:$HOME/.cargo/bin:$PATH"
+    rustup toolchain list | grep -q . || rustup default stable
+    rbw_src=$(mktemp -d)
+    git clone -q --depth 1 --branch 1.15.0 https://github.com/doy/rbw "$rbw_src"
+    git -C "$rbw_src" apply - <<'PATCH'
+{{ include ".chezmoitemplates/rbw-encryptedfor.patch" }}PATCH
+    cargo install --locked --path "$rbw_src"
+    rm -rf "$rbw_src"
+fi
 {{ end }}
