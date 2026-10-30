@@ -20,6 +20,8 @@ require("lazy").setup({
   local_spec = false,
   spec = {
     { "LazyVim/LazyVim", import = "lazyvim.plugins" },
+    -- Omarchy explicitly selects Neo-tree instead of LazyVim's Snacks explorer.
+    { import = "lazyvim.plugins.extras.editor.neo-tree" },
     -- Language extras: each pulls in LSP + treesitter + formatter + linter
     -- (and DAP / test runner where applicable) for that filetype.
     { import = "lazyvim.plugins.extras.lang.python" },

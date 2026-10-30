@@ -93,11 +93,12 @@ if [ -z "$alias_host" ]; then
     esac
 fi
 
-# Rewrite localhost/127.0.0.1 -> alias_host (only when we know the alias).
+# Rewrite local bind addresses -> alias_host (only when we know the alias).
+# Dev servers print 0.0.0.0 when listening on all interfaces.
 shown=$url
 if [ -n "$alias_host" ]; then
     shown=$(printf '%s' "$url" \
-        | sed -E "s#(https?://)(localhost|127\.0\.0\.1)#\1${alias_host}#g")
+        | sed -E "s@^(https?://)(localhost|127\.0\.0\.1|0\.0\.0\.0)([:/?#]|$)@\1${alias_host}\3@")
 fi
 
 host_port=2489

@@ -6,8 +6,8 @@
 #                             is filled in by server-port-watch once detected)
 #   off     → nothing        (no server, or the server exited)
 #
-# Driven by the `make` wrapper in dot_bash_aliases.tmpl, which flips it to
-# `running` for the lifetime of `make serve` and back to `off` on exit. This is
+# Driven by the make/just wrappers in dot_bash_aliases.tmpl, which flip it to
+# `running` for the lifetime of serve*/docs* and back to `off` on exit. This is
 # the foreground-process analog of `agent-state` (see that script): it tracks a
 # server only while it occupies the tab. A server that detaches (e.g.
 # `docker compose up -d`) returns immediately, so the square clears even though

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Tools referenced by dot_bashrc / dot_bash_aliases.tmpl / dot_gitconfig.tmpl or
-# required by Neovim: starship, uv, eza, bat, nvim, ripgrep, trash-cli
+# required by Neovim: starship, uv, eza, bat, nvim, ripgrep, fd-find, trash-cli
 # (rmtrash alias), diff-so-fancy, gh.
 # Idempotent — chezmoi reruns this only when the file's hash changes.
 
@@ -89,6 +89,10 @@ fi
 # ripgrep — provides `rg`, which LazyVim uses for project-wide text search
 # (including <leader>sg).
 install_if_missing rg ripgrep
+
+# fd — Snacks explorer needs it for search even though the unfiltered tree
+# works without it. Debian/Ubuntu call the binary `fdfind`; Snacks accepts both.
+install_if_missing fdfind fd-find
 
 # trash-cli — provides 'trash-put'; bash_aliases aliases 'del' to it on linux
 install_if_missing trash-put trash-cli
