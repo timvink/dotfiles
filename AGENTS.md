@@ -9,7 +9,7 @@ workflow. Support macOS and Linux (including remote VMs over SSH).
   the working tree often holds unrelated drift from an installer or another
   session. One commit per change, with the why in the message.
 - Prefer `alt` + vim-direction keys for navigation, consistent with tmux and
-  VSCode. Keep binding rationale beside its configuration.
+  Neovim. Keep binding rationale beside its configuration.
 - Apps that write their own configuration use `modify_` scripts. Inject managed
   keys while preserving runtime state, such as trust levels and plugin caches.
 - Source is authoritative; `chezmoi apply --force` is allowed when an installer

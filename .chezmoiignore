@@ -56,7 +56,6 @@ private_dot_pi
 {{ end }}
 
 {{ if ne .chezmoi.os "darwin" }}
-Library/Application Support/Code/User/settings.json
 Library/Application Support/rbw/config.json
 .chezmoiscripts/setup_applications_darwin.sh
 .chezmoiscripts/setup_firefox_darwin.sh

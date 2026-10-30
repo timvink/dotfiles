@@ -104,29 +104,6 @@ agent-browser install
 echo "Cleaning up..."
 brew cleanup
 
-# Install VSCode extensions
-
-VSCODE_EXTENSIONS=(
-  ms-python.python
-  joshmu.periscope
-  charliermarsh.ruff
-  vscodevim.vim
-  redhat.vscode-yaml
-  catppuccin.catppuccin-vsc
-  astral-sh.ty
-)
-
-# Install VSCode extensions (skip silently if the `code` CLI isn't on PATH —
-# e.g. a fresh box where VSCode's shell command hasn't been registered yet).
-if command -v code >/dev/null 2>&1; then
-    echo "Installing VSCode extensions..."
-    for ext in "${VSCODE_EXTENSIONS[@]}"; do
-        code --install-extension "$ext" --force
-    done
-else
-    echo "VSCode 'code' CLI not found on PATH; skipping extension install."
-fi
-
 # Install Claude Code (native installer — self-updating, installs to
 # ~/.local/bin/claude). Deliberately NOT the Homebrew cask: the cask tracks the
 # slower `stable` channel and lags the native `latest` one by hours to days, so

@@ -258,7 +258,7 @@
                         ]
                     },
                     {
-                        "description": "Firefox: Alt + H/L to switch tabs, Alt + T for new tab (matches tmux/VSCode alt+hjkl model)",
+                        "description": "Firefox: Alt + H/L to switch tabs, Alt + T for new tab (matches tmux/Neovim alt+hjkl model)",
                         "manipulators": [
                             {
                                 "type": "basic",

@@ -14,7 +14,7 @@ My main OS is MacOS, but I try to keep things like keybindings generic as I use 
 
 Keybindings:
 
-- I have a lot of keybindings setup. Mainly alt + hjkl to navigate consistently in VSCode, Neovim, Firefox and tmux. 
+- I have a lot of keybindings setup. Mainly alt + hjkl to navigate consistently in Neovim, Firefox and tmux. 
 - On my Mac internal keyboard I use [karabiner elements](https://karabiner-elements.pqrs.org/) for key mappings. For example, I've mapped my caps lock key to `ESC` (tapped) and hyper (`shift`+`cmd`+`alt`+`ctrl`) (held more than 250ms).
 - I use my ZSA Voyager with custom key mappings (Hyper is a left-thumb hold there, a left-pinky `caps` hold on the Mac — either way Hyper lives on the left hand, so the app launcher below is all left-hand keys).
 
