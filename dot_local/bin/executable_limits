@@ -57,6 +57,7 @@ import shutil
 import signal
 import subprocess
 import sys
+import termios
 import time
 import urllib.error
 import urllib.request
@@ -104,6 +105,7 @@ def bar_of(pct):
     return paint(fill, tone(pct)) + paint(track * (BAR_CELLS - cells - odd), TRACK)
 
 COLOR = True
+ANSI = re.compile(r"\033\[[0-9;]*[A-Za-z]")
 
 
 def paint(s, c):
@@ -190,6 +192,7 @@ def row(label, pct, reset=None, note=None):
 # ── claude ───────────────────────────────────────────────────────────────────
 
 USAGE_URL = "https://api.anthropic.com/api/oauth/usage"
+PROFILE_URL = "https://api.anthropic.com/api/oauth/profile"
 KEYCHAIN_SERVICE = "Claude Code-credentials"
 
 CLAUDE_KINDS = {
@@ -224,6 +227,18 @@ def claude_credentials():
         return {}
 
 
+def claude_plan_name(headers):
+    """'ultra', 'max', 'pro' — the plan as Anthropic names it, or None."""
+    try:
+        req = urllib.request.Request(PROFILE_URL, headers=headers)
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            org = json.load(resp).get("organization") or {}
+    except (urllib.error.URLError, OSError, json.JSONDecodeError, AttributeError):
+        return None
+    name = org.get("plan_display_name")
+    return name.lower() if isinstance(name, str) and name else None
+
+
 def fetch_claude():
     if not shutil.which("claude"):
         return None
@@ -232,14 +247,20 @@ def fetch_claude():
     if not token:
         return {"name": "claude", "error": "not signed in"}
 
-    req = urllib.request.Request(
-        USAGE_URL,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "anthropic-beta": "oauth-2025-04-20",
-            "Accept": "application/json",
-        },
-    )
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "anthropic-beta": "oauth-2025-04-20",
+        "Accept": "application/json",
+    }
+    # The plan's name comes from the profile, not the credentials: those keep
+    # the subscription's internal type ("max"), which stopped matching what
+    # Anthropic sells once Max 20x was renamed Ultra. Fetched alongside usage so
+    # a slow connection waits for one round trip, not two.
+    profile = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+    plan_job = profile.submit(claude_plan_name, headers)
+    profile.shutdown(wait=False)
+
+    req = urllib.request.Request(USAGE_URL, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             data = json.load(resp)
@@ -268,7 +289,9 @@ def fetch_claude():
 
     return {
         "name": "claude",
-        "plan": creds.get("subscriptionType") or creds.get("rateLimitTier"),
+        "plan": plan_job.result()
+        or creds.get("subscriptionType")
+        or creds.get("rateLimitTier"),
         "rows": rows,
         "note": note,
     }
@@ -616,16 +639,25 @@ def openrouter_key():
         return key, None
     if not shutil.which("rbw"):
         return None, None
+    # `rbw unlocked` can pass while `rbw get` still wants the server login
+    # renewed, and pinentry-tty then wrote "Master Password:" into the middle
+    # of the live table. Without a terminal to reach (no stdin, no TTY, its own
+    # session) the prompt fails instead, and the row says why.
+    quiet = {
+        "capture_output": True,
+        "text": True,
+        "stdin": subprocess.DEVNULL,
+        "start_new_session": True,
+        "env": {k: v for k, v in os.environ.items() if k != "TTY"},
+    }
     try:
-        if subprocess.run(["rbw", "unlocked"], capture_output=True, timeout=10).returncode:
+        if subprocess.run(["rbw", "unlocked"], timeout=10, **quiet).returncode:
             return None, "vault locked — run rbw unlock"
-        out = subprocess.run(
-            ["rbw", "get", VAULT_ENTRY], capture_output=True, text=True, timeout=15
-        )
+        out = subprocess.run(["rbw", "get", VAULT_ENTRY], timeout=15, **quiet)
     except (OSError, subprocess.SubprocessError):
         return None, None
     if out.returncode or not out.stdout.strip():
-        return None, None
+        return None, "vault wants a login — run rbw get " + VAULT_ENTRY
     return out.stdout.strip(), None
 
 
@@ -786,6 +818,28 @@ def main():
     # changes. Anywhere else (--json, a pipe) there is nothing to redraw, so wait
     # and print once.
     live = not args.json and sys.stdout.isatty()
+    # While the table redraws itself, keys typed at it must not echo: an Enter
+    # pressed at a provider that hangs on a slow connection added a row the
+    # redraw didn't know about, and the "claude …" placeholder stayed behind
+    # above the real reading. Typeahead still reaches the shell afterwards.
+    saved_tty = None
+    if live and sys.stdin.isatty():
+        try:
+            saved_tty = termios.tcgetattr(sys.stdin)
+            quiet = termios.tcgetattr(sys.stdin)
+            quiet[3] &= ~termios.ECHO
+            termios.tcsetattr(sys.stdin, termios.TCSANOW, quiet)
+        except termios.error:
+            saved_tty = None
+
+    try:
+        return show(args, wanted, jobs, pool, refreshing, live)
+    finally:
+        if saved_tty is not None:
+            termios.tcsetattr(sys.stdin, termios.TCSANOW, saved_tty)
+
+
+def show(args, wanted, jobs, pool, refreshing, live):
     results, done = {}, set()
     drawn = 0
 
@@ -804,7 +858,12 @@ def main():
         lines = render(snapshot())
         sys.stdout.write("".join(line + "\n" for line in lines) + "\n")
         sys.stdout.flush()
-        drawn = len(lines) + 1
+        # Count terminal rows, not lines: one wider than the window wraps, and
+        # climbing back by the line count alone left its first row on screen.
+        cols = shutil.get_terminal_size().columns or 80
+        drawn = 1 + sum(
+            max(1, -(-len(ANSI.sub("", line)) // cols)) for line in lines
+        )
 
     if live:
         print()
