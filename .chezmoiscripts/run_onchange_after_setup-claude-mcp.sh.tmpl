@@ -99,6 +99,15 @@ add_stdio tasks docker exec -i tasks-mcp tasks-mcp
 {{-   else }}
 add_stdio tasks ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes homelab docker exec -i tasks-mcp tasks-mcp
 {{-   end }}
+# Browser history archive (every visited URL, plus the text of pages I read),
+# served read-only by the browser-history-mcp container on the homelab
+# (timvink-homelab repo, browser-history/README.md). Same stdio-over-
+# docker-exec pattern as the vault, for the same reasons.
+{{-   if eq .chezmoi.hostname "homelab" }}
+add_stdio browser-history docker exec -i browser-history-mcp browser-history-mcp
+{{-   else }}
+add_stdio browser-history ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes homelab docker exec -i browser-history-mcp browser-history-mcp
+{{-   end }}
 {{ end }}
 
 # Albert Heijn (ah) is registered by run_onchange_after_setup-ah-mcp_darwin.sh,

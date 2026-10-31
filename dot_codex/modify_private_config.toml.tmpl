@@ -214,6 +214,16 @@ args = ["exec", "-i", "tasks-mcp", "tasks-mcp"]
 command = "ssh"
 args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "tasks-mcp", "tasks-mcp"]
 {{-   end }}
+
+# Browser history archive on the homelab — mirrors the Claude entry.
+[mcp_servers.browser-history]
+{{-   if eq .chezmoi.hostname "homelab" }}
+command = "docker"
+args = ["exec", "-i", "browser-history-mcp", "browser-history-mcp"]
+{{-   else }}
+command = "ssh"
+args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "browser-history-mcp", "browser-history-mcp"]
+{{-   end }}
 {{ end }}
 '''
 
