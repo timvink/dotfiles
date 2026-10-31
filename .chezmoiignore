@@ -52,6 +52,7 @@ Library/Application Support/rbw/config.json
 # Pushes this Mac's Firefox/Chrome history to the homelab archive every 2 h.
 # A work machine's browsing doesn't belong there.
 .local/bin/browser-history-push
+.local/bin/browser-history-grant-access
 Library/LaunchAgents/com.timvink.browser-history-push.plist
 .chezmoiscripts/load-browser-history-push-agent_darwin.sh
 {{ end }}

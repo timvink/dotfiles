@@ -13,8 +13,9 @@
 # waits; the script and the tools it calls inherit the launcher's grant.
 #
 # The grant is tied to the binary's code hash, so the launcher is rebuilt only
-# when its source below changes, and each rebuild needs a new grant (printed
-# below). Until then the push logs "macOS denies access" and exits 1.
+# when its source below changes, and each rebuild needs a new grant. No setup
+# step for that: the push that loading the agent starts finds access denied and
+# asks for the grant in a dialog (browser-history-grant-access does the rest).
 #
 # "after", unlike the older openurl loader: a first apply must write the plist
 # before this loads it. Gated on includePrivate and darwin in .chezmoiignore.
@@ -35,6 +36,8 @@ cat >"$tmp/launcher.c" <<'EOF'
  * has one small, dedicated binary to grant Full Disk Access to. It spawns the
  * push script and waits rather than exec'ing it, so this binary stays the
  * process whose grant covers the script and everything the script runs.
+ * BROWSER_HISTORY_PUSH_AGENT tells the script that its access checks test this
+ * grant, so it may ask for it.
  * Built by chezmoi (run_onchange_after_load-browser-history-push-agent_darwin). */
 #include <errno.h>
 #include <spawn.h>
@@ -56,6 +59,7 @@ int main(void) {
 		return 1;
 	}
 	char *argv[] = {script, NULL};
+	setenv("BROWSER_HISTORY_PUSH_AGENT", "1", 1);
 	if ((err = posix_spawn(&pid, script, NULL, NULL, argv, environ)) != 0) {
 		fprintf(stderr, "browser-history-push launcher: %s: %s\n", script, strerror(err));
 		return 1;
@@ -81,10 +85,7 @@ if [ ! -x "$launcher" ] || ! cmp -s "$tmp/launcher.c" "$state/launcher.c"; then
 	codesign --force --sign - --identifier com.timvink.browser-history-push "$tmp/launcher"
 	mv -f "$tmp/launcher" "$launcher"
 	cp "$tmp/launcher.c" "$state/launcher.c"
-	echo "=== chezmoi: built $launcher ==="
-	echo "browser-history-push: grant it Full Disk Access: System Settings > Privacy & Security >"
-	echo "  Full Disk Access > +, then Cmd+Shift+G and paste $launcher"
-	echo "  (open the pane: open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles')"
+	echo "=== chezmoi: built $launcher; its first run asks for Full Disk Access ==="
 fi
 
 # Checked before loading: the push that the load starts creates the key.

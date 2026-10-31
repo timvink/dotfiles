@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# browser-history-grant-access — give browser-history-push's launcher the Full
+# Disk Access it needs to read the Firefox and Chrome databases.
+#
+# macOS lets no script or API grant that access; only a click in System
+# Settings can. So this does everything around the click: it opens the Full
+# Disk Access pane, shows the launcher in Finder (to drag into the list) and
+# puts its path on the clipboard (for + and Cmd+Shift+G), and asks for Done.
+#
+# Run from a terminal, it then starts the LaunchAgent and waits for its verdict:
+# the access check has to run in the launcher's process, which is the one
+# holding the grant, not in this terminal. browser-history-push itself runs
+# this script from its own dialog when it finds access denied
+# (BROWSER_HISTORY_PUSH_AGENT is set by the launcher); there it only guides,
+# and the push re-checks access after Done.
+set -uo pipefail
+
+LABEL=com.timvink.browser-history-push
+LAUNCHER="$HOME/.local/libexec/browser-history-push"
+STATE_DIR="$HOME/.local/state/browser-history-push"
+ACCESS_STATUS="$STATE_DIR/access" # "ok" or "denied", written by each agent run
+PROMPT_STAMP="$STATE_DIR/access-prompted"
+PANE='x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles'
+
+if [[ ! -x $LAUNCHER ]]; then
+	echo "browser-history-grant-access: $LAUNCHER is missing; run chezmoi apply" >&2
+	exit 1
+fi
+
+# dialog <text> <button>…: the clicked button's name, or nothing on Cancel.
+dialog() {
+	local text=$1 buttons
+	shift
+	buttons=$(printf '"%s", ' "$@")
+	osascript -e "tell me to activate" -e "button returned of (display dialog \"$text\" \
+		with title \"Browser history\" with icon caution \
+		buttons {${buttons%, }} default button \"${@: -1}\")" 2>/dev/null
+}
+
+guide() {
+	open "$PANE"
+	open -R "$LAUNCHER"
+	printf '%s' "$LAUNCHER" | pbcopy
+	[[ $(dialog "Add browser-history-push to Full Disk Access:\n\n\
+• drag it from the Finder window into the list, or\n\
+• click +, press Cmd+Shift+G, Cmd+V (its path is on the clipboard), Return, Open.\n\n\
+Make sure its switch is on. If it was already listed, remove it with − and add it again: \
+a rebuilt launcher needs a new grant.\n\nThen click Done." Cancel Done) == Done ]]
+}
+
+if [[ -n ${BROWSER_HISTORY_PUSH_AGENT:-} ]]; then
+	guide
+	exit
+fi
+
+mkdir -p "$STATE_DIR"
+while guide; do
+	# The run started here mustn't open its own dialog over this one.
+	touch "$PROMPT_STAMP"
+	start=$(date +%s)
+	launchctl kickstart -k "gui/$(id -u)/$LABEL" || exit 1
+	for _ in $(seq 30); do
+		sleep 1
+		[[ -f $ACCESS_STATUS && $(stat -f %m "$ACCESS_STATUS") -ge $start ]] && break
+	done
+	case $(cat "$ACCESS_STATUS" 2>/dev/null) in
+	ok)
+		echo "Full Disk Access works; the push is running (~/Library/Logs/browser-history-push.log)."
+		exit 0
+		;;
+	denied) echo "Still denied." ;;
+	*) echo "The push didn't report back; see ~/Library/Logs/browser-history-push.log." ;;
+	esac
+done
+echo "Cancelled; the push will ask again within a day."
+exit 1
