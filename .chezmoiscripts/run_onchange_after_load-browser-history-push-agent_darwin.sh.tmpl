@@ -1,0 +1,104 @@
+#!/bin/bash
+# Install the browser-history-push LaunchAgent: build its launcher, then (re)load
+# the agent. chezmoi reruns a run_onchange_ script only when its rendered content
+# changes, so the plist hash below makes that dependency explicit. The push
+# script itself needs no reload: launchd starts it fresh every interval.
+#
+# Why a compiled launcher: macOS keeps other apps' data, such as the Firefox and
+# Chrome profile dirs, from background processes. A launchd job may read them
+# only if its own executable has Full Disk Access, and a script can't hold that
+# grant; only its interpreter could, and granting /bin/bash would extend it to
+# every bash script that launchd or cron runs. So the LaunchAgent runs this tiny
+# launcher, which starts ~/.local/bin/browser-history-push as its child and
+# waits; the script and the tools it calls inherit the launcher's grant.
+#
+# The grant is tied to the binary's code hash, so the launcher is rebuilt only
+# when its source below changes, and each rebuild needs a new grant (printed
+# below). Until then the push logs "macOS denies access" and exits 1.
+#
+# "after", unlike the older openurl loader: a first apply must write the plist
+# before this loads it. Gated on includePrivate and darwin in .chezmoiignore.
+set -euo pipefail
+
+# plist hash: {{ include "private_Library/LaunchAgents/com.timvink.browser-history-push.plist.tmpl" | sha256sum }}
+
+plist="$HOME/Library/LaunchAgents/com.timvink.browser-history-push.plist"
+launcher="$HOME/.local/libexec/browser-history-push"
+state="$HOME/.local/state/browser-history-push"
+key="$HOME/.ssh/browser-history-push"
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+mkdir -p "$HOME/Library/Logs" "$HOME/.local/libexec" "$state"
+
+cat >"$tmp/launcher.c" <<'EOF'
+/* browser-history-push launcher: the LaunchAgent's executable, so that macOS
+ * has one small, dedicated binary to grant Full Disk Access to. It spawns the
+ * push script and waits rather than exec'ing it, so this binary stays the
+ * process whose grant covers the script and everything the script runs.
+ * Built by chezmoi (run_onchange_after_load-browser-history-push-agent_darwin). */
+#include <errno.h>
+#include <spawn.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+
+extern char **environ;
+
+int main(void) {
+	const char *home = getenv("HOME");
+	char script[1024];
+	pid_t pid;
+	int status, err;
+
+	if (!home || snprintf(script, sizeof script, "%s/.local/bin/browser-history-push", home) >= (int)sizeof script) {
+		fputs("browser-history-push launcher: HOME unset or too long\n", stderr);
+		return 1;
+	}
+	char *argv[] = {script, NULL};
+	if ((err = posix_spawn(&pid, script, NULL, NULL, argv, environ)) != 0) {
+		fprintf(stderr, "browser-history-push launcher: %s: %s\n", script, strerror(err));
+		return 1;
+	}
+	while (waitpid(pid, &status, 0) < 0)
+		if (errno != EINTR)
+			return 1;
+	if (WIFEXITED(status))
+		return WEXITSTATUS(status);
+	return WIFSIGNALED(status) ? 128 + WTERMSIG(status) : 1;
+}
+EOF
+
+# The copy of the source in $state records what the installed binary was built
+# from; an unchanged source keeps the binary, and with it the grant.
+if [ ! -x "$launcher" ] || ! cmp -s "$tmp/launcher.c" "$state/launcher.c"; then
+	if ! command -v cc >/dev/null 2>&1; then
+		echo "browser-history-push: no C compiler (cc); the LaunchAgent can't run until one is installed" >&2
+		exit 0
+	fi
+	cc -O2 -Wall -o "$tmp/launcher" "$tmp/launcher.c"
+	# A proper ad-hoc signature with a stable identifier, which TCC lists by name.
+	codesign --force --sign - --identifier com.timvink.browser-history-push "$tmp/launcher"
+	mv -f "$tmp/launcher" "$launcher"
+	cp "$tmp/launcher.c" "$state/launcher.c"
+	echo "=== chezmoi: built $launcher ==="
+	echo "browser-history-push: grant it Full Disk Access: System Settings > Privacy & Security >"
+	echo "  Full Disk Access > +, then Cmd+Shift+G and paste $launcher"
+	echo "  (open the pane: open 'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles')"
+fi
+
+# Checked before loading: the push that the load starts creates the key.
+had_key=no
+[ -f "$key" ] && had_key=yes
+
+# Legacy unload/load, matching the other loaders: it works the same from a
+# terminal, an SSH session, or chezmoi. Loading starts a push (RunAtLoad).
+launchctl unload "$plist" 2>/dev/null || true
+launchctl load "$plist"
+echo "=== chezmoi: (re)loaded com.timvink.browser-history-push LaunchAgent ==="
+
+# The first push creates the dedicated ssh key, which the homelab must then be
+# told about; that run's log has the exact authorized_keys line.
+if [ "$had_key" = no ]; then
+	echo "browser-history-push: new ssh key; add the authorized_keys line from ~/Library/Logs/browser-history-push.log on the homelab"
+fi

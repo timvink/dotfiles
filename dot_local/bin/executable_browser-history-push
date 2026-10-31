@@ -1,0 +1,237 @@
+#!/usr/bin/env bash
+# browser-history-push — copy this Mac's browser history databases to the
+# homelab's browser-history archive (timvink-homelab repo, browser-history/),
+# whose hourly ingest job reads them from
+#   /media/storage/private/browser-history/incoming/<host>-<kind>-<profile>.sqlite
+#
+#   kind         source file
+#   firefox      Firefox/Profiles/<profile>/places.sqlite
+#   firefoxtabs  Firefox/Profiles/<profile>/synced-tabs.db (tabs open on every
+#                Firefox device signed in to the same Sync account)
+#   chrome       Google/Chrome/{Default,Profile *}/History
+#
+# host is the lowercased LocalHostName. profile is the Firefox profile dir up to
+# its first "." (the random salt) or the Chrome profile dir lowercased with
+# spaces turned into "-". The ingest job parses these names, so keep them as is.
+#
+# Run every 2 h by the com.timvink.browser-history-push LaunchAgent, through a
+# small launcher that holds the Full Disk Access grant macOS demands before a
+# background job may read another app's data (see
+# run_onchange_after_load-browser-history-push-agent_darwin.sh.tmpl). Safe to
+# run by hand from a terminal that has that access. A no-op on machines without
+# browser profiles.
+#
+# Why the copy dance: both browsers hold their databases open with exclusive
+# locks, and `immutable=1` would read the main file while ignoring the
+# uncheckpointed writes in the WAL. So each run copies the db plus its -wal or
+# -journal (never -shm, which is a per-process memory map that sqlite rebuilds)
+# into a private temp dir, opens the copy — sqlite replays the WAL, or rolls a
+# hot journal back — and writes a clean, single-file rollback-journal database
+# with VACUUM INTO. A copy that raced a browser write is caught by comparing
+# size+mtime before and after copying, and by PRAGMA quick_check on the result;
+# either retries, up to 3 attempts.
+#
+# Upload: rsync over ssh with a dedicated key (~/.ssh/browser-history-push,
+# created on first run) that the homelab only accepts for
+#   command="/usr/bin/rrsync -wo /media/storage/private/browser-history/incoming",restrict
+# so a stolen copy of the key can drop files in that one directory and nothing
+# else: no shell, no reads, no forwarding. ssh runs with -F /dev/null and the
+# address from `ssh -G homelab`, so my Host block's ControlMaster socket,
+# forwards and personal IdentityFile stay out of it — and so does the ssh agent,
+# which would otherwise offer my unrestricted key first. rsync's default
+# temp-file-then-rename keeps a half-sent file from ever appearing under the
+# final name; no --inplace/--append, and no --mkpath: a missing target dir means
+# the encrypted dataset is still locked, and creating it would write into the
+# unencrypted mountpoint underneath.
+#
+# Failure policy: an unreachable homelab (off the LAN, asleep, dataset locked)
+# is normal for a laptop, so a failed upload logs one line and exits 0. The
+# homelab's ingest job is the alarm: it emails when a source's incoming file
+# hasn't been updated for 7 days.
+#
+# Unchanged databases (same sha256 as the last successful upload) are skipped,
+# but re-sent once a day anyway: a dormant profile — an old Firefox profile,
+# Chrome left closed for a week — must still refresh its incoming file, or
+# that 7-day alarm would fire for a push that is working fine.
+set -uo pipefail
+umask 077
+
+# launchd's PATH has no Homebrew, and /usr/bin/rsync is openrsync, which speaks
+# protocol 29 only. Homebrew's rsync is in setup_packages_darwin.sh.
+PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+
+SSH_HOST=homelab
+KEY="$HOME/.ssh/browser-history-push"
+REMOTE_DIR=/media/storage/private/browser-history/incoming
+STATE_DIR="$HOME/.local/state/browser-history-push"
+RESEND_MIN=1380 # 23 h: unchanged files go out again on the first run after this
+
+FIREFOX="$HOME/Library/Application Support/Firefox/Profiles"
+CHROME="$HOME/Library/Application Support/Google/Chrome"
+
+log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*"; }
+
+# Lowercase, spaces to "-", and nothing else outside [a-z0-9_-], so a name can't
+# smuggle a "/" or ".." into the remote path. Real names pass through unchanged.
+slug() { printf '%s' "$1" | tr '[:upper:] ' '[:lower:]-' | tr -cd 'a-z0-9_-'; }
+
+# Size and mtime (ns resolution on APFS) of each existing file.
+fingerprint() {
+	local f
+	for f in "$@"; do
+		[[ -e $f ]] && stat -f '%N %z %Fm' "$f"
+	done
+	return 0
+}
+
+# snapshot <src-db> <out>: write a consistent, checked copy of <src-db> to <out>.
+snapshot() {
+	local src=$1 out=$2 copy="$work/copy/db" attempt before after ext
+	for attempt in 1 2 3; do
+		((attempt > 1)) && sleep 2
+		rm -rf "$work/copy" "$out"
+		mkdir "$work/copy"
+		before=$(fingerprint "$src" "$src-wal" "$src-journal")
+		cp "$src" "$copy" || continue
+		for ext in -wal -journal; do
+			if [[ -e $src$ext ]]; then
+				cp "$src$ext" "$copy$ext" || continue 2
+			fi
+		done
+		after=$(fingerprint "$src" "$src-wal" "$src-journal")
+		if [[ $before != "$after" ]]; then
+			log "$(basename "$out"): source changed while copying (attempt $attempt)"
+			continue
+		fi
+		# The temp dir comes from mktemp, so the path holds no quote to escape.
+		if ! sqlite3 "$copy" "VACUUM INTO '$out'"; then
+			log "$(basename "$out"): VACUUM INTO failed (attempt $attempt)"
+			continue
+		fi
+		if [[ $(sqlite3 "$out" 'PRAGMA quick_check' 2>&1) != ok ]]; then
+			log "$(basename "$out"): quick_check failed (attempt $attempt)"
+			continue
+		fi
+		rm -rf "$work/copy"
+		return 0
+	done
+	rm -rf "$work/copy" "$out"
+	return 1
+}
+
+# Without Full Disk Access, macOS lets a background job see that these dirs
+# exist but not list or read them, which would look like "no profiles".
+for dir in "$FIREFOX" "$CHROME"; do
+	if [[ -d $dir ]] && ! ls "$dir" >/dev/null 2>&1; then
+		log "macOS denies access to $dir; grant Full Disk Access to ~/.local/libexec/browser-history-push (System Settings > Privacy & Security > Full Disk Access)"
+		exit 1
+	fi
+done
+
+# Collect "kind|profile|path" entries for every database present.
+sources=()
+for dir in "$FIREFOX"/*/; do
+	[[ -f $dir/places.sqlite ]] || continue
+	name=$(basename "$dir")
+	profile=$(slug "${name%%.*}")
+	sources+=("firefox|$profile|${dir}places.sqlite")
+	[[ -f $dir/synced-tabs.db ]] && sources+=("firefoxtabs|$profile|${dir}synced-tabs.db")
+done
+for dir in "$CHROME"/Default/ "$CHROME"/Profile\ */; do
+	[[ -f $dir/History ]] || continue
+	sources+=("chrome|$(slug "$(basename "$dir")")|${dir}History")
+done
+
+if ((${#sources[@]} == 0)); then
+	log "no Firefox or Chrome profiles found, nothing to push"
+	exit 0
+fi
+
+host=$(slug "$(scutil --get LocalHostName 2>/dev/null || hostname -s)")
+authorized_line() {
+	printf 'command="/usr/bin/rrsync -wo %s",restrict %s\n' "$REMOTE_DIR" "$(cat "$KEY.pub")"
+}
+
+if [[ ! -f $KEY ]]; then
+	mkdir -p "$HOME/.ssh"
+	ssh-keygen -q -t ed25519 -N '' -C "browser-history-push@$host" -f "$KEY" || exit 1
+	log "created $KEY; append this line to ~/.ssh/authorized_keys on the homelab:"
+	authorized_line
+fi
+
+work=$(mktemp -d "${TMPDIR:-/tmp}/browser-history-push.XXXXXX") || exit 1
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$work/upload" "$STATE_DIR"
+
+status=0
+skipped=0
+seen=" "
+for entry in "${sources[@]}"; do
+	IFS='|' read -r kind profile src <<<"$entry"
+	file="$host-$kind-$profile.sqlite"
+	out="$work/upload/$file"
+	if [[ $seen == *" $file "* ]]; then
+		log "$file: two profiles map to this name, skipping $src"
+		status=1
+		continue
+	fi
+	seen+="$file "
+	if ! snapshot "$src" "$out"; then
+		log "$file: no consistent copy after 3 attempts, skipping"
+		status=1
+		continue
+	fi
+	stamp="$STATE_DIR/$file.sha256"
+	hash=$(shasum -a 256 "$out" | cut -d' ' -f1)
+	if [[ -f $stamp && $(<"$stamp") == "$hash" && -n $(find "$stamp" -mmin -"$RESEND_MIN") ]]; then
+		rm -f "$out"
+		skipped=$((skipped + 1))
+	fi
+done
+
+shopt -s nullglob
+files=("$work"/upload/*.sqlite)
+if ((${#files[@]} == 0)); then
+	log "nothing changed since the last push ($skipped unchanged)"
+	exit "$status"
+fi
+
+# Address and port only; every other option is set here.
+ssh_conf=$(ssh -G "$SSH_HOST" 2>/dev/null)
+field() { awk -v k="$1" '$1 == k { print $2; exit }' <<<"$ssh_conf"; }
+ssh_cmd="ssh -F /dev/null -i '$KEY' -l '$(field user)' -p '$(field port)'"
+alias=$(field hostkeyalias)
+[[ -n $alias ]] && ssh_cmd+=" -o HostKeyAlias='$alias'"
+ssh_cmd+=" -o IdentitiesOnly=yes -o IdentityAgent=none -o PreferredAuthentications=publickey"
+ssh_cmd+=" -o BatchMode=yes -o StrictHostKeyChecking=yes"
+ssh_cmd+=" -o ControlMaster=no -o ControlPath=none -o ClearAllForwardings=yes -o ForwardAgent=no"
+ssh_cmd+=" -o ConnectTimeout=10 -o ServerAliveInterval=15 -o ServerAliveCountMax=4"
+
+# The empty remote path is rrsync's restricted dir.
+rsync --times --compress --timeout=300 -e "$ssh_cmd" -- "${files[@]}" "$(field hostname):" 2>"$work/rsync.err"
+rc=$?
+if ((rc != 0)); then
+	# rrsync reports a missing restricted dir as a Python traceback.
+	if grep -q -E 'Restricted directory does not exist|FileNotFoundError' "$work/rsync.err"; then
+		why="$REMOTE_DIR is missing; the homelab's encrypted dataset is still locked"
+	elif grep -q 'Permission denied (publickey' "$work/rsync.err"; then
+		why="the homelab doesn't accept $KEY yet"
+	else
+		why=$(grep -v -E '^([[:space:]]|Traceback|$)' "$work/rsync.err" | head -1)
+	fi
+	log "upload failed (rsync exit $rc): ${why:-no error output}; next try in 2 h"
+	if grep -q 'Permission denied (publickey' "$work/rsync.err"; then
+		log "append this line to ~/.ssh/authorized_keys on the homelab:"
+		authorized_line
+	fi
+	exit "$status"
+fi
+
+sent=()
+for f in "${files[@]}"; do
+	name=$(basename "$f")
+	shasum -a 256 "$f" | cut -d' ' -f1 >"$STATE_DIR/$name.sha256"
+	sent+=("$name ($(awk -v b="$(stat -f %z "$f")" 'BEGIN { printf "%.1f MB", b / 1e6 }'))")
+done
+log "pushed ${#sent[@]} file(s), $skipped unchanged: $(IFS=,; printf '%s' "${sent[*]}" | sed 's/,/, /g')"
+exit "$status"

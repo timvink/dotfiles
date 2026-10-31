@@ -49,6 +49,11 @@ Library/Application Support/rbw/config.json
 # TodoTim (macOS app) syncing to the homelab Nextcloud, installed from its GitHub releases.
 .todotim.toml
 .chezmoiscripts/install-todotim_darwin.sh
+# Pushes this Mac's Firefox/Chrome history to the homelab archive every 2 h.
+# A work machine's browsing doesn't belong there.
+.local/bin/browser-history-push
+Library/LaunchAgents/com.timvink.browser-history-push.plist
+.chezmoiscripts/load-browser-history-push-agent_darwin.sh
 {{ end }}
 {{ if not (dig "includeDesktop" false .) }}
 private_dot_pi

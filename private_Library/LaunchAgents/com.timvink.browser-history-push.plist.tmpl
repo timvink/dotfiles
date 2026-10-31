@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Runs browser-history-push every 2 h, which copies the Firefox and Chrome
+     history databases to the homelab's browser-history archive. Chrome keeps
+     only 90 days of history and the homelab ingests hourly, so 2 h loses
+     nothing; RunAtLoad covers a Mac that was off at the last interval.
+     StartInterval (not KeepAlive): the script is a one-shot run, and launchd
+     skips an interval while the previous run is still going.
+
+     Background ProcessType and LowPriorityIO: the VACUUM of a 50 MB database
+     should never compete with interactive work.
+
+     The program is a compiled launcher, not the script itself: it is the binary
+     that holds the Full Disk Access grant macOS requires before a background
+     job may read Firefox's and Chrome's data (see the loader script).
+
+     Managed by chezmoi; (re)loaded by
+     run_onchange_after_load-browser-history-push-agent_darwin.sh. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.browser-history-push</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ .chezmoi.homeDir }}/.local/libexec/browser-history-push</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>7200</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>LowPriorityIO</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/browser-history-push.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/browser-history-push.log</string>
+</dict>
+</plist>
