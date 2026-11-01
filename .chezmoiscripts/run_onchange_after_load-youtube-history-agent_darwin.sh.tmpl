@@ -1,0 +1,16 @@
+#!/bin/bash
+# (Re)load the youtube-history LaunchAgent when its plist changes. "after":
+# a first apply must write the plist and the script before this loads them.
+# Gated on includePrivate and darwin in .chezmoiignore.
+set -euo pipefail
+
+# plist hash: {{ include "private_Library/LaunchAgents/com.timvink.youtube-history.plist.tmpl" | sha256sum }}
+
+plist="$HOME/Library/LaunchAgents/com.timvink.youtube-history.plist"
+mkdir -p "$HOME/Library/Logs"
+launchctl unload "$plist" 2>/dev/null || true
+launchctl load "$plist"
+echo "=== chezmoi: (re)loaded com.timvink.youtube-history LaunchAgent ==="
+if [ ! -d "$HOME/.local/share/youtube-history/profile" ]; then
+	echo "youtube-history: run youtube-history-login once to sign its browser in to Google"
+fi

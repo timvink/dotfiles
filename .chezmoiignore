@@ -55,6 +55,11 @@ Library/Application Support/rbw/config.json
 .local/bin/browser-history-grant-access
 Library/LaunchAgents/com.timvink.browser-history-push.plist
 .chezmoiscripts/load-browser-history-push-agent_darwin.sh
+# Captures my YouTube watch history (all devices) for the same archive.
+.local/bin/youtube-history-capture
+.local/bin/youtube-history-login
+Library/LaunchAgents/com.timvink.youtube-history.plist
+.chezmoiscripts/load-youtube-history-agent_darwin.sh
 {{ end }}
 {{ if not (dig "includeDesktop" false .) }}
 private_dot_pi

@@ -9,6 +9,8 @@
 #   firefoxtabs  Firefox/Profiles/<profile>/synced-tabs.db (tabs open on every
 #                Firefox device signed in to the same Sync account)
 #   chrome       Google/Chrome/{Default,Profile *}/History
+#   youtube      ~/.local/state/youtube-history/<host>-youtube-history.json, the
+#                daily capture of youtube-history-capture; sent as is (.json)
 #
 # host is the lowercased LocalHostName. profile is the Firefox profile dir up to
 # its first "." (the random salt) or the Chrome profile dir lowercased with
@@ -73,6 +75,7 @@ PROMPT_EVERY_MIN=1200 # 20 h: after "Later", the access dialog stays away this l
 
 FIREFOX="$HOME/Library/Application Support/Firefox/Profiles"
 CHROME="$HOME/Library/Application Support/Google/Chrome"
+YOUTUBE="$HOME/.local/state/youtube-history"
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*"; }
 
@@ -180,6 +183,9 @@ for dir in "$CHROME"/Default/ "$CHROME"/Profile\ */; do
 	[[ -f $dir/History ]] || continue
 	sources+=("chrome|$(slug "$(basename "$dir")")|${dir}History")
 done
+for f in "$YOUTUBE"/*-youtube-history.json; do
+	[[ -f $f ]] && sources+=("youtube|history|$f")
+done
 
 if ((${#sources[@]} == 0)); then
 	log "no Firefox or Chrome profiles found, nothing to push"
@@ -216,7 +222,9 @@ skipped=0
 seen=" "
 for entry in "${sources[@]}"; do
 	IFS='|' read -r kind profile src <<<"$entry"
-	file="$host-$kind-$profile.sqlite"
+	ext=sqlite
+	[[ $kind == youtube ]] && ext=json
+	file="$host-$kind-$profile.$ext"
 	out="$work/upload/$file"
 	if [[ $seen == *" $file "* ]]; then
 		log "$file: two profiles map to this name, skipping $src"
@@ -224,7 +232,10 @@ for entry in "${sources[@]}"; do
 		continue
 	fi
 	seen+="$file "
-	if ! snapshot "$src" "$out"; then
+	if [[ $ext == json ]]; then
+		# Written whole and renamed into place by its producer: a plain copy is consistent.
+		cp "$src" "$out" || { status=1; continue; }
+	elif ! snapshot "$src" "$out"; then
 		log "$file: no consistent copy after 3 attempts, skipping"
 		status=1
 		continue
@@ -238,7 +249,7 @@ for entry in "${sources[@]}"; do
 done
 
 shopt -s nullglob
-files=("$work"/upload/*.sqlite)
+files=("$work"/upload/*.sqlite "$work"/upload/*.json)
 if ((${#files[@]} == 0)); then
 	log "nothing changed since the last push ($skipped unchanged)"
 	exit "$status"

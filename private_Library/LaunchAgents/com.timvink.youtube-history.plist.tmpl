@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Runs youtube-history-capture hourly and at login. The script captures
+     once a day and makes the other runs no-ops, so the capture happens
+     within an hour of the Mac's first wake each day. No Full Disk Access:
+     it uses its own browser profile under ~/.local/share/youtube-history and
+     writes to ~/.local/state, which browser-history-push uploads.
+
+     Managed by chezmoi; (re)loaded by
+     run_onchange_after_load-youtube-history-agent_darwin.sh. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.youtube-history</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ .chezmoi.homeDir }}/.local/bin/youtube-history-capture</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>3600</integer>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardOutPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/youtube-history.log</string>
+    <key>StandardErrorPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/youtube-history.log</string>
+</dict>
+</plist>

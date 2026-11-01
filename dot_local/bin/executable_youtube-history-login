@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# youtube-history-login — sign youtube-history-capture's Chrome profile in to
+# Google. Opens Google Chrome on that profile (a window of its own, apart from
+# my normal Chrome) at the sign-in page; sign in, then quit that window
+# (Cmd+Q). This then captures once to check that the sign-in works.
+#
+# Plain Chrome with no automation attached, because Google refuses to sign in
+# a browser that is being driven ("This browser or app may not be secure").
+# Needed once, and again when the homelab emails that the capture is signed out.
+set -uo pipefail
+umask 077
+
+PROFILE="$HOME/.local/share/youtube-history/profile"
+mkdir -p "$PROFILE"
+
+echo "Sign in to Google in the Chrome window that opens, then quit it with Cmd+Q."
+# -n: a separate Chrome instance for this profile; -W: wait until it quits.
+open -n -W -a "Google Chrome" --args --user-data-dir="$PROFILE" --no-first-run \
+	--no-default-browser-check \
+	'https://accounts.google.com/ServiceLogin?hl=en&continue=https%3A%2F%2Fwww.youtube.com%2Ffeed%2Fhistory%3Fhl%3Den' ||
+	exit 1
+exec "$HOME/.local/bin/youtube-history-capture" --force
