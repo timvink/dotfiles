@@ -1,5 +1,15 @@
 # ----- Completions -----
+{{- if eq .chezmoi.os "darwin" }}
+# zsh-autocomplete (sourced further down) runs compinit itself and asks that
+# nothing else does. Calling it here as well made every new shell run compinit
+# three times and rewrite the dump twice, about 370ms before the first prompt.
+# Only fall back to it when the plugin is missing.
+if ! [ -r "${HOMEBREW_PREFIX:-/opt/homebrew}/share/zsh-autocomplete/zsh-autocomplete.plugin.zsh" ]; then
+    autoload -Uz compinit && compinit
+fi
+{{- else }}
 autoload -Uz compinit && compinit
+{{- end }}
 
 # Emacs-style line editing. Without this, zsh infers its keymap from $EDITOR,
 # and because EDITOR=nvim contains "vi" it silently comes up in vi mode — whose
@@ -104,7 +114,10 @@ if command -v fzf >/dev/null 2>&1 && fzf --zsh >/dev/null 2>&1; then
     eval "$(fzf --zsh)"
 fi
 
-# scaleway cli
+# scaleway cli. Its script starts with its own `compinit`; drop that line, since
+# compinit already ran above (or zsh-autocomplete runs it). On macOS that early
+# compinit made zsh-autocomplete delete and rebuild the completion dump on
+# every new shell. Its `compdef` works without it (zsh-autocomplete queues it).
 if command -v scw >/dev/null 2>&1; then
-    eval "$(scw autocomplete script shell=zsh)"
+    eval "$(scw autocomplete script shell=zsh | grep -v '^autoload -U compinit')"
 fi
