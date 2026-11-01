@@ -40,7 +40,10 @@ require("lazy").setup({
     { import = "plugins" },
   },
   defaults = { lazy = false, version = false },
-  checker = { enabled = true },
+  -- Keep checking for plugin updates, but without the popup on startup: it
+  -- covered the dashboard and the explorer that `n` opens. Updates still show
+  -- in the statusline and :Lazy.
+  checker = { enabled = true, notify = false },
   performance = {
     rtp = {
       disabled_plugins = { "gzip", "tarPlugin", "tohtml", "tutor", "zipPlugin" },
