@@ -4,40 +4,42 @@
 # browser-history/src/browser_history/sources/youtube.py parses it).
 #
 # youtube.com/feed/history lists what I watched on every device, the phone and
-# TV apps included, grouped by day. Once a day this opens it in headless Chrome
-# (agent-browser) with a profile of its own that is signed in to Google, and
-# writes ~/.local/state/youtube-history/<host>-youtube-history.json:
+# TV apps included, grouped by day. Once a day this loads it in headless Google
+# Chrome with a profile of its own that is signed in to Google (see
+# youtube-history-login), and writes ~/.local/state/youtube-history/<host>-youtube-history.json:
 #   { format, captured_at (UTC), tz, status: "ok" | "error", error, url, title,
 #     logged_in (ytcfg LOGGED_IN), initial: ytInitialData }
 # browser-history-push uploads that file like a browser database. The Mac only
 # captures: whether I'm signed in, history is on, and the format still parses
 # is all decided on the homelab, which emails when a check fails.
 #
-# The first page alone reaches months back (about 9 MB of JSON), so a daily
-# capture overlaps the previous ones many times over and no scrolling is needed.
+# How: `chrome --headless --dump-dom` prints the page after it ran, and the
+# page's own JSON sits in it as `var ytInitialData = {...};`. The first page
+# reaches weeks back, so a daily capture overlaps the previous ones. Chrome is
+# started directly rather than through a browser-automation tool: Google
+# refuses sign-in in automated Chrome builds, an automation tool's mock
+# keychain can't decrypt the saved cookies ("Chrome Safe Storage" Keychain
+# item), and --dump-dom opens no DevTools port another process could use to
+# read the session. Chrome exits on its own; `timeout` covers a hang.
 #
 # Schedule: the com.timvink.youtube-history LaunchAgent runs this hourly; a
 # stamp makes every run after the first successful capture of the day a no-op,
-# so the capture happens within an hour of the Mac's first wake each day.
+# so the capture happens within an hour of the Mac's first wake each day. A
+# run while the profile is open elsewhere (youtube-history-login) fails, and
+# the next hour tries again.
 #
 # The profile dir holds a live Google session: it stays private (umask 077) and
-# never leaves the Mac. Sign in again with youtube-history-login.
+# never leaves the Mac.
 set -uo pipefail
 umask 077
 
 PATH=/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
+CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 PROFILE="$HOME/.local/share/youtube-history/profile"
 STATE_DIR="$HOME/.local/state/youtube-history"
 STAMP="$STATE_DIR/captured-on"
-SESSION=youtube-history-capture
-# Real Chrome, started here rather than by agent-browser: Google refuses sign-in
-# in agent-browser's Chrome for Testing, and agent-browser launches with a mock
-# keychain, which can't decrypt the cookies Chrome saved (their key is the
-# "Chrome Safe Storage" Keychain item). agent-browser attaches over the
-# DevTools port, which listens on 127.0.0.1 only and only during the capture.
-CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
-URL='https://www.youtube.com/feed/history?hl=en'
+URL='https://www.youtube.com/feed/history'
 
 log() { printf '%s %s\n' "$(date '+%Y-%m-%dT%H:%M:%S')" "$*"; }
 
@@ -56,57 +58,50 @@ if [[ ! -d $PROFILE ]]; then
 fi
 
 work=$(mktemp -d "${TMPDIR:-/tmp}/youtube-history.XXXXXX") || exit 1
-chrome_pid=
-# Chrome gets SIGTERM, its normal quit, and is waited for: it saves its cookies on the way out.
-trap '[[ -n $chrome_pid ]] && { kill "$chrome_pid" 2>/dev/null; wait "$chrome_pid" 2>/dev/null; }; rm -rf "$work"' EXIT
+trap 'rm -rf "$work"' EXIT
 
-# fail <message>: record an error capture, so the homelab hears about it today.
-fail() {
-	log "capture failed: $1"
-	python3 - "$OUT" "$1" <<'EOF'
-import json, os, sys, time
-out, error = sys.argv[1], sys.argv[2]
+# write_capture <status> <error> [dom file]: the capture file, written atomically.
+# For a page, Python takes the JSON out of the DOM; if it isn't there (a
+# consent or sign-in page), initial stays null and the homelab says why.
+write_capture() {
+	python3 - "$OUT" "$1" "$2" "${3:-}" <<'EOF'
+import json, os, re, sys, time
+out, status, error, dom_path = sys.argv[1:5]
 doc = {"format": 1, "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-       "tz": "Europe/Amsterdam", "status": "error", "error": error[:500]}
+       "tz": "Europe/Amsterdam", "status": status, "error": error or None,
+       "url": None, "title": None, "logged_in": None, "initial": None}
+if dom_path:
+    html = open(dom_path, encoding="utf-8", errors="replace").read()
+    if m := re.search(r'<link rel="canonical" href="([^"]+)"', html):
+        doc["url"] = m.group(1)
+    if m := re.search(r"<title>(.*?)</title>", html, re.S):
+        doc["title"] = m.group(1).strip()
+    if m := re.search(r'"LOGGED_IN":(true|false)', html):
+        doc["logged_in"] = m.group(1) == "true"
+    start = html.find("var ytInitialData = ")
+    if start != -1:
+        doc["initial"], _ = json.JSONDecoder().raw_decode(html, start + len("var ytInitialData = "))
 tmp = out + ".tmp"
 with open(tmp, "w") as f:
     json.dump(doc, f)
 os.replace(tmp, out)
+print(f"{os.path.getsize(out) // 1000} kB, signed in: {doc['logged_in']}")
 EOF
+}
+
+fail() {
+	log "capture failed: $1"
+	write_capture error "$1"
 	exit 1
 }
 
-rm -f "$PROFILE/DevToolsActivePort"
-"$CHROME" --headless=new --user-data-dir="$PROFILE" --remote-debugging-address=127.0.0.1 \
-	--remote-debugging-port=0 --no-first-run --no-default-browser-check about:blank \
-	>"$work/chrome.log" 2>&1 &
-chrome_pid=$!
-for _ in $(seq 30); do
-	[[ -s $PROFILE/DevToolsActivePort ]] && break
-	kill -0 "$chrome_pid" 2>/dev/null || fail "Chrome exited: $(grep -m1 -i error "$work/chrome.log")"
-	sleep 0.5
-done
-port=$(head -1 "$PROFILE/DevToolsActivePort" 2>/dev/null)
-[[ $port =~ ^[0-9]+$ ]] || fail "Chrome didn't open its DevTools port"
-ab() { agent-browser --session "$SESSION" --cdp "$port" "$@"; }
-ab open "$URL" >"$work/open.log" 2>&1 || fail "agent-browser open: $(tail -1 "$work/open.log")"
-
-# eval prints the returned string JSON-encoded; Python unwraps it and writes atomically.
-ab eval 'JSON.stringify({url: location.href, title: document.title,
-  logged_in: window.ytcfg ? ytcfg.get("LOGGED_IN") : null, initial: window.ytInitialData || null})' \
-	>"$work/eval.json" 2>"$work/eval.err" || fail "agent-browser eval: $(tail -1 "$work/eval.err")"
-
-python3 - "$work/eval.json" "$OUT" <<'EOF' || fail "could not decode the page's JSON"
-import json, os, sys, time
-raw, out = sys.argv[1], sys.argv[2]
-page = json.loads(json.loads(open(raw).read()))
-doc = {"format": 1, "captured_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-       "tz": "Europe/Amsterdam", "status": "ok", "error": None, **page}
-tmp = out + ".tmp"
-with open(tmp, "w") as f:
-    json.dump(doc, f)
-os.replace(tmp, out)
-print(f"{os.path.getsize(out) // 1000} kB")
-EOF
+timeout -k 10 120 "$CHROME" --headless=new --user-data-dir="$PROFILE" --no-first-run \
+	--no-default-browser-check --virtual-time-budget=15000 --dump-dom "$URL" \
+	>"$work/dom.html" 2>"$work/chrome.log"
+rc=$?
+if ((rc != 0)) || [[ ! -s $work/dom.html ]]; then
+	fail "Chrome exit $rc: $(grep -m1 -i -E 'error|failed' "$work/chrome.log")"
+fi
+write_capture ok "" "$work/dom.html" || fail "could not read the page's JSON"
 echo "$today" >"$STAMP"
 log "captured $(basename "$OUT")"
