@@ -415,4 +415,11 @@ if [ "$(hostname)" = "homelab" ]; then
     install_if_missing adb adb
 fi
 
+# usbmuxd — the homelab also hosts a test iPad on USB, driven by
+# timvink-homelab's ipad/ipad.sh. udev starts it when the iPad is plugged in;
+# ipad.sh runs a pinned pymobiledevice3 over it through uvx.
+if [ "$(hostname)" = "homelab" ]; then
+    install_if_missing usbmuxd usbmuxd
+fi
+
 echo "=== chezmoi: linux CLI tools ready ==="
