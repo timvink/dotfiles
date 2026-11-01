@@ -202,14 +202,16 @@ emit_project() {
 # The agent is the pane's own command rather than send-keys into a fresh shell:
 # send-keys waits for zsh to draw its first (starship) prompt, which made the
 # agent ~700ms slower to accept input (measured: ~1.15s vs ~0.5s to its UI).
-# `zsh -ic` still loads .zshrc (cc is a function, co an alias, plus the private
-# env), and `exec zsh` leaves a working shell when the agent quits. Switch the
-# client first; the shell tab is created detached behind it.
+# `$SHELL -ic` still loads .zshrc (cc is a function, co an alias, plus the private
+# env), and `exec $SHELL` leaves a working shell when the agent quits. Switch the
+# client first; the shell tab is created detached behind it. $SHELL, not a bare
+# zsh: Homebrew's zsh comes first on PATH, and a version different from the login
+# shell's makes compinit rebuild its dump in both (~200ms).
 open_project() {
   proj_dir=${1%/}
   name=${proj_dir##*/}; name=${name//[.:]/_}
   if ! tmux has-session -t "=$name" 2>/dev/null; then
-    tmux new-session -d -s "$name" -c "$proj_dir" "zsh -ic '{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}; exec zsh'"
+    tmux new-session -d -s "$name" -c "$proj_dir" "$SHELL -ic '{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}; exec $SHELL'"
     go "$name"
     tmux new-window -d -t "=$name:" -c "$proj_dir"
     return
