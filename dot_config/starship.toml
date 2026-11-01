@@ -9,6 +9,11 @@ disabled = true
 [gcloud]
 disabled = true
 
+# swift runs `swift --version` on every prompt in a Swift repo (~35ms each).
+# The toolchain version isn't worth that.
+[swift]
+disabled = true
+
 [custom.git_worktree]
 command = 'echo "🌲"'
 when = ''' test "$(git rev-parse --git-common-dir 2>/dev/null)" != "$(git rev-parse --git-dir 2>/dev/null)" '''

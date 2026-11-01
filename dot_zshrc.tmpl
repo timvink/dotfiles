@@ -1,5 +1,12 @@
 # ----- Completions -----
 {{- if eq .chezmoi.os "darwin" }}
+# Extra completion definitions from Homebrew's zsh-completions. They only load
+# from fpath, which must hold them before compinit runs (below, or in
+# zsh-autocomplete's first precmd). Use the keg's opt/ path, not share/: compinit
+# refuses $HOMEBREW_PREFIX/share/zsh-completions because share/ is group-writable
+# and stops every new shell at an "insecure directories" prompt.
+[ -d "${HOMEBREW_PREFIX:-/opt/homebrew}/opt/zsh-completions/share/zsh-completions" ] &&
+    fpath=("${HOMEBREW_PREFIX:-/opt/homebrew}/opt/zsh-completions/share/zsh-completions" $fpath)
 # zsh-autocomplete (sourced further down) runs compinit itself and asks that
 # nothing else does. Calling it here as well made every new shell run compinit
 # three times and rewrite the dump twice, about 370ms before the first prompt.
