@@ -3,6 +3,12 @@
 return {
   "saghen/blink.cmp",
   opts = {
+    -- Don't pop the menu up while typing; it kept interrupting. Open it on
+    -- demand with <C-Space> (blink's default "show" key). Omarchy keeps
+    -- LazyVim's auto-show, so this is a deliberate departure from it.
+    completion = {
+      menu = { auto_show = false },
+    },
     sources = {
       -- In prose, the `buffer` source scrapes words from open buffers and
       -- pollutes the popup. Drop it for markdown; also drop `snippets` — the
