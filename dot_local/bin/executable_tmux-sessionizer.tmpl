@@ -21,10 +21,10 @@
 # "Re-rank mode" block below.
 # Type to filter, Enter to jump. An open session is switched to; a not-yet-open
 # project gets a fresh session named after its dir (tmux forbids . and :, so
-# they squash to _) with `{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}` in the first tab and `nvim .` in a
-# second tab (the nvim tab is selected) — the same create-or-switch shape as
-# the `t.` shell function (dot_bash_aliases.tmpl), though this copy also captures
-# the new pane id and routes the switch through go(). NOTE: that . / : → _ squash means two dirs like `a.b` and `a:b` map to
+# they squash to _) with `{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}` in the first tab (selected) and a
+# plain shell in a second tab — the same create-or-switch shape as
+# the `t` shell function (dot_bash_aliases.tmpl), though this copy routes the
+# switch through go(). NOTE: that . / : → _ squash means two dirs like `a.b` and `a:b` map to
 # the one session name `a_b`; the second is then hidden from the list (or jumps
 # you to the first). Accepted — tmux simply can't name those two apart.
 #
@@ -197,20 +197,22 @@ emit_project() {
 } > "$proj_file"
 
 # Create-or-switch for a project directory: session named after the dir (tmux
-# forbids . and :, so they squash to _), agent in tab 1 and `nvim .` in tab 2.
+# forbids . and :, so they squash to _), agent in tab 1 (selected) and a plain
+# shell in tab 2.
+# The agent is the pane's own command rather than send-keys into a fresh shell:
+# send-keys waits for zsh to draw its first (starship) prompt, which made the
+# agent ~700ms slower to accept input (measured: ~1.15s vs ~0.5s to its UI).
+# `zsh -ic` still loads .zshrc (cc is a function, co an alias, plus the private
+# env), and `exec zsh` leaves a working shell when the agent quits. Switch the
+# client first; the shell tab is created detached behind it.
 open_project() {
   proj_dir=${1%/}
   name=${proj_dir##*/}; name=${name//[.:]/_}
   if ! tmux has-session -t "=$name" 2>/dev/null; then
-    # Capture the new session's pane id for send-keys. send-keys needs a *pane*
-    # target, and the "=name" exact-match form (fine for session lookups like
-    # has-session) does NOT resolve as a pane — it errors, which under set -e
-    # would abort the script before the switch below ever runs.
-    pane=$(tmux new-session -d -P -F '#{pane_id}' -s "$name" -c "$proj_dir")
-    tmux send-keys -t "$pane" {{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }} Enter
-    # Second tab (window) with nvim; no -d so it becomes the selected window.
-    nvim_pane=$(tmux new-window -P -F '#{pane_id}' -t "=$name" -c "$proj_dir")
-    tmux send-keys -t "$nvim_pane" 'nvim .' Enter
+    tmux new-session -d -s "$name" -c "$proj_dir" "zsh -ic '{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}; exec zsh'"
+    go "$name"
+    tmux new-window -d -t "=$name:" -c "$proj_dir"
+    return
   fi
   go "$name"
 }
