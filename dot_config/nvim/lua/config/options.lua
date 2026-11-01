@@ -8,6 +8,13 @@ vim.opt.smartindent = true
 -- Relative line numbers, for quick jumps with j/k
 vim.opt.relativenumber = true
 
+-- Soft-wrap long lines in every filetype instead of scrolling sideways.
+-- LazyVim sets `wrap = false` globally and only wraps markdown/text/gitcommit,
+-- so writing anywhere else ran off the right edge. `linebreak` breaks at word
+-- boundaries; LazyVim's j/k already move by screen line on wrapped text.
+vim.opt.wrap = true
+vim.opt.linebreak = true
+
 -- LazyVim enables `list`, and nvim's default `listchars` marks trailing
 -- whitespace with `-`. Mid-sentence the space you just typed *is* trailing, so a
 -- `-` flickers after every word while typing. Hide the marker in insert mode and
