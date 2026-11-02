@@ -15,8 +15,9 @@ USER_JS_CONTENT='// Firefox right-click menu cleanup
 // Remove "Translate Selection" button
 user_pref("browser.translations.select.enable", false);
 
-// Remove "Take Screenshot" button (disables built-in screenshot tool)
-user_pref("screenshots.browser.component.enabled", false);
+// Keep the built-in screenshot tool (Cmd+Option+Shift+P, full-page capture).
+// Explicitly true, not just omitted: an earlier false persists in prefs.js.
+user_pref("screenshots.browser.component.enabled", true);
 
 // Remove "Copy Link to Highlight" button (disables Text Fragments)
 user_pref("dom.text_fragments.enabled", false);
