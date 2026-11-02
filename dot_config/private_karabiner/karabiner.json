@@ -35,27 +35,35 @@
                         ]
                     },
                     {
-                        "description": "Volume keys follow Spotify while it plays, so they reach a Spotify Connect speaker (Sonos); otherwise system volume. See ~/.local/bin/spotify-volume. The built-in keyboard's F11/F12 are matched as key codes because function-key mapping runs after complex modifications; fn+F11/F12 stay plain F-keys.",
+                        "description": "Volume keys follow Spotify while it plays, so they reach a Spotify Connect speaker (Sonos); otherwise they stay native (HUD, no lag). spotify-watch (LaunchAgent) sets the spotify_playing variable from Spotify's play/pause notifications; see ~/.local/bin/spotify-volume. The built-in keyboard's F11/F12 are matched as key codes because function-key mapping runs after complex modifications; fn+F11/F12 stay plain F-keys.",
                         "manipulators": [
                             {
                                 "type": "basic",
+                                "conditions": [{ "type": "variable_if", "name": "spotify_playing", "value": 1 }],
                                 "from": { "consumer_key_code": "volume_increment", "modifiers": { "optional": ["caps_lock"] } },
                                 "to": [{ "shell_command": "$HOME/.local/bin/spotify-volume up" }]
                             },
                             {
                                 "type": "basic",
+                                "conditions": [{ "type": "variable_if", "name": "spotify_playing", "value": 1 }],
                                 "from": { "consumer_key_code": "volume_decrement", "modifiers": { "optional": ["caps_lock"] } },
                                 "to": [{ "shell_command": "$HOME/.local/bin/spotify-volume down" }]
                             },
                             {
                                 "type": "basic",
-                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "conditions": [
+                                    { "type": "variable_if", "name": "spotify_playing", "value": 1 },
+                                    { "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }
+                                ],
                                 "from": { "key_code": "f12", "modifiers": { "optional": ["caps_lock"] } },
                                 "to": [{ "shell_command": "$HOME/.local/bin/spotify-volume up" }]
                             },
                             {
                                 "type": "basic",
-                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "conditions": [
+                                    { "type": "variable_if", "name": "spotify_playing", "value": 1 },
+                                    { "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }
+                                ],
                                 "from": { "key_code": "f11", "modifiers": { "optional": ["caps_lock"] } },
                                 "to": [{ "shell_command": "$HOME/.local/bin/spotify-volume down" }]
                             }

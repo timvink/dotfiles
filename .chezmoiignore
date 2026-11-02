@@ -19,6 +19,10 @@ agents
 # by .chezmoiscripts/run_onchange_after_build-agent-pty.sh.tmpl, not copied.
 agent-pty
 
+# Swift source compiled into ~/.local/libexec/spotify-watch by
+# .chezmoiscripts/run_onchange_after_setup-spotify-watch_darwin.sh.tmpl.
+spotify-watch
+
 # Machine-class gates, prompted at `chezmoi init` (see .chezmoi.toml.tmpl):
 #
 # includePrivate — personal vault/VPN tools and data, plus ssh config with
@@ -81,6 +85,9 @@ Library/Application Support/rbw/config.json
 Library/LaunchAgents/com.timvink.openurl.plist
 Library/LaunchAgents/com.timvink.agent-sleep-guard.plist
 Library/LaunchAgents/com.timvink.ah-mcp.plist
+Library/LaunchAgents/com.timvink.spotify-watch.plist
+.chezmoiscripts/setup-spotify-watch_darwin.sh
+.local/bin/spotify-volume
 # Docker credsStore override targets osxkeychain, which only exists on macOS.
 .docker/config.json
 # Karabiner-Elements is macOS-only, so its config is dead weight elsewhere.

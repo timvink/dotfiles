@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Keeps spotify-watch running: it tells Karabiner whether Spotify is playing,
+     so the volume keys reach Spotify (and its Sonos) only then. Managed by
+     chezmoi; built and (re)loaded by run_onchange_after_setup-spotify-watch. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.spotify-watch</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>{{ .chezmoi.homeDir }}/.local/libexec/spotify-watch</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>ProcessType</key>
+    <string>Background</string>
+    <key>StandardErrorPath</key>
+    <string>{{ .chezmoi.homeDir }}/Library/Logs/spotify-watch.log</string>
+</dict>
+</plist>

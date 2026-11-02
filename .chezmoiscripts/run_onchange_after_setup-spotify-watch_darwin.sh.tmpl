@@ -1,0 +1,28 @@
+#!/bin/sh
+# Build spotify-watch (spotify-watch/spotify-watch.swift) and (re)load its
+# LaunchAgent. Reruns when the source or the plist changes.
+#
+# source hash: {{ include "spotify-watch/spotify-watch.swift" | sha256sum }}
+# plist  hash: {{ include "private_Library/LaunchAgents/com.timvink.spotify-watch.plist.tmpl" | sha256sum }}
+#
+# Without swiftc the agent isn't installed; the volume keys then simply stay
+# native (Karabiner's spotify_playing variable is never set).
+
+set -eu
+
+src="{{ .chezmoi.sourceDir }}/spotify-watch/spotify-watch.swift"
+dest="$HOME/.local/libexec/spotify-watch"
+plist="$HOME/Library/LaunchAgents/com.timvink.spotify-watch.plist"
+
+if ! command -v swiftc >/dev/null 2>&1; then
+    echo "spotify-watch: no swiftc (install Xcode Command Line Tools); volume keys stay native" >&2
+    exit 0
+fi
+
+mkdir -p "$(dirname "$dest")" "$HOME/Library/Logs"
+swiftc -O -o "$dest.new" "$src"
+mv -f "$dest.new" "$dest"
+
+launchctl unload "$plist" 2>/dev/null || true
+launchctl load "$plist"
+echo "=== chezmoi: built and (re)loaded com.timvink.spotify-watch ==="

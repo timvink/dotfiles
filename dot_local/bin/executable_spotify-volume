@@ -1,11 +1,12 @@
 #!/bin/sh
 # spotify-volume up|down — volume keys follow Spotify while it plays.
 #
-# Bound to the volume keys in Karabiner. When Spotify is playing, it adjusts
-# Spotify's own volume, which also drives a Spotify Connect device such as the
-# Sonos office speaker (macOS's output volume doesn't reach that). Otherwise it
-# changes the system output volume by one HUD step (1/16) — without the volume
-# HUD, since posting a real media key from here needs Accessibility access.
+# Karabiner calls this for the volume keys only while its spotify_playing
+# variable is 1 (set by spotify-watch); otherwise the keys stay native. It
+# adjusts Spotify's own volume, which also drives a Spotify Connect device such
+# as the Sonos office speaker (macOS's output volume doesn't reach that). If
+# Spotify isn't playing after all (stale variable), it falls back to the system
+# output volume by one HUD step (1/16), without the HUD.
 #
 # Latency is mostly osascript startup plus Apple Events to Spotify, so it runs
 # one osascript per press and checks `application "Spotify" is running`, which
