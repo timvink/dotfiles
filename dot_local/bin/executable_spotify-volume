@@ -1,0 +1,40 @@
+#!/bin/sh
+# spotify-volume up|down — volume keys follow Spotify while it plays.
+#
+# Bound to the volume keys in Karabiner. When Spotify is playing, it adjusts
+# Spotify's own volume, which also drives a Spotify Connect device such as the
+# Sonos office speaker (macOS's output volume doesn't reach that). Otherwise it
+# changes the system output volume by one HUD step (1/16) — without the volume
+# HUD, since posting a real media key from here needs Accessibility access.
+#
+# Spotify's `sound volume` reads back one lower than what was set, so the
+# step is compensated: setting v+6 reads v+5 and v-4 reads v-5.
+
+step=5
+case "$1" in
+  up) spotify_delta=$((step + 1)) system_delta=6.25 ;;
+  down) spotify_delta=$((1 - step)) system_delta=-6.25 ;;
+  *) echo "usage: spotify-volume up|down" >&2; exit 2 ;;
+esac
+
+exec osascript - "$spotify_delta" "$system_delta" <<'EOF'
+on run {spotifyDelta, systemDelta}
+	-- Checking System Events first avoids launching Spotify via `tell`.
+	tell application "System Events" to set spotifyRunning to (exists process "Spotify")
+	if spotifyRunning then
+		tell application "Spotify"
+			if player state is playing then
+				set v to (sound volume) + (spotifyDelta as integer)
+				if v < 0 then set v to 0
+				if v > 100 then set v to 100
+				set sound volume to v
+				return
+			end if
+		end tell
+	end if
+	set v to (output volume of (get volume settings)) + (systemDelta as real)
+	if v < 0 then set v to 0
+	if v > 100 then set v to 100
+	set volume output volume (round v)
+end run
+EOF

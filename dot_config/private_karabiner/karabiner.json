@@ -35,6 +35,33 @@
                         ]
                     },
                     {
+                        "description": "Volume keys follow Spotify while it plays, so they reach a Spotify Connect speaker (Sonos); otherwise system volume. See ~/.local/bin/spotify-volume. The built-in keyboard's F11/F12 are matched as key codes because function-key mapping runs after complex modifications; fn+F11/F12 stay plain F-keys.",
+                        "manipulators": [
+                            {
+                                "type": "basic",
+                                "from": { "consumer_key_code": "volume_increment", "modifiers": { "optional": ["caps_lock"] } },
+                                "to": [{ "shell_command": "$HOME/.local/bin/spotify-volume up" }]
+                            },
+                            {
+                                "type": "basic",
+                                "from": { "consumer_key_code": "volume_decrement", "modifiers": { "optional": ["caps_lock"] } },
+                                "to": [{ "shell_command": "$HOME/.local/bin/spotify-volume down" }]
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": { "key_code": "f12", "modifiers": { "optional": ["caps_lock"] } },
+                                "to": [{ "shell_command": "$HOME/.local/bin/spotify-volume up" }]
+                            },
+                            {
+                                "type": "basic",
+                                "conditions": [{ "identifiers": [{ "is_built_in_keyboard": true }], "type": "device_if" }],
+                                "from": { "key_code": "f11", "modifiers": { "optional": ["caps_lock"] } },
+                                "to": [{ "shell_command": "$HOME/.local/bin/spotify-volume down" }]
+                            }
+                        ]
+                    },
+                    {
                         "description": "Caps Lock: Tap for Escape, Hold for Hyper Key (MacBook Keyboard Only)",
                         "manipulators": [
                             {
