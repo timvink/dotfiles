@@ -14,11 +14,14 @@
 #
 # Spotify's `sound volume` reads back one lower than what was set, so the
 # step is compensated: setting v+6 reads v+5 and v-4 reads v-5.
+#
+# The system step goes in as hundredths of a percent (625 = 6.25): AppleScript
+# parses "6.25" with the user's locale, which fails under a decimal comma (nl).
 
 step=5
 case "$1" in
-  up) spotify_delta=$((step + 1)) system_delta=6.25 ;;
-  down) spotify_delta=$((1 - step)) system_delta=-6.25 ;;
+  up) spotify_delta=$((step + 1)) system_delta=625 ;;
+  down) spotify_delta=$((1 - step)) system_delta=-625 ;;
   *) echo "usage: spotify-volume up|down" >&2; exit 2 ;;
 esac
 
@@ -38,6 +41,6 @@ on run {spotifyDelta, systemDelta}
 			end if
 		end tell
 	end if
-	set volume output volume (round my clamp((output volume of (get volume settings)) + (systemDelta as real)))
+	set volume output volume (round my clamp((output volume of (get volume settings)) + (systemDelta as integer) / 100))
 end run
 EOF
