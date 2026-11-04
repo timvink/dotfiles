@@ -303,12 +303,11 @@ alias cat='bat --paging=never'
 
 # Use neovim instead of vim
 alias vim='nvim'
-# n — Neovim in the current directory with the snacks file explorer already
-# open (what <leader>e does). Hooked on LazyVim's VeryLazy event because Snacks
-# and the LazyVim keymaps aren't ready yet when -c runs. Extra args (files) pass
-# through.
+# n — Neovim in the current directory with the Neo-tree sidebar already open
+# (what <leader>e does). Hooked on LazyVim's VeryLazy event because the plugins
+# aren't ready yet when -c runs. Extra args (files) pass through.
 n() {
-    nvim -c 'autocmd User VeryLazy ++once lua Snacks.explorer()' "$@"
+    nvim -c 'autocmd User VeryLazy ++once lua require("neo-tree.command").execute({ dir = LazyVim.root() })' "$@"
 }
 
 # fastfetch — system info on demand (config in ~/.config/fastfetch)
