@@ -105,9 +105,9 @@ access to it can control the browser and its signed-in accounts.
 
 ## Browser VS Code on the devbox
 
-The platform-managed browser editor runs on the VM at `127.0.0.1:8080`.
+The platform-managed browser editor runs on the VM at `127.0.0.1:18080`.
 The Mac's `devbox` connection forwards that port to `127.0.0.1:18080` on the Mac,
-leaving local port 8080 available for other development servers. Open
+leaving port 8080 available for project servers on both machines. Open
 **http://127.0.0.1:18080** while connected; the editor opens the
 VM's `~/workspace`. This localhost address supports editor webviews as a secure
 browser context. Existing SOCKS routing, URL opening and image paste stay in place.
@@ -123,7 +123,7 @@ without closing sessions, run **on the Mac**:
 
 ```bash
 ssh -S ~/.ssh/cm-devbox.sock -O forward \
-  -L 127.0.0.1:18080:127.0.0.1:8080 devbox
+  -L 127.0.0.1:18080:127.0.0.1:18080 devbox
 ```
 
 Port 18080 on the Mac must be available. The editor remains private on the VM;
