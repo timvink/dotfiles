@@ -106,18 +106,29 @@ access to it can control the browser and its signed-in accounts.
 ## Browser VS Code on the devbox
 
 The platform-managed browser editor runs on the VM at `127.0.0.1:18080`.
-The Mac's `devbox` connection forwards that port to `127.0.0.1:18080` on the Mac,
-leaving port 8080 available for project servers on both machines. Open
-**http://127.0.0.1:18080** while connected; the editor opens the
-VM's `~/workspace`. This localhost address supports editor webviews as a secure
-browser context. Existing SOCKS routing, URL opening and image paste stay in place.
+Open **http://devbox:18080** in Firefox while connected; the editor opens the
+VM's `~/workspace` through the existing SSH SOCKS tunnel. Port 8080 remains
+available for project servers. URL opening and image paste keep their routing.
 
-On the VM, `xdg-open` keeps editor links on `127.0.0.1:18080`, including their
-path, query and fragment, instead of rewriting them to `devbox:18080`. This
-uses the editor's localhost forward. Other ports and homelab links retain their
-usual SOCKS routing.
+Firefox's managed `dom.securecontext.allowlist` setting contains the exact
+hostname `devbox`. It enables secure-context APIs such as `crypto.subtle` on
+all HTTP/WS ports of that host; it does not include other hosts or subdomains.
+The address remains HTTP in the browser, with transport encrypted by SSH.
+The VM's `xdg-open` rewrites local URLs to `devbox`, retaining paths, queries
+and fragments, so editor links also use this route.
 
-After syncing this repo, apply the launcher **on the Mac**:
+Sync this repo and apply just the Firefox settings **on the Mac**:
+
+```bash
+chezmoi git -- pull --ff-only
+sh "$(chezmoi source-path)/.chezmoiscripts/run_onchange_setup_firefox_darwin.sh"
+```
+
+Fully quit Firefox and reopen it to load `user.js`. This hostname route needs
+no separate editor port forward.
+
+**Optional localhost fallback.** The Mac's `devbox` launcher also forwards
+the editor to `127.0.0.1:18080`. Apply the launcher **on the Mac** to use it:
 
 ```bash
 chezmoi apply --exclude scripts ~/.local/bin/devbox

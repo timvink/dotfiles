@@ -64,6 +64,10 @@ PROXY_PREFS="
 user_pref(\"network.proxy.type\", 2);
 user_pref(\"network.proxy.autoconfig_url\", \"file://$HOME/.config/proxy.pac\");
 user_pref(\"network.proxy.socks_remote_dns\", true);
+// Exact hostname, all HTTP/WS ports: devbox is reached through the SSH SOCKS
+// tunnel above. This enables secure-context APIs such as crypto.subtle.
+// Mozilla source: dom/security/nsMixedContentBlocker.cpp (hostname allowlist).
+user_pref(\"dom.securecontext.allowlist\", \"devbox\");
 "
 
 # Deploy user.js to all default-release profiles.
