@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
-# SSH into my Azure devbox VM. Three tunnels ride the connection:
+# SSH into my Azure devbox VM. Four tunnels ride the connection:
 #   -D 1080  SOCKS proxy → view any dev server as http://devbox:<port> (the PAC
 #            in ~/.config/proxy.pac routes the `devbox` host through it; the box
 #            resolves `devbox` to its own loopback).
 #   -R 2489  reverse tunnel → the box's xdg-open shim sends URLs back to the
 #            open-url-listener here so links open in this Mac's browser.
+#   -L 8080  browser VS Code → localhost is a secure browser context for webviews.
+#            Open http://127.0.0.1:8080 while connected.
 #   -L 43127 loopback OAuth callback → provider redirects to the Mac's
 #            127.0.0.1:43127 reach Codex on the box. Keep in sync with Linux's
 #            mcp_oauth_callback_port in dot_codex/modify_private_config.toml.tmpl.
@@ -154,9 +156,9 @@ _devbox_ensure_master() {
   # is deliberate: it swallows the channel spam for the master's whole life. (homelab uses
   # plain ssh with no injected `-v`, so its `LogLevel FATAL` in ~/.ssh/config just works.)
   #
-  # -o ExitOnForwardFailure=yes: if -R 2489, -D 1080 or -L 43127 can't bind, fail loudly rather
-  # than leave a master that silently lacks its tunnels — a lost -R 2489 bind kills
-  # prefix+u URL-opening (the box's xdg-open shim can't reach the listener here) with no
+  # -o ExitOnForwardFailure=yes: if -R 2489, -D 1080, -L 8080 or -L 43127
+  # can't bind, fail loudly rather than leave a master that silently lacks its
+  # tunnels — a lost -R 2489 bind kills prefix+u URL-opening (the box's xdg-open shim can't reach the listener here) with no
   # signal at all. The stale port does NOT necessarily clear on its own, so devbox
   # reclaims it — see _devbox_reclaim_fwd.
   #
@@ -167,6 +169,7 @@ _devbox_ensure_master() {
   # slip through this ~60s window. A blip shorter than that rides through untouched.
   ( az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
       -N -f -D 1080 -R 2489:127.0.0.1:2489 \
+      -L 127.0.0.1:8080:127.0.0.1:8080 \
       -L 127.0.0.1:43127:127.0.0.1:43127 \
       -o ControlMaster=yes -o ControlPath="$sock" -o ControlPersist=30m \
       -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \

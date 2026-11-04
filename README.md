@@ -103,6 +103,31 @@ No debugging port or additional SSH forward is needed. The existing URL opener
 continues to handle `xdg-open`. Keep the bridge bound to loopback: anyone with
 access to it can control the browser and its signed-in accounts.
 
+## Browser VS Code on the devbox
+
+The platform-managed browser editor runs on the VM at `127.0.0.1:8080`.
+The Mac's `devbox` connection forwards that port to the same loopback address
+on the Mac. Open **http://127.0.0.1:8080** while connected; the editor opens the
+VM's `~/workspace`. This localhost address supports editor webviews as a secure
+browser context. Existing SOCKS routing, URL opening and image paste stay in place.
+
+After syncing this repo, apply the launcher **on the Mac**:
+
+```bash
+chezmoi apply --exclude scripts ~/.local/bin/devbox
+```
+
+New SSH masters include the editor forward. To add it to an existing master
+without closing sessions, run **on the Mac**:
+
+```bash
+ssh -S ~/.ssh/cm-devbox.sock -O forward \
+  -L 127.0.0.1:8080:127.0.0.1:8080 devbox
+```
+
+Port 8080 on the Mac must be available. The editor remains private on the VM;
+its installation is managed in `nwf-ai-platform-infra`, not in these dotfiles.
+
 ## MCP sign-in from the headless devbox
 
 Codex's Linux configuration pins `mcp_oauth_callback_port = 43127`. The Mac's
