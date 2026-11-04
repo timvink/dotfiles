@@ -112,6 +112,11 @@ leaving port 8080 available for project servers on both machines. Open
 VM's `~/workspace`. This localhost address supports editor webviews as a secure
 browser context. Existing SOCKS routing, URL opening and image paste stay in place.
 
+On the VM, `xdg-open` keeps editor links on `127.0.0.1:18080`, including their
+path, query and fragment, instead of rewriting them to `devbox:18080`. This
+uses the editor's localhost forward. Other ports and homelab links retain their
+usual SOCKS routing.
+
 After syncing this repo, apply the launcher **on the Mac**:
 
 ```bash
