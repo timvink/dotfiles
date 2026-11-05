@@ -1,0 +1,19 @@
+#!/bin/sh
+# Enable the Vimrc Support plugin, which loads the vault's .obsidian.vimrc so
+# Vim keymaps (Space chords) persist. Its files come from .chezmoiexternal.toml.
+#
+# Appends the id only if missing, keeping plugins enabled in the Obsidian UI
+# and their order. Community plugins must be allowed (restricted mode off),
+# which they already are for obsidian-importer.
+#
+# This is a chezmoi modify_ script: stdin = current target content, stdout
+# = new content. Idempotent.
+
+set -eu
+
+input=$(cat)
+[ -z "$input" ] && input='[]'
+
+printf '%s\n' "$input" | jq --indent 2 '
+  if index("obsidian-vimrc-support") then . else . + ["obsidian-vimrc-support"] end
+'

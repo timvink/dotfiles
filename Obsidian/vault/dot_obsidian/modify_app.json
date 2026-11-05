@@ -1,0 +1,17 @@
+#!/bin/sh
+# Turn on Obsidian's built-in Vim key bindings (Settings > Editor > Vim key
+# bindings). Keymaps live in the vault's .obsidian.vimrc, loaded by the
+# Vimrc Support plugin (see modify_community-plugins.json).
+#
+# Obsidian reloads app.json when it changes on disk. Other settings Obsidian
+# writes here are preserved.
+#
+# This is a chezmoi modify_ script: stdin = current target content, stdout
+# = new content. Idempotent.
+
+set -eu
+
+input=$(cat)
+[ -z "$input" ] && input='{}'
+
+printf '%s\n' "$input" | jq --indent 2 '.vimMode = true'

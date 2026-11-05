@@ -12,3 +12,15 @@
     url = "https://github.com/tmux-plugins/tmux-continuum/archive/refs/tags/v3.1.0.tar.gz"
     exact = true
     stripComponents = 1
+
+# Obsidian Vimrc Support plugin: loads the vault's .obsidian.vimrc (Space
+# chords). Release assets pinned to a tag; bump both URLs to upgrade. Only
+# where the vault exists (gated with Obsidian in .chezmoiignore). Enabled by
+# Obsidian/vault/dot_obsidian/modify_community-plugins.json.
+["Obsidian/vault/.obsidian/plugins/obsidian-vimrc-support/main.js"]
+    type = "file"
+    url = "https://github.com/esm7/obsidian-vimrc-support/releases/download/0.10.2/main.js"
+
+["Obsidian/vault/.obsidian/plugins/obsidian-vimrc-support/manifest.json"]
+    type = "file"
+    url = "https://github.com/esm7/obsidian-vimrc-support/releases/download/0.10.2/manifest.json"
