@@ -1,8 +1,11 @@
 #!/bin/sh
-# Enable the Vimrc Support plugin, which loads the vault's .obsidian.vimrc so
-# Vim keymaps (Space chords) persist. Its files come from .chezmoiexternal.toml.
+# Enable the plugins this repo installs:
+# - obsidian-vimrc-support loads the vault's .obsidian.vimrc so Vim keymaps
+#   (Space chords) persist. Its files come from .chezmoiexternal.toml.
+# - explorer-vim-keys (own plugin, dot_obsidian/plugins/) adds hjkl, gg/G, r
+#   and / to the File explorer.
 #
-# Appends the id only if missing, keeping plugins enabled in the Obsidian UI
+# Appends each id only if missing, keeping plugins enabled in the Obsidian UI
 # and their order. Community plugins must be allowed (restricted mode off),
 # which they already are for obsidian-importer.
 #
@@ -15,5 +18,6 @@ input=$(cat)
 [ -z "$input" ] && input='[]'
 
 printf '%s\n' "$input" | jq --indent 2 '
-  if index("obsidian-vimrc-support") then . else . + ["obsidian-vimrc-support"] end
+  reduce ("obsidian-vimrc-support", "explorer-vim-keys") as $id
+    (.; if index($id) then . else . + [$id] end)
 '

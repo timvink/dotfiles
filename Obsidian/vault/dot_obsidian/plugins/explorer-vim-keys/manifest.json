@@ -1,0 +1,9 @@
+{
+  "id": "explorer-vim-keys",
+  "name": "Explorer Vim Keys",
+  "version": "0.1.0",
+  "minAppVersion": "1.15.0",
+  "description": "hjkl, gg/G, r and / in the core File explorer. Personal plugin managed by chezmoi.",
+  "author": "Tim Vink",
+  "isDesktopOnly": true
+}

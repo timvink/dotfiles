@@ -11,3 +11,13 @@ unmap <Space>
 " mappings just the first word), hence the two-step form.
 exmap explorer obcommand file-explorer:open
 nmap <Space>e :explorer<CR>
+
+" Space-Space: Quick Switcher (jump to a note by name), like LazyVim's
+" find-files. Space-/: full-text search over all notes (also Cmd+K).
+exmap switcher obcommand switcher:open
+nmap <Space><Space> :switcher<CR>
+exmap searchall obcommand global-search:open
+nmap <Space>/ :searchall<CR>
+
+" Yank and put through the macOS clipboard, like `clipboard=unnamedplus`.
+set clipboard=unnamed

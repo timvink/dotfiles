@@ -7,6 +7,12 @@
 # Cmd+Shift+F too. Cmd+K is Obsidian's default for "Insert Markdown link";
 # that command is unbound here so the two don't conflict.
 #
+# Alt+h / Alt+l switch to the previous/next tab, matching alt+vim-direction
+# navigation in tmux and Neovim. They're app hotkeys rather than vimrc
+# mappings so they also work from the File explorer and in Reading view, and
+# Obsidian matches them by physical key, so macOS Option characters (˙, ¬)
+# don't get in the way.
+#
 # Obsidian reloads hotkeys.json when it changes on disk, so an apply takes
 # effect without a restart. Hotkeys set in the Obsidian UI are preserved.
 # Syncthing syncs this file to other devices with the vault.
@@ -25,4 +31,6 @@ printf '%s\n' "$input" | jq --indent 2 '
     {"modifiers": ["Mod", "Shift"], "key": "F"}
   ]
   | .["editor:insert-link"] = []
+  | .["workspace:previous-tab"] = [{"modifiers": ["Alt"], "key": "H"}]
+  | .["workspace:next-tab"] = [{"modifiers": ["Alt"], "key": "L"}]
 '
