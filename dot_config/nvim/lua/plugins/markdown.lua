@@ -1,12 +1,9 @@
--- Neovim wraps whole buffer lines, not individual table cells. When a rendered
--- table exceeds the window width, its inline padding and borders spill onto
--- continuation lines and the columns break apart. Keep rendered Markdown
--- unwrapped (zh/zl scroll horizontally), but retain prose wrapping in raw view
--- and insert mode. This is window-wide, so rendered prose is unwrapped too.
+-- Keep long Markdown lines readable in rendered view as well as while editing.
+-- Wrapping is window-wide, so wide tables may wrap along with prose.
 -- Scope this to listed buffers so LSP hover windows keep their wrapping.
 local markdown_view = {
   win_options = {
-    wrap = { default = true, rendered = false },
+    wrap = { default = true, rendered = true },
   },
 }
 

@@ -11,7 +11,6 @@
 -- markdown buffer, independent of plugin load order, so this is reliable where
 -- an autocmd in config/autocmds.lua (which loads on `VeryLazy` too) would share
 -- the same blind spot.
--- render-markdown temporarily disables wrap in rendered view to keep table
--- columns intact; this remains the default for raw view and insert mode.
+-- render-markdown also keeps wrapping enabled in rendered view.
 vim.opt_local.wrap = true -- soft-wrap long lines instead of running off-screen
 vim.opt_local.linebreak = true -- break at word boundaries, not mid-word
