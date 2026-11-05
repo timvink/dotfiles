@@ -22,10 +22,8 @@ splitting existing code solely to satisfy a naming preference.
 Use subagents whenever they help: parallel independent work, broad searches,
 or keeping file dumps out of the main context.
 
-If you are Claude, get a second opinion from Codex (`codex exec`) when the work
-is critical or important, or when you are unsure of your result. Give it the
-code or diff and the goal, not your conclusion, and weigh its findings rather
-than accepting them wholesale.
+Claude only: review critical work, or work you're unsure of, with Codex
+(`codex exec`).
 
 Commit your completed changes before ending a task. Do not leave work you made
 uncommitted unless the user asks you to or a blocker prevents the commit; explain
