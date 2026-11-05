@@ -10,7 +10,9 @@
 #     keystroke away without switching to its tab.
 #   URLs (a-z): every URL visible in the current pane — including bare domains
 #     like dashboard.stripe.com/... that carry no http(s):// scheme (these are
-#     normalised to https:// so the opener treats them as URLs, not files).
+#     normalised to https:// so the opener treats them as URLs, not files) —
+#     plus the target of every OSC 8 hyperlink, such as a Claude Code markdown
+#     link that shows only its label.
 #
 # Keys, all shown in the picker's header: enter opens the highlighted row, `y`
 # copies it (system clipboard AND the tmux paste buffer, so it also works on a
@@ -223,8 +225,17 @@ ellipsize_url() {
 #      address, shown on the status line) no longer surfaces gmail.com. Scheme
 #      URLs match independently, so https://user@host.com keeps its userinfo.
 #      The lookbehind needs PCRE, hence perl rather than POSIX `grep -oE`.
-# Then: strip trailing punctuation (.,;:) and an unbalanced ) common in
-# logs/markdown; normalise bare domains to https:// (so `open`/xdg-open treats
+#   3. OSC 8 hyperlink targets. Claude Code renders [label](url) as the label
+#      wrapped in ESC]8;;url ST … ESC]8;; ST, so the URL never appears as text
+#      (a label like "Paper Shaders" matches nothing above, and "ascii.rest"
+#      fails the TLD list). capture-pane -e keeps those sequences; we record
+#      each http(s) target with the column span of its label, then strip every
+#      escape so the joining and matching above see the same plain text as
+#      before. A text match inside a label yields to the link target, so a
+#      label like "html-in-canvas.dev" doesn't add a second, slash-less row.
+# Text matches lose trailing punctuation (.,;:) and an unbalanced ) common in
+# logs/markdown; link targets are exact and keep theirs. Matches print in
+# column order per line. Then normalise bare domains to https:// (so `open`/xdg-open treats
 # them as URLs, not local files); dedupe keeping the first occurrence, then emit
 # in reverse (last-discovered first) so the most recent on-screen URL sits at the
 # top of the menu with hotkey `a`; then fold paginated runs into one row each. The a..z key cap
@@ -237,10 +248,29 @@ ellipsize_url() {
 tld='com|org|net|edu|gov|mil|int|info|biz|io|dev|app|ai|co|xyz|online|site|tech|cloud|nl|be|de|fr|uk|eu|us|ca|au|es|it|se|no|dk|fi|pl|ch|at|ie'
 if [ "$mode" = open ]; then
     urls=$(
-        tmux capture-pane -J -p \
+        tmux capture-pane -J -p -e \
             | TLD="$tld" COLS="$(tmux display-message -p '#{pane_width}')" perl -e '
                 my $c = qr/[A-Za-z0-9._~:\/?#\@!\$&()*+,;=%-]/;
-                my @lines = <STDIN>; chomp @lines; s/\s+$// for @lines;
+
+                # Strip escapes; keep hyperlinks as [start, url, end] columns.
+                my (@lines, @links);
+                while (my $raw = <STDIN>) {
+                    chomp $raw;
+                    my $txt = ""; my @lk; my $open = 0;
+                    while ($raw =~ /\G(?:\e\]8;[^;\a\e]*;([^\a\e]*)(?:\a|\e\\)|(\e(?:\[[0-?]*[ -\/]*[@-~]|\][^\a\e]*(?:\a|\e\\)|[()][0-9A-Za-z]|.?))|([^\e]+))/gs) {
+                        if (defined $1) {
+                            my $uri = $1;
+                            $lk[-1][2] = length $txt if $open;
+                            $open = $uri =~ m{^https?://};
+                            push @lk, [length $txt, $uri, undef] if $open;
+                        } elsif (defined $3) {
+                            $txt .= $3;
+                        }
+                    }
+                    $lk[-1][2] = length $txt if $open;
+                    $txt =~ s/\s+$//;
+                    push @lines, $txt; push @links, \@lk;
+                }
                 my $cols = $ENV{COLS} || 200;
 
                 # Wrap column per indent level: the widest line at that gutter
@@ -254,29 +284,36 @@ if [ "$mode" = open ]; then
                     $wrap{$n} = length($l) if length($l) > ($wrap{$n} // 0);
                 }
 
-                my @merged; my $i = 0;
+                my (@merged, @mlinks); my $i = 0;
                 while ($i <= $#lines) {
                     my $buf = $lines[$i]; my $prev = $lines[$i];
+                    my @ml = @{$links[$i]};
                     while ($i < $#lines) {
                         my ($ind) = $prev =~ /^(\s*)/;
                         my $w = $wrap{length($ind)} // 0;
                         last unless length($prev) && length($prev) >= $w - 2;
                         last unless $buf =~ m{https?://$c*$};
-                        (my $cont = $lines[$i+1]) =~ s/^\s+//;
+                        (my $cont = $lines[$i+1]) =~ s/^(\s*)//;
+                        my $shift = length($buf) - length($1);
                         my ($run) = $cont =~ /^($c+)/;
                         last unless defined($run) && length($run) >= 12;
+                        push @ml, map { [$_->[0] + $shift, $_->[1], $_->[2] + $shift] } @{$links[$i+1]};
                         $buf .= $cont; $i++; $prev = $lines[$i];
                     }
-                    push @merged, $buf; $i++;
+                    push @merged, $buf; push @mlinks, \@ml; $i++;
                 }
 
-                for my $l (@merged) {
+                for my $k (0 .. $#merged) {
+                    my $l = $merged[$k]; my @lk = @{$mlinks[$k]};
+                    my @hits = map { [$_->[0], $_->[1]] } @lk;
                     while ($l =~ /(https?:\/\/$c+)|(?<![A-Za-z0-9\@_.\-])((?:[A-Za-z0-9-]+\.)+(?:$ENV{TLD})\b(?::[0-9]+)?(?:\/$c*)?)/g) {
-                        print defined($1) ? "$1\n" : "$2\n";
+                        my $at = $-[0];
+                        (my $u = defined($1) ? $1 : $2) =~ s/[.,;:)]+$//;
+                        push @hits, [$at, $u] unless grep { $at >= $_->[0] && $at < $_->[2] } @lk;
                     }
+                    print "$_->[1]\n" for sort { $a->[0] <=> $b->[0] } @hits;
                 }
             ' \
-            | sed -E 's/[.,;:)]+$//' \
             | sed -E '\#^https?://#!s#^#https://#' \
             | awk '!seen[$0]++ { a[++n]=$0 } END { for (i = n; i >= 1; i--) print a[i] }' \
             | awk -v T="$TAB" '
