@@ -36,6 +36,25 @@
 state="${1:-}"
 
 if [ -n "${TMUX_PANE:-}" ]; then
+    # Codex command hooks pass JSON on stdin, including the current conversation
+    # id even after /resume or /clear. Remember it per pane for tmux-resurrect.
+    # Do this on every event so sessions already open when this script changes
+    # are picked up too. Other callers have a tty or /dev/null as stdin.
+    if [ ! -t 0 ]; then
+        codex_session=$(jq -r '
+            select(.hook_event_name != null)
+            | select((.session_id | type) == "string" and (.cwd | type) == "string")
+            | select(.session_id != "" and .cwd != "")
+            | select(([.session_id, .cwd] | join("") | test("[\\t\\r\\n]")) | not)
+            | [.session_id, .cwd] | join("\t")
+        ' 2>/dev/null) || codex_session=""
+        if [ -n "$codex_session" ]; then
+            tab=$(printf '\t')
+            tmux set-option -pt "$TMUX_PANE" '@codex_session_id' "${codex_session%%"$tab"*}" 2>/dev/null || true
+            tmux set-option -pt "$TMUX_PANE" '@codex_cwd' "${codex_session#*"$tab"}" 2>/dev/null || true
+        fi
+    fi
+
     # Per-pane sentinel: present on disk exactly while this pane's window carries
     # an @agent_state dot. The zsh precmd reaper (dot_zshrc.tmpl) stat-checks it
     # to cheaply decide whether to clear a stale dot when the shell prompt

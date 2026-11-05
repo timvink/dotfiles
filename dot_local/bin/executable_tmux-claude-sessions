@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# tmux-claude-sessions — remember which Claude Code conversation runs in which
-# tmux pane, and reopen them after tmux-resurrect restores the layout.
+# tmux-claude-sessions — remember the Claude Code or Codex conversation in each
+# tmux pane, and reopen it after tmux-resurrect restores the layout.
 #
 #   tmux-claude-sessions save      # resurrect @resurrect-hook-post-save-all
 #   tmux-claude-sessions restore   # resurrect @resurrect-hook-post-restore-all
@@ -10,46 +10,67 @@
 # across /clear and /resume), its cwd, and "tmux": "<session>:@<window>.%<pane>".
 # That file format is Claude Code's own and undocumented; if it changes, save
 # simply finds nothing and restore reopens nothing.
+# Codex's agent-state hooks store session_id and cwd as per-pane tmux options.
+# Save only options on panes still running Codex, since options outlive an exit.
+# Keep the existing command name and Claude state file for older snapshots.
 #
 # Saved per pane as "<session>:<window_index>.<pane_index> TAB <cwd> TAB <id>",
 # because pane ids (%N) do not survive a server restart but resurrect recreates
 # the same session/window/pane indexes.
+# As with resurrect's own TSV, directory names must not contain tabs/newlines.
 set -euo pipefail
 
 state_dir="$HOME/.tmux/resurrect"
 state_file="$state_dir/claude-sessions.tsv"
+codex_state_file="$state_dir/codex-sessions.tsv"
 
 save() {
     mkdir -p "$state_dir"
-    local tmp f pid pane target id cwd
+    local tmp f pid pane target id cwd cmd
     tmp=$(mktemp "$state_dir/.claude-sessions.XXXXXX")
     for f in "$HOME"/.claude/sessions/*.json; do
         [ -e "$f" ] || continue
         IFS=$'\t' read -r pid pane id cwd < <(jq -r \
             'select(.kind == "interactive" and (.tmux // "") != "")
-             | [.pid, (.tmux | sub("^.*\\."; "")), .sessionId, .cwd] | @tsv' "$f") || continue
+             | select(([.sessionId, .cwd] | join("") | test("[\\t\\r\\n]")) | not)
+             | [.pid, (.tmux | sub("^.*\\."; "")), .sessionId, .cwd] | join("\t")' "$f") || continue
         # Stale files outlive crashed processes; only live ones count.
         kill -0 "$pid" 2>/dev/null || continue
         target=$(tmux display-message -p -t "$pane" '#{session_name}:#{window_index}.#{pane_index}' 2>/dev/null) || continue
         printf '%s\t%s\t%s\n' "$target" "$cwd" "$id" >> "$tmp"
     done
     mv "$tmp" "$state_file"
+
+    tmp=$(mktemp "$state_dir/.codex-sessions.XXXXXX")
+    while IFS=$'\t' read -r target cmd id cwd; do
+        case "$cmd" in codex|codex-*) ;; *) continue ;; esac
+        [ -n "$id" ] && [ -n "$cwd" ] || continue
+        printf '%s\t%s\t%s\n' "$target" "$cwd" "$id" >> "$tmp"
+    done < <(tmux list-panes -a -F $'#{session_name}:#{window_index}.#{pane_index}\t#{pane_current_command}\t#{@codex_session_id}\t#{@codex_cwd}')
+    mv "$tmp" "$codex_state_file"
 }
 
 restore() {
-    [ -s "$state_file" ] || return 0
-    local target cwd id cmd
+    local file="$1" agent="$2"
+    [ -s "$file" ] || return 0
+    local target cwd id cmd resume
     while IFS=$'\t' read -r target cwd id; do
+        [ -n "$cwd" ] && [ -n "$id" ] || continue
         cmd=$(tmux display-message -p -t "$target" '#{pane_current_command}' 2>/dev/null) || continue
-        # Only type into a bare shell: a manual prefix+Ctrl-r while Claude is
+        # Only type into a bare shell: a manual prefix+Ctrl-r while an agent is
         # already running there must not inject a command into the conversation.
         case "$cmd" in bash|zsh|fish|sh|-bash|-zsh) ;; *) continue ;; esac
-        tmux send-keys -t "$target" "cd $(printf '%q' "$cwd") && claude --resume $id" Enter
-    done < "$state_file"
+        case "$agent" in
+            claude) resume="claude --resume $(printf '%q' "$id")" ;;
+            codex) resume="codex resume $(printf '%q' "$id")" ;;
+        esac
+        tmux send-keys -t "$target" -l "cd $(printf '%q' "$cwd") && $resume"
+        tmux send-keys -t "$target" Enter
+    done < "$file"
 }
 
 case "${1:-}" in
     save) save ;;
-    restore) restore ;;
+    restore) restore "$state_file" claude; restore "$codex_state_file" codex ;;
     *) echo "usage: ${0##*/} save|restore" >&2; exit 2 ;;
 esac
