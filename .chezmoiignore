@@ -65,6 +65,11 @@ Library/LaunchAgents/com.timvink.browser-history-push.plist
 Library/LaunchAgents/com.timvink.youtube-history.plist
 .chezmoiscripts/load-youtube-history-agent_darwin.sh
 {{ end }}
+# Obsidian vault settings (Cmd+K search, newest-first sort). Only where the
+# vault exists, so chezmoi never creates a stray ~/Obsidian on other machines.
+{{ if not (stat (joinPath .chezmoi.homeDir "Obsidian/vault/.obsidian")) }}
+Obsidian
+{{ end }}
 {{ if not (dig "includeDesktop" false .) }}
 private_dot_pi
 .chezmoiscripts/setup_pi-packages.sh

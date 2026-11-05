@@ -1,0 +1,28 @@
+#!/bin/sh
+# Cmd+K opens full-text search ("Search: Search in all files"), like a
+# command-K search box elsewhere. Search sorts newest-modified first via
+# modify_workspace.json, so `weekly` lists the latest weekly notes on top.
+#
+# A custom entry replaces a command's defaults, so search keeps its stock
+# Cmd+Shift+F too. Cmd+K is Obsidian's default for "Insert Markdown link";
+# that command is unbound here so the two don't conflict.
+#
+# Obsidian reloads hotkeys.json when it changes on disk, so an apply takes
+# effect without a restart. Hotkeys set in the Obsidian UI are preserved.
+# Syncthing syncs this file to other devices with the vault.
+#
+# This is a chezmoi modify_ script: stdin = current target content, stdout
+# = new content. Idempotent.
+
+set -eu
+
+input=$(cat)
+[ -z "$input" ] && input='{}'
+
+printf '%s\n' "$input" | jq --indent 2 '
+  .["global-search:open"] = [
+    {"modifiers": ["Mod"], "key": "K"},
+    {"modifiers": ["Mod", "Shift"], "key": "F"}
+  ]
+  | .["editor:insert-link"] = []
+'

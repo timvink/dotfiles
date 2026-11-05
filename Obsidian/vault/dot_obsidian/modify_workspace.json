@@ -1,0 +1,30 @@
+#!/bin/sh
+# Sort full-text search results by "Modified time (new to old)" instead of the
+# default "File name (A to Z)". Pairs with the Cmd+K binding in
+# modify_hotkeys.json.
+#
+# Obsidian stores this sort order only in the search leaf's view state in
+# workspace.json; no setting or plugin data file holds it. "byModifiedTime" is
+# Obsidian's key for new-to-old (checked in Obsidian 1.15's app.js).
+#
+# Obsidian reads workspace.json only at startup and rewrites it from memory
+# on every layout change, so an apply while Obsidian runs is overwritten.
+# Quit Obsidian, apply, then start it. After it starts with this sort order,
+# Obsidian keeps it.
+#
+# Syncthing ignores workspace.json (see the vault's .stignore), so each
+# machine needs its own apply. With no workspace.json yet, output stays empty
+# and chezmoi creates nothing; Obsidian writes its default on first launch.
+#
+# This is a chezmoi modify_ script: stdin = current target content, stdout
+# = new content. Idempotent.
+
+set -eu
+
+input=$(cat)
+[ -z "$input" ] && exit 0
+
+printf '%s\n' "$input" | jq --indent 2 '
+  (.. | objects | select(.type? == "search" and (.state | type) == "object")
+    | .state.sortOrder) = "byModifiedTime"
+'
