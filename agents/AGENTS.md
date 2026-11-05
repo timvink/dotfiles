@@ -19,6 +19,14 @@ Use consistent domain vocabulary and searchable names. Document constraints the
 code cannot express, such as units, timezones, and ownership. Avoid renaming or
 splitting existing code solely to satisfy a naming preference.
 
+Use subagents whenever they help: parallel independent work, broad searches,
+or keeping file dumps out of the main context.
+
+Get a second opinion from another model when the work is critical or important,
+or when you are unsure of your result. Claude asks Codex (`codex exec`); Codex
+asks Claude (`claude -p`). Give it the code or diff and the goal, not your
+conclusion, and weigh its findings rather than accepting them wholesale.
+
 Commit your completed changes before ending a task. Do not leave work you made
 uncommitted unless the user asks you to or a blocker prevents the commit; explain
 any remaining uncommitted changes.
