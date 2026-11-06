@@ -38,9 +38,5 @@ Ported:
   diffs, rerere, sorting. Mine on top: diff-so-fancy pager, global gitignore,
   log format, gh as GitHub credential helper. Pull rebases and new repos
   start on main, on every machine now. No core.editor: git uses $EDITOR.
-
-## To do before the Omarchy migration is finished
-
-- Commit signing on Omarchy: key 43DDD099D7D191BE made and signing on;
-  upload it to GitHub (`gh auth refresh -s write:gpg_key`, then
-  `gh gpg-key add`) so commits show as Verified.
+- Commit signing: this laptop has its own GPG key (43DDD099D7D191BE), on
+  GitHub as "Omarchy laptop (legion-timvink)".
