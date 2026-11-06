@@ -1,0 +1,23 @@
+{{- /*
+  Which kind of machine this is, detected from facts rather than prompted, so it
+  can't be answered wrong and never goes stale:
+    mac      my Macs (daily drivers)
+    omarchy  Omarchy laptops (Arch + Hyprland desktop; ID=omarchy in os-release)
+    server   every other Linux box: work devbox, homelab, throwaway VMs. Headless
+             and reached over SSH from the Mac, which is why the xdg-open shim,
+             $BROWSER and ssh-pty-resize belong here.
+  Anything else (windows) falls through as its OS name.
+
+  A partial instead of a value in chezmoi.toml so a machine that hasn't re-run
+  `chezmoi init` still gets the right answer. Use it as:
+    {{- $machine := includeTemplate "machine" . -}}
+*/ -}}
+{{- if eq .chezmoi.os "darwin" -}}
+mac
+{{- else if eq (dig "osRelease" "id" "" .chezmoi) "omarchy" -}}
+omarchy
+{{- else if eq .chezmoi.os "linux" -}}
+server
+{{- else -}}
+{{ .chezmoi.os }}
+{{- end -}}
