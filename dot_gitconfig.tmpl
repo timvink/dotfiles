@@ -6,7 +6,14 @@
 [user]
 	name = Tim Vink
 	email = vinktim@proton.me
+{{- $machine := includeTemplate "machine" . }}
+{{- if eq $machine "mac" }}
 	signingkey = 4CDBF86004E5D790
+{{- else if eq $machine "omarchy" }}
+	# This laptop's own key (ed25519, made 2026-11-06), uploaded to GitHub with
+	# `gh gpg-key add`. Key ids are public; the secret key stays in ~/.gnupg.
+	signingkey = 43DDD099D7D191BE
+{{- end }}
 
 [push]
 	autoSetupRemote = true
@@ -41,7 +48,7 @@
 	sslCAInfo = /opt/homebrew/etc/ca-certificates/cert.pem
 {{- end }}
 
-{{ if eq .chezmoi.os "darwin" -}}
+{{ if or (eq $machine "mac") (eq $machine "omarchy") -}}
 [commit]
 	gpgsign = true
 {{- end }}

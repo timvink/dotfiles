@@ -41,6 +41,6 @@ Ported:
 
 ## To do before the Omarchy migration is finished
 
-- Commit signing on Omarchy: generate a GPG key for this laptop, add it to
-  GitHub (after the gh CLI is set up), and set signingkey/gpgsign for
-  Omarchy. Today only the Mac signs; its key id in .gitconfig is public info.
+- Commit signing on Omarchy: key 43DDD099D7D191BE made and signing on;
+  upload it to GitHub (`gh auth refresh -s write:gpg_key`, then
+  `gh gpg-key add`) so commits show as Verified.
