@@ -28,6 +28,87 @@ fi
 if omarchy-cmd-missing firefox; then
     omarchy install browser firefox
 fi
+
+# Browser policy, for Firefox, Chromium and Chrome alike:
+#   - Bitwarden installed, plus Vimium in Firefox. Firefox fetches from AMO,
+#     the Chromium family from the Chrome Web Store, on next start, and keeps
+#     them updated. normal_installed: can be disabled, not removed.
+#   - Bitwarden pointed at my Vaultwarden (private machines only), through the
+#     extension's managed storage ("3rdparty" policy). It applies to a
+#     logged-out extension; one already logged in keeps its own server.
+#   - The browsers' own password managers and autofill prompts off: Bitwarden
+#     does that job. Same as user.js on the Mac (setup_firefox_darwin.sh).
+# Omarchy already manages these browsers by policy, so this adds no "managed
+# by your organization" banner that wasn't there.
+#
+# Firefox reads a single policies.json, which `omarchy install browser firefox`
+# writes; merge into it, keeping Omarchy's keys. Re-running that installer
+# rewrites the file, which `chezmoi apply` won't notice: then re-run this
+# script with `chezmoi state delete-bucket --bucket=scriptState` and apply.
+# The Chromium family reads every file in its managed-policy dir, so mine sits
+# beside Omarchy's omarchy.json (Omarchy only purges files not owned by root).
+BITWARDEN_FIREFOX='{446900e4-71c2-419f-a6a7-df9c091e268b}'
+BITWARDEN_CHROME=nngceckbapebfimnlniiiahkandclblb
+VIMIUM_FIREFOX='{d7742d87-e61d-4b78-b8a1-b469842139fa}'
+{{- if dig "includePrivate" false . }}
+VAULT_URL=https://vault.home.timvink.nl  # same server as rbw (.chezmoitemplates/rbw-config.json)
+{{- else }}
+VAULT_URL=
+{{- end }}
+
+install_if_changed() {  # <new file> <target>: root-owned 0644, only when it differs
+    if ! cmp -s "$1" "$2"; then
+        sudo install -D -m 644 -o root -g root -T "$1" "$2"
+    fi
+    rm -f "$1"
+}
+
+ff_policies=/usr/lib/firefox/distribution/policies.json
+ff_merged=$(mktemp)
+jq --arg bw "$BITWARDEN_FIREFOX" --arg vim "$VIMIUM_FIREFOX" --arg vault "$VAULT_URL" '
+    .policies.ExtensionSettings += {
+        ($bw): {
+            installation_mode: "normal_installed",
+            install_url: "https://addons.mozilla.org/firefox/downloads/latest/bitwarden-password-manager/latest.xpi"
+        },
+        ($vim): {
+            installation_mode: "normal_installed",
+            install_url: "https://addons.mozilla.org/firefox/downloads/latest/vimium-ff/latest.xpi"
+        }
+    }
+    | .policies.PasswordManagerEnabled = false
+    | .policies.OfferToSaveLogins = false
+    | .policies.AutofillAddressEnabled = false
+    | .policies.AutofillCreditCardEnabled = false
+    | if $vault != "" then .policies["3rdparty"].Extensions[$bw].environment.base = $vault else . end
+' "$ff_policies" > "$ff_merged"
+install_if_changed "$ff_merged" "$ff_policies"
+
+chromium_policy=$(mktemp)
+jq -n --arg bw "$BITWARDEN_CHROME" --arg vault "$VAULT_URL" '
+    {
+        ExtensionSettings: {
+            ($bw): {
+                installation_mode: "normal_installed",
+                update_url: "https://clients2.google.com/service/update2/crx"
+            }
+        },
+        PasswordManagerEnabled: false,
+        AutofillAddressEnabled: false,
+        AutofillCreditCardEnabled: false
+    }
+    | if $vault != "" then .["3rdparty"].extensions[$bw].environment.base = $vault else . end
+' > "$chromium_policy"
+for dir in /etc/chromium/policies/managed /etc/opt/chrome/policies/managed; do
+    [ -d "$dir" ] || continue  # browser not installed
+    cp "$chromium_policy" "$chromium_policy.copy"
+    install_if_changed "$chromium_policy.copy" "$dir/chezmoi.json"
+done
+rm -f "$chromium_policy"
+# The previous setup installed Bitwarden into Chrome through an external-
+# extensions file; the policy above replaces it.
+sudo rm -f /usr/share/google-chrome/extensions/$BITWARDEN_CHROME.json
+
 if [ "$(omarchy default browser)" != "firefox" ]; then
     # Its last step is a desktop notification, which fails when the Omarchy
     # shell doesn't answer; judge success by the default it reads back instead.

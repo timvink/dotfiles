@@ -23,7 +23,9 @@ to cherry-pick from. Its changes to this laptop were reset to stock on
 Ported:
 
 - Terminal: Ghostty, not Omarchy's default (tabs). Stock Omarchy config.
-- Browsers: Chromium (Omarchy's) and Firefox, Firefox as default.
+- Browsers: Chromium (Omarchy's) and Firefox, Firefox as default. By policy:
+  Bitwarden (pointed at my Vaultwarden) everywhere, Vimium in Firefox, and
+  the browsers' own password managers and autofill off.
 - Keyboard (built-in only, keyd): Caps tap = Esc, hold 200 ms = Hyper,
   matching Karabiner on the Mac. No Compose key on the built-in keyboard.
 - Netbird mesh VPN (private machines), no Tailscale.
