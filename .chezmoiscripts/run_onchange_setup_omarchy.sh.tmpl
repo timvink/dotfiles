@@ -29,7 +29,10 @@ if omarchy-cmd-missing firefox; then
     omarchy install browser firefox
 fi
 if [ "$(omarchy default browser)" != "firefox" ]; then
-    omarchy default browser firefox
+    # Its last step is a desktop notification, which fails when the Omarchy
+    # shell doesn't answer; judge success by the default it reads back instead.
+    omarchy default browser firefox || true
+    [ "$(omarchy default browser)" = "firefox" ]
 fi
 
 # keyd, on this laptop's built-in keyboard only: Caps tap = Esc, hold = Hyper.
