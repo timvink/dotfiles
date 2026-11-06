@@ -2,11 +2,14 @@
 //   j/k  down/up            h  collapse / go to parent
 //   l    open file, or expand folder / go to first child
 //   gg/G first/last item    r  rename      /  filter tree (same as Cmd+F)
+//   a    new note           A  new folder
+//        (inside the focused folder, or beside the focused file, as Neo-tree)
 //
 // Own plugin instead of a community one, to keep third-party code out of
 // the vault. Uses undocumented internals checked against Obsidian 1.15.0:
 // view.tree.{scope, focusedItem, root, changeFocusedItem, onKeyArrow*,
-// onKeyOpen, handleRenameFocusedItem} and view.showSearch(). If an Obsidian
+// onKeyOpen, handleRenameFocusedItem}, view.showSearch() and
+// view.createAbstractFile(). If an Obsidian
 // update breaks a key, check those names in the app bundle first.
 //
 // Keys are registered on the tree's own Scope, so they only fire while the
@@ -57,6 +60,13 @@ module.exports = class ExplorerVimKeys extends Plugin {
       tree.focusedItem = tree.root;
       tree.changeFocusedItem(direction);
     };
+    // Neo-tree semantics: on a folder, create inside it; on a file, beside it.
+    const targetFolder = () => {
+      const item = tree.focusedItem;
+      const file = item && item !== tree.root ? item.file : null;
+      if (file instanceof TFolder) return file;
+      return (file && file.parent) || this.app.vault.getRoot();
+    };
     const keys = [
       [[], "j", (e) => tree.onKeyArrowDown(e)],
       [[], "k", (e) => tree.onKeyArrowUp(e)],
@@ -78,6 +88,10 @@ module.exports = class ExplorerVimKeys extends Plugin {
       [["Shift"], "G", () => jumpTo("backwards")],
       [[], "r", (e) => tree.handleRenameFocusedItem && tree.handleRenameFocusedItem(e)],
       [[], "/", () => view.showSearch(false)],
+      // New note opens with its title selected for naming; a new folder
+      // starts an inline rename in the tree, as Obsidian's own buttons do.
+      [[], "a", () => view.createAbstractFile("file", targetFolder())],
+      [["Shift"], "A", () => view.createAbstractFile("folder", targetFolder())],
     ];
     return keys.map(([mods, key, fn]) =>
       tree.scope.register(mods, key, (e) => {

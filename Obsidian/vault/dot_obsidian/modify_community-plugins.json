@@ -2,7 +2,7 @@
 # Enable the plugins this repo installs:
 # - obsidian-vimrc-support loads the vault's .obsidian.vimrc so Vim keymaps
 #   (Space chords) persist. Its files come from .chezmoiexternal.toml.
-# - explorer-vim-keys (own plugin, dot_obsidian/plugins/) adds hjkl, gg/G, r
+# - explorer-vim-keys (own plugin, dot_obsidian/plugins/) adds hjkl, gg/G, r, a/A
 #   and / to the File explorer.
 #
 # Appends each id only if missing, keeping plugins enabled in the Obsidian UI
