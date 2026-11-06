@@ -4,6 +4,7 @@
 # CLAUDE.md, so the CLAUDE.md symlink that used to sit beside it is gone.
 README.md
 AGENTS.md
+DECISIONS.md
 
 # Python bytecode caches. tmux-overview is a python script, so running it from
 # the source dir drops a __pycache__ next to it; chezmoi would then treat that
@@ -109,12 +110,14 @@ remove-devbox-browser-cruft_linux.sh
 .local/bin/ssh-pty-resize
 .config/rbw/config.json
 {{ end }}
-# Omarchy (Arch, ID=omarchy in os-release) is linux, but the linux package
-# scripts are apt-based and would abort `chezmoi apply` there; it gets its own
-# pacman/omarchy setup in .chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl.
-# The devbox cruft only exists on the work VM image.
-{{ if eq (dig "osRelease" "id" "" .chezmoi) "omarchy" }}
-setup_packages_linux.sh
-setup_private_packages_linux.sh
-remove-devbox-browser-cruft_linux.sh
+# Omarchy: allow-list. I'm migrating to Omarchy one piece at a time and keep
+# it as close to stock as possible, so on Omarchy everything in this repo is
+# ignored except what is listed below. Porting something means adding its
+# target paths here (and every parent directory, because an ignored directory
+# hides its children), with the reason in DECISIONS.md. This also keeps the
+# apt-based *_linux.sh scripts, which would fail on Arch, off Omarchy.
+# Omarchy's own setup lives in .chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl.
+{{ if eq (includeTemplate "machine" .) "omarchy" }}
+**
+!.chezmoiscripts/setup_omarchy.sh
 {{ end }}
