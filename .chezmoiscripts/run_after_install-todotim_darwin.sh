@@ -25,27 +25,31 @@ warn() { echo "install-todotim: $*" >&2; }
 gh_ready=0
 if command -v gh >/dev/null 2>&1 && gh auth status >/dev/null 2>&1; then gh_ready=1; fi
 
-# Latest release tag and zip URL. gh when it is logged in, the public API otherwise.
+# The newest macOS release: the repository also has Android (android-v…) and Omarchy (linux-v…) releases,
+# so "latest" may be another app's. Releases come newest first. gh when it is logged in, the public API
+# otherwise; both return the REST JSON.
+releases_path="repos/$repo/releases?per_page=30"
 if [ "$gh_ready" -eq 1 ]; then
-	release=$(gh release view -R "$repo" --json tagName,assets 2>/dev/null) || release=""
+	releases=$(gh api "$releases_path" 2>/dev/null) || releases=""
 else
-	release=$(curl -fsSL --max-time 20 -H "Accept: application/vnd.github+json" \
-		"https://api.github.com/repos/$repo/releases/latest" 2>/dev/null) || release=""
+	releases=$(curl -fsSL --max-time 20 -H "Accept: application/vnd.github+json" \
+		"https://api.github.com/$releases_path" 2>/dev/null) || releases=""
 fi
-if [ -z "$release" ]; then
+if [ -z "$releases" ]; then
 	warn "could not look up the latest release (offline?); keeping the installed version"
 	exit 0
 fi
-# gh calls the fields tagName and url (the download URL); the REST API tag_name and browser_download_url.
-tag=$(printf '%s' "$release" | jq -r '.tagName // .tag_name // empty')
-asset="TodoTim-$tag.zip"
+release=$(printf '%s' "$releases" | jq -c \
+	'first(.[] | select((.draft or .prerelease | not) and (.tag_name | startswith("macos-v")))) // empty')
+tag=$(printf '%s' "$release" | jq -r '.tag_name // empty')
+version=${tag#macos-v}
+asset="TodoTim-macOS-$version.zip"
 url=$(printf '%s' "$release" | jq -r --arg name "$asset" \
-	'first(.assets[] | select(.name == $name) | .browser_download_url // .url) // empty')
+	'first(.assets[] | select(.name == $name) | .browser_download_url) // empty')
 if [ -z "$tag" ] || [ -z "$url" ]; then
-	warn "latest release has no $asset asset; keeping the installed version"
+	warn "no macOS release with a $asset asset found; keeping the installed version"
 	exit 0
 fi
-version=${tag#v}
 
 installed=""
 if [ -f "$app/Contents/Info.plist" ]; then
