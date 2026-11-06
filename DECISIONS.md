@@ -27,3 +27,7 @@ Ported:
 - Keyboard (built-in only, keyd): Caps tap = Esc, hold 200 ms = Hyper,
   matching Karabiner on the Mac. No Compose key on the built-in keyboard.
 - Netbird mesh VPN (private machines), no Tailscale.
+- Agent config: shared AGENTS.md and skills, Claude/Codex/pi settings, MCP
+  servers. Omarchy keeps its own skills linked beside mine and updates them.
+  Codex uses my ChatGPT subscription; Azure is for the work devbox only.
+  Hooks that drive the tmux agent dots wait for the tmux port.

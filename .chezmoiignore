@@ -120,4 +120,34 @@ remove-devbox-browser-cruft_linux.sh
 {{ if eq (includeTemplate "machine" .) "omarchy" }}
 **
 !.chezmoiscripts/setup_omarchy.sh
+
+# Agent config: shared AGENTS.md, skills links, Claude/Codex/pi settings, MCP
+# servers. Omarchy links its own skills (omarchy, omarchy-app, diagnose-crash)
+# into the same skills dirs and keeps them updated; the link script leaves
+# them alone. Left out until tmux is ported, because they call the tmux agent-
+# status scripts: Codex's hooks.json and pi's extensions.
+!.chezmoiscripts/link-agents-skills.sh
+!.chezmoiscripts/setup-claude-mcp.sh
+!.chezmoiscripts/setup_pi-packages.sh
+!.claude
+!.claude/CLAUDE.md
+!.claude/README.md
+!.claude/settings.json
+!.claude/statusline-command.sh
+!.claude/commands
+!.claude/commands/**
+!.claude/rules
+!.claude/rules/**
+!.claude/simple-english
+!.claude/simple-english/**
+!.codex
+!.codex/AGENTS.md
+!.codex/config.toml
+!.codex/sol.config.toml
+!.codex/luna.config.toml
+!.pi
+!.pi/agent
+!.pi/agent/AGENTS.md
+!.pi/agent/settings.json
+!.pi/agent/keybindings.json
 {{ end }}
