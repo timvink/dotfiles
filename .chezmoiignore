@@ -150,4 +150,9 @@ remove-devbox-browser-cruft_linux.sh
 !.pi/agent/AGENTS.md
 !.pi/agent/settings.json
 !.pi/agent/keybindings.json
+
+# Git: layered over Omarchy's ~/.config/git/config, which git reads first, so
+# Omarchy's settings stay unless ~/.gitconfig sets the same key.
+!.gitconfig
+!.gitignore-global
 {{ end }}

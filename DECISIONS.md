@@ -33,3 +33,14 @@ Ported:
   servers. Omarchy keeps its own skills linked beside mine and updates them.
   Codex uses my ChatGPT subscription; Azure is for the work devbox only.
   Hooks that drive the tmux agent dots wait for the tmux port.
+- Git: my ~/.gitconfig over Omarchy's ~/.config/git/config (git reads
+  Omarchy's first; mine wins per key). Kept from Omarchy: aliases, histogram
+  diffs, rerere, sorting. Mine on top: diff-so-fancy pager, global gitignore,
+  log format, gh as GitHub credential helper. Pull rebases and new repos
+  start on main, on every machine now. No core.editor: git uses $EDITOR.
+
+## To do before the Omarchy migration is finished
+
+- Commit signing on Omarchy: generate a GPG key for this laptop, add it to
+  GitHub (after the gh CLI is set up), and set signingkey/gpgsign for
+  Omarchy. Today only the Mac signs; its key id in .gitconfig is public info.

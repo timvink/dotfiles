@@ -107,7 +107,8 @@ done
 rm -f "$chromium_policy"
 # The previous setup installed Bitwarden into Chrome through an external-
 # extensions file; the policy above replaces it.
-sudo rm -f /usr/share/google-chrome/extensions/$BITWARDEN_CHROME.json
+old_ext=/usr/share/google-chrome/extensions/$BITWARDEN_CHROME.json
+if [ -e "$old_ext" ]; then sudo rm -f "$old_ext"; fi
 
 if [ "$(omarchy default browser)" != "firefox" ]; then
     # Its last step is a desktop notification, which fails when the Omarchy
@@ -115,6 +116,10 @@ if [ "$(omarchy default browser)" != "firefox" ]; then
     omarchy default browser firefox || true
     [ "$(omarchy default browser)" = "firefox" ]
 fi
+
+# CLI tools my config expects that Omarchy doesn't ship: diff-so-fancy, the
+# git pager in ~/.gitconfig.
+omarchy pkg add diff-so-fancy
 
 # keyd, on this laptop's built-in keyboard only: Caps tap = Esc, hold = Hyper.
 # The Mac does the same in Karabiner and the Voyager in firmware; external

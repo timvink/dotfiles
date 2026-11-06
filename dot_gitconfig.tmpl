@@ -1,6 +1,6 @@
+# No core.editor: git falls back to $EDITOR, so the editor is set in one place.
 [core]
 	excludesfile = ~/.gitignore-global
-	editor = "nvim"
 	pager = diff-so-fancy | less --tabs=4 -RF
 
 [user]
@@ -11,8 +11,13 @@
 [push]
 	autoSetupRemote = true
 
+# Same as Omarchy's ~/.config/git/config, which git reads before this file:
+# rebase local commits onto the remote instead of merging. New repos on main.
 [pull]
-	rebase = false
+	rebase = true
+
+[init]
+	defaultBranch = main
 
 [format]
 	pretty = format:%C(auto)%h %d%Creset %s%n%Cgreen%ad%Creset %aN <%aE>%n
