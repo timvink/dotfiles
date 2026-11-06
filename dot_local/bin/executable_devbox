@@ -28,6 +28,9 @@
 . "$HOME/.local/lib/remote-session.sh"
 
 DEVBOX_SOCK="$HOME/.ssh/cm-devbox.sock"
+# Pin the ID: the infra subscription was renamed and has a near-identical sibling.
+DEVBOX_AZ_ARGS=(--subscription 360f09a6-54d6-4cf7-b07b-cff51f409044
+  -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors)
 
 # Resolve "<user> <host>" for the live devbox connection without hardcoding the
 # VM's public IP (it changes across deallocations): parse it off the `ssh <ip> -l
@@ -122,6 +125,34 @@ _devbox_session_end() {
   _revumount_devbox
 }
 
+# The VM deallocates itself when idle. Start it before az ssh resolves its public IP;
+# let an in-flight shutdown finish first, and do not duplicate an in-flight start.
+_devbox_ensure_running() {
+  local state
+  state="$(az vm get-instance-view "${DEVBOX_AZ_ARGS[@]}" \
+    --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code | [0]" -o tsv)" || return 1
+  case "$state" in
+    PowerState/running) return 0 ;;
+    PowerState/stopping|PowerState/deallocating)
+      printf '%s\n' "devbox: waiting for the VM to finish shutting down…" >&2
+      az vm wait "${DEVBOX_AZ_ARGS[@]}" --interval 5 --timeout 300 \
+        --custom "instanceView.statuses[?code=='PowerState/stopped' || code=='PowerState/deallocated']" || return 1
+      ;;
+    PowerState/stopped|PowerState/deallocated|PowerState/starting) ;;
+    *)
+      printf '%s\n' "devbox: couldn't determine a usable VM power state (${state:-unknown})" >&2
+      return 1
+      ;;
+  esac
+  if [ "$state" != PowerState/starting ]; then
+    printf '%s\n' "devbox: starting the VM…" >&2
+    az vm start "${DEVBOX_AZ_ARGS[@]}" -o none || return 1
+  fi
+  printf '%s\n' "devbox: waiting for the VM to be running…" >&2
+  az vm wait "${DEVBOX_AZ_ARGS[@]}" --interval 5 --timeout 300 \
+    --custom "instanceView.statuses[?code=='PowerState/running']"
+}
+
 # Bring up the shared master unless one is already running, and leave it in the background
 # for the next devbox to reuse — ControlPersist keeps it ~30m after the last client leaves,
 # so a reconnect within that window costs nothing and needs no az round trip at all.
@@ -130,6 +161,7 @@ _devbox_ensure_master() {
   local sock="$DEVBOX_SOCK" log rc=0 i
   # _ssh_drop_dead_master ran first, so a socket still here has answered a round trip.
   [ -S "$sock" ] && return 0
+  _devbox_ensure_running || return 1
   log="$(mktemp "${TMPDIR:-/tmp}/devbox-master.XXXXXX" 2>/dev/null)"
   [ -n "$log" ] || log="${TMPDIR:-/tmp}/devbox-master.$$"
   printf '%s\n' "devbox: opening a connection…" >&2
@@ -167,7 +199,7 @@ _devbox_ensure_master() {
   # there for the full persist window looking healthy, and it is exactly what the next
   # devbox rides into a hang — see _ssh_drop_dead_master, which cleans up the ones that
   # slip through this ~60s window. A blip shorter than that rides through untouched.
-  ( az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
+  ( az ssh vm "${DEVBOX_AZ_ARGS[@]}" -- \
       -N -f -D 1080 -R 2489:127.0.0.1:2489 \
       -L 127.0.0.1:18080:127.0.0.1:18080 \
       -L 127.0.0.1:43127:127.0.0.1:43127 \
@@ -232,7 +264,7 @@ _devbox_reclaim_fwd() {
   # The ssh that az spawns for a master carries the forward spec in its args; the [s]
   # keeps grep from matching itself.
   ps -Ao args 2>/dev/null | grep -qE '^([^ ]*/)?[s]sh .*-R 2489:127\.0\.0\.1:2489' && local_live=1
-  out="$(az ssh vm -n vm-devbox-tim-vink -g rg-nwf-devbox-tim-vink --only-show-errors -- \
+  out="$(az ssh vm "${DEVBOX_AZ_ARGS[@]}" -- \
     -T -o BatchMode=yes -o ConnectTimeout=10 "local_live=$local_live"'
       port=2489
       me=${SSH_CLIENT%% *}
