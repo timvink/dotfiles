@@ -15,6 +15,10 @@ source "$OMARCHY_PATH/default/bash/rc"
 # My aliases and functions (dot_bash_aliases.tmpl), after Omarchy's so mine
 # win where both define a name.
 [ -f ~/.bash_aliases ] && source ~/.bash_aliases
+
+# Rust (rustup, installed by `omarchy install dev-env rust`), declared here
+# because rustup's installer appends this line and chezmoi owns the file.
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 {{- else -}}
 # Fall back to xterm-256color if the terminfo entry for $TERM is missing.
 # Happens when SSH-ing in from ghostty to a host without the xterm-ghostty entry.

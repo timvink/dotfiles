@@ -242,8 +242,6 @@ cca() {
     )
 }
 
-{{ if ne $machine "omarchy" -}}
-# Not on Omarchy yet: needs the rbw vault config (ssh/rbw port).
 # pi (the Earendil coding agent) against my OpenRouter credits. pi takes the key
 # from OPENROUTER_API_KEY or from ~/.pi/agent/auth.json, and both leave it lying
 # around in plaintext — in the environment of every process pi spawns, or on
@@ -263,7 +261,6 @@ pi() {
     fi
     OPENROUTER_API_KEY="$key" command pi "$@"
 }
-{{- end }}
 
 ## Home server
 # `homelab` and `devbox` (SSH sessions with an image-paste window marker and a

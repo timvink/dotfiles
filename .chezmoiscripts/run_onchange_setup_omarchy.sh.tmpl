@@ -156,6 +156,28 @@ fi
 rm -f "$keyd_conf"
 {{- if dig "includePrivate" false . }}
 
+# rbw, the Bitwarden CLI for my Vaultwarden (config: .chezmoitemplates/
+# rbw-config.json). Built from the 1.15.0 tag plus a patch, like on the
+# servers (run_onchange_setup_private_packages_linux.sh.tmpl): Vaultwarden
+# 1.37+ rejects `rbw add`/`rbw edit` from stock rbw because it omits the
+# `encryptedFor` field (doy/rbw#385). Drop this for `omarchy pkg add rbw` once
+# doy/rbw#386 is released. Installed into ~/.local/bin, so Arch's stock rbw is
+# removed: /usr/bin comes before ~/.local/bin on Omarchy's PATH. The Rust
+# toolchain comes from Omarchy's own installer (rustup in ~/.cargo).
+rbw_bin=$HOME/.local/bin/rbw
+if [ ! -x "$rbw_bin" ]; then
+    if ! command -v cargo >/dev/null 2>&1 && [ ! -x "$HOME/.cargo/bin/cargo" ]; then
+        omarchy install dev-env rust
+    fi
+    rbw_src=$(mktemp -d)
+    git clone -q --depth 1 --branch 1.15.0 https://github.com/doy/rbw "$rbw_src"
+    git -C "$rbw_src" apply - <<'PATCH'
+{{ include ".chezmoitemplates/rbw-encryptedfor.patch" }}PATCH
+    "$HOME/.cargo/bin/cargo" install --locked --root "$HOME/.local" --path "$rbw_src"
+    rm -rf "$rbw_src"
+fi
+omarchy pkg drop rbw
+
 # Netbird mesh VPN to the homelab (private machines only; I don't use
 # Tailscale). Omarchy has no installer for it, so the AUR package via
 # `omarchy pkg aur add`. netbird-bin's netbird@.service template puts the
