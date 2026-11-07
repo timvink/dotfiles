@@ -110,6 +110,14 @@ remove-devbox-browser-cruft_linux.sh
 .local/bin/ssh-pty-resize
 .config/rbw/config.json
 {{ end }}
+{{ if ne (includeTemplate "machine" .) "omarchy" }}
+# Omarchy-only tmux glue: the theme-set hook that makes tmux follow the Omarchy
+# theme, the script that runs it once on apply, and the ~/.config/tmux/tmux.conf
+# that forwards Omarchy's tools to ~/.tmux.conf.
+.config/omarchy
+.config/tmux
+.chezmoiscripts/setup-tmux-theme.sh
+{{ end }}
 # Omarchy: allow-list. I'm migrating to Omarchy one piece at a time and keep
 # it as close to stock as possible, so on Omarchy everything in this repo is
 # ignored except what is listed below. Porting something means adding its
@@ -124,8 +132,8 @@ remove-devbox-browser-cruft_linux.sh
 # Agent config: shared AGENTS.md, skills links, Claude/Codex/pi settings, MCP
 # servers. Omarchy links its own skills (omarchy, omarchy-app, diagnose-crash)
 # into the same skills dirs and keeps them updated; the link script leaves
-# them alone. Left out until tmux is ported, because they call the tmux agent-
-# status scripts: Codex's hooks.json and pi's extensions.
+# them alone. Codex's hooks.json and pi's extensions drive the tmux agent dots
+# (see the tmux section below).
 !.chezmoiscripts/link-agents-skills.sh
 !.chezmoiscripts/setup-claude-mcp.sh
 !.chezmoiscripts/setup_pi-packages.sh
@@ -145,11 +153,15 @@ remove-devbox-browser-cruft_linux.sh
 !.codex/config.toml
 !.codex/sol.config.toml
 !.codex/luna.config.toml
+!.codex/hooks.json
 !.pi
 !.pi/agent
 !.pi/agent/AGENTS.md
 !.pi/agent/settings.json
 !.pi/agent/keybindings.json
+!.pi/agent/extensions
+!.pi/agent/extensions/agent-dot.ts
+!.pi/agent/extensions/exit.ts
 
 # Git: layered over Omarchy's ~/.config/git/config, which git reads first, so
 # Omarchy's settings stay unless ~/.gitconfig sets the same key.
@@ -160,4 +172,43 @@ remove-devbox-browser-cruft_linux.sh
 # dot_bash_aliases.tmpl for what isn't ported yet).
 !.bashrc
 !.bash_aliases
+
+# tmux: my ~/.tmux.conf replaces Omarchy's ~/.config/tmux/tmux.conf, which
+# becomes a one-line forward to it because Omarchy's tools source that path.
+# Colours follow the Omarchy theme through the theme-set hook, which writes
+# ~/.config/tmux/theme.conf (also run once on apply). Plus the agent-status
+# machinery: tab dots, notes, overview, sessionizer, server port chip, the
+# agent-pty shim for Claude, and the resurrect/continuum plugins.
+!.tmux.conf
+!.tmux
+!.tmux/**
+!.config
+!.config/tmux
+!.config/tmux/tmux.conf
+!.config/omarchy
+!.config/omarchy/hooks
+!.config/omarchy/hooks/theme-set.d
+!.config/omarchy/hooks/theme-set.d/tmux-theme
+!.chezmoiscripts/setup-tmux-theme.sh
+!.chezmoiscripts/build-agent-pty.sh
+!.local
+!.local/bin
+!.local/bin/agent-exit
+!.local/bin/agent-note
+!.local/bin/agent-seen
+!.local/bin/agent-state
+!.local/bin/codex-subagents
+!.local/bin/scrub-exit-prompt
+!.local/bin/server-port-watch
+!.local/bin/server-state
+!.local/bin/tmux-agent-count
+!.local/bin/tmux-claude-sessions
+!.local/bin/tmux-editor-panes
+!.local/bin/tmux-git-branch
+!.local/bin/tmux-overview
+!.local/bin/tmux-pane-close
+!.local/bin/tmux-session-close
+!.local/bin/tmux-session-dots
+!.local/bin/tmux-sessionizer
+!.local/bin/tmux-url-open
 {{ end }}

@@ -57,13 +57,42 @@ e() {
 # Overrides Omarchy's `c` (opencode).
 alias c="clear"
 
+{{ if ne $machine "omarchy" -}}
 # Keep tmux's socket out of /tmp (macOS's periodic cleaner deletes it out from
 # under a running server). The canonical export lives in ~/.zshenv so EVERY zsh
 # — including non-interactive ones that may launch tmux — agrees on the socket;
 # this copy just covers interactive bash, which never reads .zshenv. Keep the
 # two in sync. See dot_zshenv for the full rationale.
+# Not on Omarchy: its theme switch (omarchy-theme-set-tmux, and my tmux-theme
+# hook) and omarchy-restart-tmux run outside any shell and look for the server
+# on the default socket, and no cleaner touches /tmp there.
 export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
 [ -d "$TMUX_TMPDIR" ] || mkdir -p "$TMUX_TMPDIR"
+{{- end }}
+
+# Reap a stale per-tab agent dot when the bash prompt returns: bash's twin of
+# _agent_dot_reap in dot_zshrc.tmpl (see there for why; zsh also sources this
+# file, hence the bash-only guard). Codex has no SessionEnd and a killed agent
+# fires no hook, so their dot would otherwise linger. The sentinel path MUST
+# match executable_agent-state's formula. Appended after starship's precmd and
+# passes $? through, so the prompt still shows the last command's status.
+if [ -n "${BASH_VERSION:-}" ]; then
+    _agent_dot_reap_bash() {
+        local rc=$?
+        if [[ -n ${TMUX_PANE:-} && -e ${TMPDIR:-/tmp}/agent-dot-${TMUX_PANE#%} ]]; then
+            "$HOME/.local/bin/agent-state" none
+        fi
+        return $rc
+    }
+    # A newline joins it on, which also works after a trailing `;`. Where
+    # PROMPT_COMMAND is an array (bash 5.1+, as on Omarchy) this extends its
+    # first element, which runs first.
+    case "${PROMPT_COMMAND:-}" in
+        *_agent_dot_reap_bash*) ;;
+        *) PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND
+}_agent_dot_reap_bash" ;;
+    esac
+fi
 
 # tmux — get me into my persistent dev server. If any session is running, attach
 # to the most-recently-used one (every other session/tab is one prefix+w or
@@ -106,8 +135,6 @@ t() {
     fi
 }
 
-{{ if ne $machine "omarchy" -}}
-# Not on Omarchy yet: needs server-state and server-port-watch (tmux port).
 # Wrap `make` and `just` so serve*/docs* show a green port chip on the tab (next to the
 # agent dot — see dot_tmux.conf) for the lifetime of the foreground server, then
 # clears it on exit. A background server-port-watch sniffs out the listening
@@ -143,7 +170,6 @@ make() {
 just() {
     run_tracked_server just "$@"
 }
-{{- end }}
 
 # LLMs
 #

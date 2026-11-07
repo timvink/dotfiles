@@ -39,7 +39,8 @@ to prop up the signal, which taxes every agent's writing.
 - **Codex** drives it from lifecycle hooks (`dot_codex/private_hooks.json` →
   `agent-state`): SessionStart → none, UserPromptSubmit/PreToolUse/PostToolUse →
   running, PermissionRequest → needs-input, Stop → done. It has no SessionEnd,
-  so the zsh precmd reaper clears the dot when the shell prompt returns. Codex
+  so the shell prompt reaper (zsh precmd, or bash PROMPT_COMMAND on Omarchy)
+  clears the dot when the prompt returns. Codex
   0.162 has no OSC 7501 support; when it ships, it can move behind the shim too.
 - **Antigravity (`agy`)** has no permission/notification hook event, so the dot
   is driven from its **status line** instead (`dot_gemini/antigravity-cli/executable_statusline.sh`),
@@ -241,6 +242,19 @@ State lives in tmux options rather than a dotfile of ours — `@overview_view`,
 one pane its detail column shows (the grid captures every window, every tick), and
 branch lookups are cached per directory for a few seconds, since a branch moves far
 more slowly than the 1s redraw.
+
+## Colours
+
+Every colour comes from `@thm_*` options set at the top of `dot_tmux.conf`
+(Catppuccin Mocha; the table there maps each to an Omarchy colors.toml key).
+Formats use `#{@thm_x}`; style options (`status-style`, `mode-style`, borders,
+`message-style`, `@status_bg`, `@ssh_plug`) are set with `-F`, so they resolve
+at load time. Scripts that emit colour (`tmux-agent-count`, `tmux-git-branch`,
+`tmux-session-dots`, `tmux-sessionizer`, `tmux-url-open`, `tmux-overview`)
+read them with one `tmux display -p` and fall back to the Mocha values. On
+Omarchy the theme-set hook `dot_config/omarchy/hooks/theme-set.d/executable_tmux-theme`
+writes `~/.config/tmux/theme.conf` (sourced right after the defaults) and
+re-sources `~/.tmux.conf`. Never hard-code a hex colour: add a `@thm_*` option.
 
 ## Lid-close sleep guard (macOS)
 

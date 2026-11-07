@@ -89,6 +89,13 @@ ESC=$(printf '\033')
 DIM="$ESC[38;5;245m"
 OFF="$ESC[0m"
 
+# dot_tmux.conf's @thm_* palette (the Omarchy theme may override it), in one
+# tmux call; Catppuccin Mocha for any option that isn't set.
+IFS='|' read -r c_sel c_grey c_accent c_border <<EOF
+$(tmux display-message -p '#{@thm_selection}|#{@thm_fg_dim}|#{@thm_accent}|#{@thm_muted}' 2>/dev/null)
+EOF
+: "${c_sel:=#45475a}" "${c_grey:=#6c7086}" "${c_accent:=#cba6f7}" "${c_border:=#585b70}"
+
 # Escape single quotes so a value is safe inside a single-quoted shell word.
 shquote() { printf '%s' "$1" | sed "s/'/'\\\\''/g"; }
 
@@ -120,7 +127,7 @@ if [ "$mode" = pick ]; then
               --delimiter="$TAB" --with-nth='3..' \
               --header="$hdr" \
               --pointer='▌' --marker=' ' \
-              --color='bg+:#45475a,fg+:-1,hl:-1,hl+:-1,header:#6c7086,pointer:#cba6f7,gutter:-1,border:#585b70' \
+              --color="bg+:$c_sel,fg+:-1,hl:-1,hl+:-1,header:$c_grey,pointer:$c_accent,gutter:-1,border:$c_border" \
               --expect="$expect" \
               --bind="load:pos($startpos)${binds:+,$binds}" \
               < "$rowsfile") || out=""
@@ -478,5 +485,5 @@ ph=$((nrows + 3 + fzf_extra_rows))
 [ "$ph" -gt $((ch - 2)) ] && ph=$((ch - 2))
 
 [ "$mode" = kill ] && title=' kill ' || title=' open '
-tmux display-popup -E -b rounded -S 'fg=#585b70' -T "$title" -w "$pw" -h "$ph" \
+tmux display-popup -E -b rounded -S "fg=$c_border" -T "$title" -w "$pw" -h "$ph" \
     "'$(shquote "$self")' pick '$(shquote "$rowsfile")' '$mode' '$(shquote "$hdr")' '$(shquote "$binds")' '$startpos'"

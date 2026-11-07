@@ -15,9 +15,9 @@
 #     tells `main` in a worktree from `main` in the primary checkout.
 #
 # The marker injects its own #[fg=...] codes; status-right wraps our output in
-# green (#a6e3a1) and tmux re-expands #[...] from #() output, so we switch to
-# peach for the marker and switch back to green after it (see dot_tmux.conf
-# status-right notes).
+# green (@thm_green) and tmux re-expands #[...] from #() output, so we switch to
+# peach (@thm_orange) for the marker and switch back to green after it (see
+# dot_tmux.conf status-right notes). Catppuccin values when the options are unset.
 #
 # Linked-worktree test: in the primary checkout `--git-dir` == `--git-common-dir`;
 # in a linked worktree --git-dir points under <common>/worktrees/<name> while
@@ -41,7 +41,8 @@ fi
 # Fall through to the branch when the worktree name can't be read — a bar with
 # the branch on it beats a bar with nothing on it.
 if [ -n "$wt" ]; then
-  printf ' #[fg=#fab387]⑂ %s#[fg=#a6e3a1]' "$wt"
+  IFS='|' read -r orange green < <(tmux display -p '#{@thm_orange}|#{@thm_green}' 2>/dev/null)
+  printf ' #[fg=%s]⑂ %s#[fg=%s]' "${orange:-#fab387}" "$wt" "${green:-#a6e3a1}"
 else
   printf ' %s' "$b"
 fi

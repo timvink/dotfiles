@@ -26,7 +26,8 @@
 #
 # Emits tmux FORMAT (#[fg=...]), NOT raw ANSI: tmux re-expands #[...] in #()
 # output on the status bar. bg is left untouched so the number sits on whatever
-# bar bg is current (the hostname's @status_bg, before the dots chip's #313244).
+# bar bg is current (the hostname's @status_bg, before the dots chip's surface).
+# Colours are dot_tmux.conf's @thm_blue / @thm_cyan, Catppuccin when unset.
 set -uo pipefail
 
 "$HOME/.local/bin/codex-subagents" 2>/dev/null || true
@@ -48,7 +49,8 @@ read -r n subs < <(
 # Trailing space sits on the bar bg, adding a gap before the dots chip's own
 # leading space — so the number reads as evenly spaced between host and dots.
 if [ "${n:-0}" -gt 0 ]; then
-    printf '#[fg=#89b4fa]%s#[default]' "$n"
-    [ "${subs:-0}" -gt 0 ] && printf '#[fg=#74c7ec]+%s#[default]' "$subs"
+    IFS='|' read -r blue cyan < <(tmux display -p '#{@thm_blue}|#{@thm_cyan}' 2>/dev/null)
+    printf '#[fg=%s]%s#[default]' "${blue:-#89b4fa}" "$n"
+    [ "${subs:-0}" -gt 0 ] && printf '#[fg=%s]+%s#[default]' "${cyan:-#74c7ec}" "$subs"
     printf ' '
 fi

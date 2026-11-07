@@ -62,19 +62,47 @@ ESC = "\033"
 RESET = f"{ESC}[0m"
 BOLD = f"{ESC}[1m"
 
-# Catppuccin Mocha
-MAUVE = (203, 166, 247)
-BLUE = (137, 180, 250)
-RED = (243, 139, 168)
-YELLOW = (249, 226, 175)
-GREEN = (166, 227, 161)
-PEACH = (250, 179, 135)   # worktree marker, and the selection highlight
-SAPPHIRE = (116, 199, 236)  # subagent count, a shade off the blue it hangs from
-DIM = (108, 112, 134)
-SEP = (88, 91, 112)
-INK = (30, 30, 46)
-SNOW = (235, 235, 245)
-SUB = (166, 173, 200)
+# dot_tmux.conf's @thm_* palette, which the Omarchy theme may override, read
+# once at startup in one tmux call. The defaults are Catppuccin Mocha, the same
+# values dot_tmux.conf sets, for when an option is unset or tmux can't be asked.
+# The names are the Catppuccin ones this script was written against.
+_PALETTE = {
+    "MAUVE": ("accent", "#cba6f7"),
+    "BLUE": ("blue", "#89b4fa"),
+    "RED": ("red", "#f38ba8"),
+    "YELLOW": ("yellow", "#f9e2af"),
+    "GREEN": ("green", "#a6e3a1"),
+    "PEACH": ("orange", "#fab387"),     # worktree marker, and the selection highlight
+    "SAPPHIRE": ("cyan", "#74c7ec"),    # subagent count, a shade off the blue it hangs from
+    "DIM": ("fg_dim", "#6c7086"),
+    "SEP": ("muted", "#585b70"),
+    "INK": ("bg", "#1e1e2e"),
+    "SNOW": ("fg_bright", "#ebebf5"),
+    "SUB": ("fg_sub", "#a6adc8"),
+}
+
+
+def _load_palette():
+    names = list(_PALETTE)
+    fmt = "|".join("#{@thm_%s}" % _PALETTE[n][0] for n in names)
+    try:
+        got = subprocess.run(["tmux", "display-message", "-p", fmt], capture_output=True,
+                             text=True, timeout=2).stdout.rstrip("\n").split("|")
+    except (OSError, subprocess.SubprocessError):
+        got = []
+    out = {}
+    for i, n in enumerate(names):
+        h = got[i] if i < len(got) else ""
+        if not re.fullmatch(r"#[0-9a-fA-F]{6}", h):
+            h = _PALETTE[n][1]
+        out[n] = tuple(int(h[j:j + 2], 16) for j in (1, 3, 5))
+    return out
+
+
+_P = _load_palette()
+MAUVE, BLUE, RED, YELLOW, GREEN = _P["MAUVE"], _P["BLUE"], _P["RED"], _P["YELLOW"], _P["GREEN"]
+PEACH, SAPPHIRE, DIM, SEP = _P["PEACH"], _P["SAPPHIRE"], _P["DIM"], _P["SEP"]
+INK, SNOW, SUB = _P["INK"], _P["SNOW"], _P["SUB"]
 
 # done and idle are the same yellow on purpose: same fact about the agent, and
 # only the glyph says whether you have seen it yet (filled ● vs hollow ○).
