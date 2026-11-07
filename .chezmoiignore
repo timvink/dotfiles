@@ -116,6 +116,8 @@ remove-devbox-browser-cruft_linux.sh
 # that forwards Omarchy's tools to ~/.tmux.conf.
 .config/omarchy
 .config/tmux
+.config/hypr
+.local/bin/omarchy-shell-watchdog
 .chezmoiscripts/setup-tmux-theme.sh
 {{ end }}
 # Omarchy: allow-list. I'm migrating to Omarchy one piece at a time and keep
@@ -185,6 +187,11 @@ remove-devbox-browser-cruft_linux.sh
 !.config
 !.config/tmux
 !.config/tmux/tmux.conf
+# Hyprland: ~/.config/hypr is mine to edit (Omarchy manual, "Dotfiles");
+# managed files hold the stock content plus my lines.
+!.config/hypr
+!.config/hypr/autostart.lua
+!.local/bin/omarchy-shell-watchdog
 # Vault and SSH (private machines; the files themselves are gated on
 # includePrivate above). The ssh config renders the homelab address from the
 # vault, so `chezmoi apply` needs rbw unlocked here.

@@ -60,5 +60,9 @@ Ported:
   encryptedFor patch (stock Arch rbw can't write), password prompt as a
   desktop dialog. ~/.ssh/config without the Mac-only homelab forwards.
   Rust via `omarchy install dev-env rust`, on PATH through ~/.bashrc.
+- Shell watchdog (temporary): ~/.local/bin/omarchy-shell-watchdog, started
+  from autostart.lua, kills the Omarchy shell when it stops answering IPC
+  after an NVIDIA resume wedge so Omarchy's launcher relaunches it. Remove
+  once omacom/omarchy#10108 is fixed.
 - Commit signing: this laptop has its own GPG key (43DDD099D7D191BE), on
   GitHub as "Omarchy laptop (legion-timvink)".
