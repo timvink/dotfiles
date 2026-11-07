@@ -120,9 +120,17 @@ done
 echo "Configuring OSX..."
 
 # Hold a key to repeat it instead of popping the accent/diacritic picker, so
-# holding hjkl scrolls (vim) instead of offering ĵ. Key-repeat *speed* is left
-# at the System Settings default on purpose. Takes effect after logout/restart.
+# holding hjkl scrolls (vim) instead of offering ĵ. Takes effect after
+# logout/restart.
 defaults write -g ApplePressAndHoldEnabled -bool false
+
+# Fast key repeat, matching Omarchy (Hyprland repeat_rate 40/s, repeat_delay
+# 250 ms) so held Backspace and arrows feel the same on both. Both values are
+# in units of 15 ms: KeyRepeat 2 = 30 ms (~33/s; 1 would be 66/s), and
+# InitialKeyRepeat 17 = 255 ms. Both go below System Settings' slider range.
+# Takes effect after logout/restart.
+defaults write -g KeyRepeat -int 2
+defaults write -g InitialKeyRepeat -int 17
 
 # Show filename extensions by default
 defaults write NSGlobalDomain AppleShowAllExtensions -bool true
