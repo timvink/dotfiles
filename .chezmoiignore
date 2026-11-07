@@ -203,6 +203,8 @@ remove-devbox-browser-cruft_linux.sh
 !.config/omarchy/hooks
 !.config/omarchy/hooks/theme-set.d
 !.config/omarchy/hooks/theme-set.d/tmux-theme
+!.config/omarchy/hooks/post-update.d
+!.config/omarchy/hooks/post-update.d/check-shell-watchdog
 !.chezmoiscripts/setup-tmux-theme.sh
 !.chezmoiscripts/build-agent-pty.sh
 !.local

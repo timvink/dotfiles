@@ -63,6 +63,7 @@ Ported:
 - Shell watchdog (temporary): ~/.local/bin/omarchy-shell-watchdog, started
   from autostart.lua, kills the Omarchy shell when it stops answering IPC
   after an NVIDIA resume wedge so Omarchy's launcher relaunches it. Remove
-  once omacom/omarchy#10108 is fixed.
+  once omacom/omarchy#10108 is fixed: a post-update hook checks the issue and
+  PR #12983 after each `omarchy update` and notifies when either is done.
 - Commit signing: this laptop has its own GPG key (43DDD099D7D191BE), on
   GitHub as "Omarchy laptop (legion-timvink)".
