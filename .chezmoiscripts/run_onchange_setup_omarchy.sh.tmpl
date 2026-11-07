@@ -117,6 +117,13 @@ if [ "$(omarchy default browser)" != "firefox" ]; then
     [ "$(omarchy default browser)" = "firefox" ]
 fi
 
+# Show hidden files by default: in Nautilus (Omarchy's file manager) and in the
+# GTK 3/4 file pickers apps open. Ctrl+H still toggles; Nautilus saves the
+# toggle back to its key, so a re-apply resets it to shown.
+gsettings set org.gnome.nautilus.preferences show-hidden-files true
+gsettings set org.gtk.gtk4.Settings.FileChooser show-hidden true
+gsettings set org.gtk.Settings.FileChooser show-hidden true
+
 # CLI tools my config expects that Omarchy doesn't ship: diff-so-fancy, the
 # git pager in ~/.gitconfig.
 omarchy pkg add diff-so-fancy
