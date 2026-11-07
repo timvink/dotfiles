@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Tools referenced by dot_bashrc / dot_bash_aliases.tmpl / dot_gitconfig.tmpl or
-# required by Neovim: starship, uv, eza, bat, nvim, ripgrep, fd-find, trash-cli
-# (rmtrash alias), diff-so-fancy, gh.
+# required by Neovim: starship, uv, eza, bat, nvim, ripgrep, fd-find,
+# diff-so-fancy, gh.
 # Idempotent — chezmoi reruns this only when the file's hash changes.
 
 echo "=== chezmoi: installing linux CLI tools ==="
@@ -94,8 +94,6 @@ install_if_missing rg ripgrep
 # works without it. Debian/Ubuntu call the binary `fdfind`; Snacks accepts both.
 install_if_missing fdfind fd-find
 
-# trash-cli — provides 'trash-put'; bash_aliases aliases 'del' to it on linux
-install_if_missing trash-put trash-cli
 
 # fzf — fuzzy finder (ctrl-r history, ctrl-t files). Not from apt: Ubuntu's fzf
 # (0.44 on 24.04) predates `fzf --bash`/`--zsh` (0.48), which the shell rcs use to

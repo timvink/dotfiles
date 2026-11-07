@@ -1,3 +1,21 @@
+{{- if eq (includeTemplate "machine" .) "omarchy" -}}
+# Omarchy's stock ~/.bashrc (/etc/skel/.bashrc), plus my aliases on top.
+# Keep the first part in sync with /etc/skel/.bashrc if Omarchy changes it.
+
+# Omarchy environment (OMARCHY_PATH + PATH), needed even for non-interactive shells
+[[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] && source /usr/share/omarchy/default/bash/env-bootstrap
+
+# If not running interactively, don't do anything else (leave this above the rc source)
+[[ $- != *i* ]] && return
+
+# All the default Omarchy aliases and functions
+# (don't mess with these directly, just overwrite them here!)
+source "$OMARCHY_PATH/default/bash/rc"
+
+# My aliases and functions (dot_bash_aliases.tmpl), after Omarchy's so mine
+# win where both define a name.
+[ -f ~/.bash_aliases ] && source ~/.bash_aliases
+{{- else -}}
 # Fall back to xterm-256color if the terminfo entry for $TERM is missing.
 # Happens when SSH-ing in from ghostty to a host without the xterm-ghostty entry.
 if [ -n "${TERM:-}" ] && ! infocmp "$TERM" >/dev/null 2>&1; then
@@ -65,3 +83,4 @@ HISTFILESIZE=2000
 if command -v fzf >/dev/null 2>&1 && fzf --bash >/dev/null 2>&1; then
     eval "$(fzf --bash)"
 fi
+{{- end }}

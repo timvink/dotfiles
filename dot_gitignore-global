@@ -10,7 +10,7 @@
 ehthumbs.db
 Thumbs.db
 
-# Claude Code git worktrees (claude --worktree / ccw) live here; never track them
+# Claude Code git worktrees (claude --worktree) live here; never track them
 .claude/worktrees/
 
 # Python bytecode caches — created by any python run (e.g. py_compile checks)

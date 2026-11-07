@@ -38,5 +38,11 @@ Ported:
   diffs, rerere, sorting. Mine on top: diff-so-fancy pager, global gitignore,
   log format, gh as GitHub credential helper. Pull rebases and new repos
   start on main, on every machine now. No core.editor: git uses $EDITOR.
+- Shell: bash with Omarchy's stock .bashrc, then my .bash_aliases. Mine win
+  for `c` (clear), `t` (my tmux bootstrap), `cat` (bat), git shortcuts and
+  the cc/co agent launchers. Omarchy's for `ls`/`lt` (eza; the Mac and
+  servers now use the same aliases), `ff` (fzf), `n` and $EDITOR. Sections
+  that need unported pieces (make/just port chip, pi via rbw) are fenced off
+  in dot_bash_aliases.tmpl.
 - Commit signing: this laptop has its own GPG key (43DDD099D7D191BE), on
   GitHub as "Omarchy laptop (legion-timvink)".

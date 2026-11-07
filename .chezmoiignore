@@ -155,4 +155,9 @@ remove-devbox-browser-cruft_linux.sh
 # Omarchy's settings stay unless ~/.gitconfig sets the same key.
 !.gitconfig
 !.gitignore-global
+
+# Shell: Omarchy's stock .bashrc plus my aliases (fenced per section in
+# dot_bash_aliases.tmpl for what isn't ported yet).
+!.bashrc
+!.bash_aliases
 {{ end }}
