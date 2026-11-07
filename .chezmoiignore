@@ -116,6 +116,7 @@ remove-devbox-browser-cruft_linux.sh
 # that forwards Omarchy's tools to ~/.tmux.conf.
 .config/omarchy
 .config/tmux
+.config/hypr
 .chezmoiscripts/setup-tmux-theme.sh
 {{ end }}
 # Omarchy: allow-list. I'm migrating to Omarchy one piece at a time and keep
@@ -185,6 +186,9 @@ remove-devbox-browser-cruft_linux.sh
 !.config
 !.config/tmux
 !.config/tmux/tmux.conf
+# Hyprland: my additions appended to Omarchy's own files (modify_ scripts).
+!.config/hypr
+!.config/hypr/looknfeel.lua
 !.config/omarchy
 !.config/omarchy/hooks
 !.config/omarchy/hooks/theme-set.d

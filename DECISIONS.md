@@ -56,5 +56,7 @@ Ported:
   same), and a theme-set hook writes ~/.config/tmux/theme.conf from the
   theme's colors.toml and re-sources the config. Omarchy's own
   omarchy-theme-set-tmux still sets the pane colours and cursor.
+- Hyprland: Omarchy's config with my lines appended by modify_ scripts.
+  Alt+Tab is instant (no border-colour animation on focus change).
 - Commit signing: this laptop has its own GPG key (43DDD099D7D191BE), on
   GitHub as "Omarchy laptop (legion-timvink)".
