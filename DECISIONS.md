@@ -32,6 +32,11 @@ Ported:
   already off by policy here, so those prefs are belt-and-suspenders.
 - Keyboard (built-in only, keyd): Caps tap = Esc, hold 200 ms = Hyper,
   matching Karabiner on the Mac. No Compose key on the built-in keyboard.
+- Hyper app launcher in ~/.config/hypr/bindings.lua, same keys as the Mac:
+  F Firefox, D Ghostty, R Obsidian, E Nautilus, A Spotify, W Signal ⇄
+  WhatsApp. Focus the open window, else launch. No Teams/TodoTim (Mac-only),
+  no repeat-to-cycle (I keep one window per app). Spotify is installed by
+  the setup script.
 - Netbird mesh VPN (private machines), no Tailscale.
 - Agent config: shared AGENTS.md and skills, Claude/Codex/pi settings, MCP
   servers. Omarchy keeps its own skills linked beside mine and updates them.

@@ -124,6 +124,12 @@ gsettings set org.gnome.nautilus.preferences show-hidden-files true
 gsettings set org.gtk.gtk4.Settings.FileChooser show-hidden true
 gsettings set org.gtk.Settings.FileChooser show-hidden true
 
+# Spotify, the native client (the web player on ARM). Omarchy installs it on
+# first Super+Shift+M or Hyper+A too; this makes it present on a new machine.
+if omarchy-cmd-missing spotify; then
+    omarchy install service spotify
+fi
+
 # CLI tools my config expects that Omarchy doesn't ship: diff-so-fancy, the
 # git pager in ~/.gitconfig.
 omarchy pkg add diff-so-fancy

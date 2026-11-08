@@ -200,6 +200,7 @@ remove-devbox-browser-cruft_linux.sh
 # managed files hold the stock content plus my lines.
 !.config/hypr
 !.config/hypr/autostart.lua
+!.config/hypr/bindings.lua
 
 # Neovim: my LazyVim config plus Omarchy's theme switcher and transparency
 # (DECISIONS.md). Listed without lazy-lock.json: Omarchy's all-themes.lua adds
