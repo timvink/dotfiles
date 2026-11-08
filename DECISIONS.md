@@ -42,6 +42,7 @@ Ported:
   (9) get dedicated workspaces; Firefox and Ghostty share the current one.
   Alt+Tab jumps to the previous window on any workspace, replacing Omarchy's
   cycle through the current workspace.
+  Closing a window focuses the one used last (input.focus_on_close = 2).
 - Netbird mesh VPN (private machines), no Tailscale.
 - Docker: Omarchy's (base package, socket-activated). Sudoless via the docker
   group, which is root-equivalent; accepted on my own laptop. No Podman.

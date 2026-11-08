@@ -204,6 +204,7 @@ remove-devbox-browser-cruft_linux.sh
 !.config/hypr
 !.config/hypr/autostart.lua
 !.config/hypr/bindings.lua
+!.config/hypr/input.lua
 
 # Neovim: my LazyVim config plus Omarchy's theme switcher and transparency
 # (DECISIONS.md). Listed without lazy-lock.json: Omarchy's all-themes.lua adds
