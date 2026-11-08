@@ -71,3 +71,10 @@ Ported:
   PR #12983 after each `omarchy update` and notifies when either is done.
 - Commit signing: this laptop has its own GPG key (43DDD099D7D191BE), on
   GitHub as "Omarchy laptop (legion-timvink)".
+- GitHub over SSH: `gh repo clone` and `git clone git@github.com:…` work.
+  Reuses the existing ~/.ssh/id_ed25519 (the homelab key) rather than a
+  dedicated key — one key, one agent entry, and ~/.ssh/config already points
+  github.com at it. The public key is registered on GitHub as an
+  authentication key ("GitHub CLI"). Both the registration (GitHub-side) and
+  github.com in ~/.ssh/known_hosts (machine-local, not chezmoi-managed, since
+  host keys are public) are redone per machine, not reproduced by this repo.
