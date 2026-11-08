@@ -211,6 +211,8 @@ remove-devbox-browser-cruft_linux.sh
 !.config/nvim/plugin
 !.config/nvim/plugin/**
 !.chezmoiscripts/setup_nvim_spell.sh
+# Firefox right-click prefs (user.js from .chezmoitemplates/firefox-user.js).
+!.chezmoiscripts/setup_firefox_linux.sh
 !.local/bin/omarchy-shell-watchdog
 # Vault and SSH (private machines; the files themselves are gated on
 # includePrivate above). The ssh config renders the homelab address from the

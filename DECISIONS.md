@@ -26,6 +26,10 @@ Ported:
 - Browsers: Chromium (Omarchy's) and Firefox, Firefox as default. By policy:
   Bitwarden (pointed at my Vaultwarden) everywhere, Vimium in Firefox, and
   the browsers' own password managers and autofill off.
+  Firefox right-click/context-menu prefs are shared with the Mac through
+  `.chezmoitemplates/firefox-user.js` (user.js in each default-release
+  profile; policies can't set them). Password manager and autofill are
+  already off by policy here, so those prefs are belt-and-suspenders.
 - Keyboard (built-in only, keyd): Caps tap = Esc, hold 200 ms = Hyper,
   matching Karabiner on the Mac. No Compose key on the built-in keyboard.
 - Netbird mesh VPN (private machines), no Tailscale.

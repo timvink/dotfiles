@@ -1,0 +1,32 @@
+{{- /*
+  Omarchy-only; renders empty elsewhere, so chezmoi skips it. Writes the shared
+  right-click cleanup prefs (.chezmoitemplates/firefox-user.js, also used by the
+  Mac script) to user.js. user.js, not policies.json: Firefox's policy
+  Preferences allowlist does not cover these niche prefs. Firefox must be
+  restarted to pick them up. Re-runs rewrite the same content (idempotent).
+*/ -}}
+{{- if eq (includeTemplate "machine" .) "omarchy" -}}
+#!/bin/sh
+# Firefox user.js settings
+# Source: https://joshua.hu/firefox-making-right-click-not-suck
+
+# Firefox on Linux keeps profiles under ~/.config/mozilla here, not ~/.mozilla.
+FIREFOX_PROFILES_DIR="$HOME/.config/mozilla/firefox"
+
+USER_JS_CONTENT='{{ includeTemplate "firefox-user.js" . }}'
+
+# Two globs, not one: a "Refresh Firefox" mints <random>.default-release-<epoch_ms>
+# and leaves the old dir behind (same as the Mac script). Unmatched globs stay
+# literal in sh; the -d test filters them out.
+found=0
+for profile_dir in "$FIREFOX_PROFILES_DIR"/*.default-release \
+                   "$FIREFOX_PROFILES_DIR"/*.default-release-*; do
+    if [ -d "$profile_dir" ]; then
+        echo "Writing Firefox user.js to: $profile_dir"
+        printf '%s' "$USER_JS_CONTENT" > "$profile_dir/user.js"
+        found=1
+    fi
+done
+
+[ "$found" = 1 ] || echo "WARNING: no default-release Firefox profile found in $FIREFOX_PROFILES_DIR" >&2
+{{ end -}}
