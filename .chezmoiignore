@@ -116,6 +116,12 @@ remove-devbox-browser-cruft_linux.sh
 # that forwards Omarchy's tools to ~/.tmux.conf.
 .config/omarchy
 .config/tmux
+# Omarchy's nvim theme switcher: these follow `omarchy theme set` through
+# ~/.local/state/omarchy, which only exists there.
+.config/nvim/lua/plugins/all-themes.lua
+.config/nvim/lua/plugins/omarchy-theme-hotreload.lua
+.config/nvim/lua/plugins/theme.lua
+.config/nvim/plugin
 .config/hypr
 .local/bin/omarchy-shell-watchdog
 .chezmoiscripts/setup-tmux-theme.sh
@@ -191,6 +197,20 @@ remove-devbox-browser-cruft_linux.sh
 # managed files hold the stock content plus my lines.
 !.config/hypr
 !.config/hypr/autostart.lua
+
+# Neovim: my LazyVim config plus Omarchy's theme switcher and transparency
+# (DECISIONS.md). Listed without lazy-lock.json: Omarchy's all-themes.lua adds
+# every theme plugin, which lazy writes into the lockfile, so a shared lock
+# would drift on every apply. The spell script pre-fetches the nl dictionary.
+!.config/nvim
+!.config/nvim/init.lua
+!.config/nvim/after
+!.config/nvim/after/**
+!.config/nvim/lua
+!.config/nvim/lua/**
+!.config/nvim/plugin
+!.config/nvim/plugin/**
+!.chezmoiscripts/setup_nvim_spell.sh
 !.local/bin/omarchy-shell-watchdog
 # Vault and SSH (private machines; the files themselves are gated on
 # includePrivate above). The ssh config renders the homelab address from the
