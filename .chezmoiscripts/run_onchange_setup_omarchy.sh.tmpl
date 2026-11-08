@@ -124,10 +124,17 @@ gsettings set org.gnome.nautilus.preferences show-hidden-files true
 gsettings set org.gtk.gtk4.Settings.FileChooser show-hidden true
 gsettings set org.gtk.Settings.FileChooser show-hidden true
 
-# Spotify, the native client (the web player on ARM). Omarchy installs it on
-# first Super+Shift+M or Hyper+A too; this makes it present on a new machine.
+# Apps behind the Hyper launcher (~/.config/hypr/bindings.lua). Spotify is the
+# native client (the web player on ARM), Signal the signal-desktop package.
+# WhatsApp is one of Omarchy's stock web apps; reinstall it if it was removed.
 if omarchy-cmd-missing spotify; then
     omarchy install service spotify
+fi
+if omarchy-cmd-missing signal-desktop; then
+    omarchy install service signal
+fi
+if [ ! -f "$HOME/.local/share/applications/WhatsApp.desktop" ]; then
+    omarchy webapp install WhatsApp https://web.whatsapp.com/ whatsapp
 fi
 
 # CLI tools my config expects that Omarchy doesn't ship: diff-so-fancy, the

@@ -50,10 +50,12 @@ Library/LaunchAgents/com.timvink.ah-mcp.plist
 .config/rbw/config.json
 Library/Application Support/rbw/config.json
 {{ end }}
-{{ if or (not (dig "includePrivate" false .)) (ne .chezmoi.os "darwin") }}
-# TodoTim (macOS app) syncing to the homelab Nextcloud, installed from its GitHub releases.
+{{ if or (not (dig "includePrivate" false .)) (and (ne .chezmoi.os "darwin") (ne (includeTemplate "machine" .) "omarchy")) }}
+# TodoTim (macOS app, Omarchy shell plugin) syncing to the homelab Nextcloud,
+# installed from its GitHub releases.
 .todotim.toml
 .chezmoiscripts/install-todotim_darwin.sh
+.chezmoiscripts/install-todotim_omarchy.sh
 # Pushes this Mac's Firefox/Chrome history to the homelab archive every 2 h.
 # A work machine's browsing doesn't belong there.
 .local/bin/browser-history-push
@@ -127,6 +129,7 @@ remove-devbox-browser-cruft_linux.sh
 .config/nvim/plugin
 .config/hypr
 .local/bin/omarchy-shell-watchdog
+.chezmoiscripts/install-todotim_omarchy.sh
 .chezmoiscripts/setup-tmux-theme.sh
 {{ end }}
 # Omarchy: allow-list. I'm migrating to Omarchy one piece at a time and keep
@@ -223,6 +226,10 @@ remove-devbox-browser-cruft_linux.sh
 # Obsidian: register the Syncthing-synced vault so it opens on launch.
 !.config/obsidian
 !.config/obsidian/obsidian.json
+# TodoTim: the shell plugin and its sync settings (private machines; gated on
+# includePrivate above).
+!.todotim.toml
+!.chezmoiscripts/install-todotim_omarchy.sh
 !.local/bin/omarchy-shell-watchdog
 # Vault and SSH (private machines; the files themselves are gated on
 # includePrivate above). The ssh config renders the homelab address from the

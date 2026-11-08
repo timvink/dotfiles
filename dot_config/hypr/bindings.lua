@@ -49,6 +49,9 @@ o.bind(hyper .. "E", "Files", { launch = "nautilus --new-window", focus = "^org\
 -- Not { omarchy = "spotify" }: its unanchored pattern also matches a Firefox
 -- window whose title mentions Spotify. The setup script installs it.
 o.bind(hyper .. "A", "Spotify", { launch = "spotify", focus = "^Spotify$" })
+-- TodoTim is an Omarchy shell plugin (installed by .chezmoiscripts), so Hyper+T
+-- toggles its panel instead of focusing a window.
+o.bind(hyper .. "T", "TodoTim", { panel = "timvink.todotim" })
 
 -- Hyper+W: Signal, or WhatsApp when Signal is already focused, so a second
 -- press toggles between the two. Signal installs itself on first launch.
@@ -61,3 +64,20 @@ o.bind(hyper .. "W", "Signal / WhatsApp", function()
     hl.exec_cmd("omarchy-launch-signal")
   end
 end)
+
+-- Hybrid workspaces: apps I glance at and leave get a workspace of their own;
+-- everything else (Firefox, Ghostty) shares the current one. The Hyper key
+-- jumps there because focusing a window switches to its workspace. Window
+-- rules apply when a window opens, so an already-open window stays put.
+o.window("^obsidian$", { workspace = "7" })
+o.window("^signal$", { workspace = "8" })
+o.window("^chrome-web\\.whatsapp\\.com__.*$", { workspace = "8" })
+o.window("^Spotify$", { workspace = "9" })
+
+-- Alt+Tab: back to the previously focused window, on any workspace, like a
+-- single Cmd-Tab tap on the Mac; pressing again flips back. Omarchy's default
+-- cycles only the current workspace, which dedicated workspaces would defeat.
+-- One step of history only; Super+Tab still walks workspaces.
+hl.unbind("ALT + TAB")
+hl.unbind("ALT + SHIFT + TAB")
+o.bind("ALT + TAB", "Previous window", hl.dsp.focus({ last = true }))

@@ -34,9 +34,14 @@ Ported:
   matching Karabiner on the Mac. No Compose key on the built-in keyboard.
 - Hyper app launcher in ~/.config/hypr/bindings.lua, same keys as the Mac:
   F Firefox, D Ghostty, R Obsidian, E Nautilus, A Spotify, W Signal ⇄
-  WhatsApp. Focus the open window, else launch. No Teams/TodoTim (Mac-only),
-  no repeat-to-cycle (I keep one window per app). Spotify is installed by
-  the setup script.
+  WhatsApp, T TodoTim (its Omarchy shell plugin, installed from GitHub
+  releases like the Mac app). Focus the open window, else launch. No Teams
+  (work, Mac-only), no repeat-to-cycle (I keep one window per app). The
+  setup script installs Spotify, Signal and the WhatsApp web app.
+- Window switching, hybrid: Obsidian (7), Signal + WhatsApp (8) and Spotify
+  (9) get dedicated workspaces; Firefox and Ghostty share the current one.
+  Alt+Tab jumps to the previous window on any workspace, replacing Omarchy's
+  cycle through the current workspace.
 - Netbird mesh VPN (private machines), no Tailscale.
 - Agent config: shared AGENTS.md and skills, Claude/Codex/pi settings, MCP
   servers. Omarchy keeps its own skills linked beside mine and updates them.
