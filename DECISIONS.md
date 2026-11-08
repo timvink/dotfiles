@@ -69,6 +69,10 @@ Ported:
   after an NVIDIA resume wedge so Omarchy's launcher relaunches it. Remove
   once omacom/omarchy#10108 is fixed: a post-update hook checks the issue and
   PR #12983 after each `omarchy update` and notifies when either is done.
+- Obsidian vault via Syncthing: ~/Obsidian/vault syncs with the homelab hub
+  (device tim-legion in timvink-homelab/syncthing/devices.txt). A modify_
+  script registers the vault in ~/.config/obsidian/obsidian.json so Obsidian
+  opens it; Obsidian keeps owning that file otherwise.
 - Commit signing: this laptop has its own GPG key (43DDD099D7D191BE), on
   GitHub as "Omarchy laptop (legion-timvink)".
 - GitHub over SSH: `gh repo clone` and `git clone git@github.com:…` work.
