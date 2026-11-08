@@ -137,6 +137,17 @@ if [ ! -f "$HOME/.local/share/applications/WhatsApp.desktop" ]; then
     omarchy webapp install WhatsApp https://web.whatsapp.com/ whatsapp
 fi
 
+# Sudoless Docker: join the docker group, which is root-equivalent (any process
+# of mine can `docker run -v /:/host`). Omarchy leaves it off by default; I
+# accept the trade-off on my own dev laptop. Same steps as
+# `omarchy setup security sudoless docker`, without its interactive prompts.
+# Takes effect after a reboot, which `omarchy update` will also remind about.
+if omarchy-sudo-docker --configured; then
+    sudo usermod -aG docker "$USER"
+    omarchy-state set reboot-required
+    echo "Sudoless Docker enabled; reboot to apply."
+fi
+
 # CLI tools my config expects that Omarchy doesn't ship: diff-so-fancy, the
 # git pager in ~/.gitconfig.
 omarchy pkg add diff-so-fancy

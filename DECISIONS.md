@@ -43,6 +43,8 @@ Ported:
   Alt+Tab jumps to the previous window on any workspace, replacing Omarchy's
   cycle through the current workspace.
 - Netbird mesh VPN (private machines), no Tailscale.
+- Docker: Omarchy's (base package, socket-activated). Sudoless via the docker
+  group, which is root-equivalent; accepted on my own laptop. No Podman.
 - Agent config: shared AGENTS.md and skills, Claude/Codex/pi settings, MCP
   servers. Omarchy keeps its own skills linked beside mine and updates them.
   Codex uses my ChatGPT subscription; Azure is for the work devbox only.
