@@ -23,6 +23,9 @@ if [ -n "${TMUX_PANE:-}" ]; then
     win=$(tmux display-message -t "$TMUX_PANE" -p '#{window_id}' 2>/dev/null)
     if [ -n "${win:-}" ]; then
         tmux set-option -wt "$win" '@server_state' "$state" 2>/dev/null || true
+        # The wrapper now owns this window's chip; tmux-port-scan backs off
+        # while @server_src isn't "scan".
+        tmux set-option -wt "$win" -u '@server_src' 2>/dev/null || true
         # Clear any port from a previous run so a new serve starts blank until
         # server-port-watch detects this run's port.
         if [ "$state" = off ]; then

@@ -1,0 +1,105 @@
+#!/bin/sh
+# Show the TCP ports a tab's processes listen on, whatever started them: a
+# server typed at a shell prompt, or one an agent launched from its Bash tool
+# (`python -m http.server 8080` in a background shell). The make/just wrapper
+# (dot_bash_aliases.tmpl → server-state + server-port-watch) only covers
+# `make serve*` / `just serve*`; this covers the rest.
+#
+# How: every few seconds, list LISTEN sockets with their owning PID, walk each
+# PID's parents up to a tmux pane's PID, and publish that window's ports through
+# the same @server_state / @server_port options the wrapper sets, so the tab
+# chip, prefix+o overview and prefix+u picker need no changes. Ports >= 49152
+# are skipped like in server-port-watch: Claude Code and OS daemons hold
+# ephemeral ones, real dev servers bind fixed lower ports.
+#
+# Ownership: the wrapper wins. It catches docker-published ports, whose
+# sockets belong to the Docker daemon rather than the pane, so a window where
+# @server_state is running without @server_src=scan is left alone (server-state
+# clears @server_src whenever the wrapper changes state). This scanner only
+# clears what it set itself.
+#
+# Lifetime: started by `run-shell -b` in dot_tmux.conf. One instance per tmux
+# server: a new start (config reload) replaces the old one, so a re-sourced
+# config also picks up edits to this script. Exits when the tmux server goes.
+
+interval=3
+socket=$(tmux display-message -p '#{socket_path}' 2>/dev/null) || exit 0
+[ -n "$socket" ] || exit 0
+pidfile="${TMPDIR:-/tmp}/tmux-port-scan.$(id -u).$(printf '%s' "$socket" | cksum | cut -d' ' -f1).pid"
+old=$(cat "$pidfile" 2>/dev/null)
+[ -n "$old" ] && [ "$old" != $$ ] && kill "$old" 2>/dev/null
+echo $$ > "$pidfile"
+trap '[ "$(cat "$pidfile" 2>/dev/null)" = $$ ] && rm -f "$pidfile"' EXIT
+trap 'exit' INT TERM HUP
+
+# "PID PORT" per listening socket. Linux: ss -p shows the PIDs of our own
+# processes without root (lsof is often missing there). macOS: lsof field mode.
+listeners() {
+    if command -v ss >/dev/null 2>&1; then
+        ss -Hltnp 2>/dev/null | awk '{
+            n = split($4, a, ":"); port = a[n]; s = $0
+            while (match(s, /pid=[0-9]+/)) {
+                print substr(s, RSTART + 4, RLENGTH - 4), port
+                s = substr(s, RSTART + RLENGTH)
+            }
+        }'
+    else
+        lsof -nP -iTCP -sTCP:LISTEN -Fpn 2>/dev/null | awk '
+            /^p/ { pid = substr($0, 2) }
+            /^n/ { n = split($0, a, ":"); print pid, a[n] }'
+    fi
+}
+
+scan() {
+    tmp=$(mktemp) || return
+    {
+        tmux list-panes -a -F 'pane #{pane_pid} #{window_id}'
+        # x-prefixed so an unset option still occupies its field.
+        tmux list-windows -a -F 'win #{window_id} x#{@server_state} x#{@server_src} #{@server_port}'
+        ps -axo pid=,ppid= | sed 's/^ */proc /'
+        listeners | sed 's/^/sock /'
+    } > "$tmp" 2>/dev/null
+    # Print tmux commands for windows whose chip should change, then run them
+    # in one tmux call.
+    awk '
+        $1 == "pane" { pane[$2] = $3; next }
+        $1 == "win"  { wins[$2] = 1; state[$2] = substr($3, 2); src[$2] = substr($4, 2)
+                       cur[$2] = $5; for (i = 6; i <= NF; i++) cur[$2] = cur[$2] " " $i; next }
+        $1 == "proc" { par[$2] = $3; next }
+        $1 == "sock" {
+            if ($3 + 0 >= 49152) next
+            p = $2; hops = 0
+            while (p > 1 && !(p in pane) && hops++ < 64) p = par[p]
+            if (!(p in pane)) next
+            w = pane[p]
+            if (!((w SUBSEP $3) in seen)) { seen[w, $3] = 1; ports[w] = ports[w] " " $3 }
+        }
+        END {
+            for (w in wins) {
+                if (state[w] == "running" && src[w] != "scan") continue   # wrapper owns it
+                want = ""
+                if (w in ports) {
+                    n = split(substr(ports[w], 2), a, " ")
+                    for (i = 2; i <= n; i++) {          # numeric insertion sort
+                        v = a[i]; j = i - 1
+                        while (j > 0 && a[j] + 0 > v + 0) { a[j + 1] = a[j]; j-- }
+                        a[j + 1] = v
+                    }
+                    for (i = 1; i <= n && i <= 6; i++) want = want (i > 1 ? " " : "") a[i]
+                }
+                if (want != "" && (src[w] != "scan" || state[w] != "running" || cur[w] != want))
+                    printf "set-option -wt %s @server_src scan\nset-option -wt %s @server_state running\nset-option -wt %s @server_port \"%s\"\n", w, w, w, want
+                else if (want == "" && src[w] == "scan")
+                    printf "set-option -wt %s -u @server_src\nset-option -wt %s @server_state off\nset-option -wt %s -u @server_port\n", w, w, w
+            }
+        }' "$tmp" > "$tmp.cmd"
+    [ -s "$tmp.cmd" ] && tmux source-file "$tmp.cmd" 2>/dev/null
+    rm -f "$tmp.cmd"
+    rm -f "$tmp"
+}
+
+while tmux list-sessions >/dev/null 2>&1; do
+    [ "$(cat "$pidfile" 2>/dev/null)" = $$ ] || exit 0   # replaced by a newer start
+    scan
+    sleep "$interval"
+done
