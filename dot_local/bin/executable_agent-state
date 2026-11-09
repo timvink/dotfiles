@@ -41,7 +41,19 @@ if [ -n "${TMUX_PANE:-}" ]; then
     # Do this on every event so sessions already open when this script changes
     # are picked up too. Other callers have a tty or /dev/null as stdin.
     if [ ! -t 0 ]; then
-        codex_session=$(jq -r '
+        payload=$(cat 2>/dev/null) || payload=""
+        # A `codex exec` that another agent runs (Claude's review step, say)
+        # inherits that agent's TMUX_PANE, and its hooks would overwrite the
+        # tab's dot, wipe its note and subagent count, and tag the pane as a
+        # Codex session. The tab belongs to the pane's foreground program, so a
+        # Codex hook counts only when that program is Codex.
+        if printf '%s' "$payload" | jq -e 'has("hook_event_name")' >/dev/null 2>&1; then
+            case "$(tmux display-message -t "$TMUX_PANE" -p '#{pane_current_command}' 2>/dev/null)" in
+                codex | codex-*) ;;
+                *) exit 0 ;;
+            esac
+        fi
+        codex_session=$(printf '%s' "$payload" | jq -r '
             select(.hook_event_name != null)
             | select((.session_id | type) == "string" and (.cwd | type) == "string")
             | select(.session_id != "" and .cwd != "")

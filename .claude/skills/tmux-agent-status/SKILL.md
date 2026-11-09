@@ -42,6 +42,11 @@ to prop up the signal, which taxes every agent's writing.
   so the shell prompt reaper (zsh precmd, or bash PROMPT_COMMAND on Omarchy)
   clears the dot when the prompt returns. Codex
   0.162 has no OSC 7501 support; when it ships, it can move behind the shim too.
+  `agent-state` ignores a Codex hook unless the pane's foreground command is
+  `codex`/`codex-*`: a `codex exec` that Claude runs (a review) inherits Claude's
+  `TMUX_PANE`, and its hooks used to turn a busy Claude tab to `done`/`idle`
+  (hiding its `+N`, which only counts `running` windows), wipe its note and
+  subagent count on SessionStart, and tag the pane with `@codex_session_id`.
 - **Antigravity (`agy`)** has no permission/notification hook event, so the dot
   is driven from its **status line** instead (`dot_gemini/antigravity-cli/executable_statusline.sh`),
   the one payload that exposes `agent_state`, `tool_confirmation_pending` (blocked
