@@ -71,6 +71,27 @@ return {
           "--exclude", "**/.deploy/worktree",
         },
       },
+      -- o opens with the system app, so Neo-tree's "Order by" prefix moves to O.
+      window = {
+        mappings = {
+          ["o"] = "system_open",
+          ["oc"] = "none",
+          ["od"] = "none",
+          ["og"] = "none",
+          ["om"] = "none",
+          ["on"] = "none",
+          ["os"] = "none",
+          ["ot"] = "none",
+          ["O"] = { "show_help", nowait = false, config = { title = "Order by", prefix_key = "O" } },
+          ["Oc"] = { "order_by_created", nowait = false },
+          ["Od"] = { "order_by_diagnostics", nowait = false },
+          ["Og"] = { "order_by_git_status", nowait = false },
+          ["Om"] = { "order_by_modified", nowait = false },
+          ["On"] = { "order_by_name", nowait = false },
+          ["Os"] = { "order_by_size", nowait = false },
+          ["Ot"] = { "order_by_type", nowait = false },
+        },
+      },
     },
     commands = {
       yank_relative = function(state)
@@ -86,6 +107,10 @@ return {
         yank(state, false, nodes)
       end,
       paste_image = paste_image,
+      -- Open in the OS default app (browser for .html), like the Snacks explorer's o.
+      system_open = function(state)
+        vim.ui.open(state.tree:get_node():get_id())
+      end,
     },
     window = {
       mappings = {
