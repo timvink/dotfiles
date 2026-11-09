@@ -13,7 +13,8 @@
  * Spec: https://superlogical.com/rex/docs/build/program-status
  *
  *   root record             @agent_state
- *   working                 running
+ *   working                 running   (also: any child record working, or a
+ *                                      background shell still running)
  *   blocked / error         needs-input     (also: any child record blocked)
  *   done                    done
  *   idle                    idle, or none before the first turn (startup)
@@ -21,6 +22,13 @@
  *
  * Child records (an `id`) are Claude's subagents; the live ones become
  * @agent_subagents, the "+N" in the status bar.
+ *
+ * Background shells (Bash run_in_background, Monitor) get no record: with only
+ * those attached Claude reports the root `done`. That includes a subagent that
+ * ended its turn to wait on its own `make setup` — its record is cleared, yet it
+ * resumes when the shell exits. So once the root is no longer working, this
+ * looks for live Bash-tool shells among Claude's children (see bg_shells) and
+ * keeps the dot blue while there are any, rechecking every few seconds.
  *
  * The tmux calls run in a forked worker that reads one line per change from a
  * pipe and runs them in order: never inline, so a slow tmux never freezes
@@ -42,6 +50,7 @@
  * Built by .chezmoiscripts/run_onchange_after_build-agent-pty.sh.tmpl.
  */
 #define _DEFAULT_SOURCE
+#define _GNU_SOURCE /* memmem */
 #define _DARWIN_C_SOURCE
 #include <errno.h>
 #include <fcntl.h>
@@ -55,8 +64,11 @@
 #include <termios.h>
 #include <unistd.h>
 #ifdef __APPLE__
+#include <libproc.h>
+#include <sys/sysctl.h>
 #include <util.h>
 #else
+#include <dirent.h>
 #include <pty.h>
 #endif
 
@@ -64,6 +76,7 @@
 #define PREFIX_LEN 7
 #define BODY_MAX 4096 /* the spec's whole-sequence limit */
 #define MAX_CHILDREN 256
+#define BG_POLL_MS 3000 /* how often to recheck background shells once found */
 
 static int master_fd = -1, sig_pipe[2] = {-1, -1}, worker_fd = -1;
 static pid_t child = -1;
@@ -175,6 +188,62 @@ static struct { char id[129]; enum st st; } kids[MAX_CHILDREN];
 static int nkids;
 static const char *sent_dot = "";
 static int sent_subs = -1;
+static int bg_live; /* background shells seen at the last scan */
+
+/* ── background shells ───────────────────────────────────────────────────── */
+
+/* Every Bash-tool command, foreground or background, is a direct child of
+ * Claude running `<shell> -c source …/shell-snapshots/snapshot-…`; MCP servers
+ * and caffeinate are children too but never carry that path. Read straight from
+ * the kernel, no fork, so it is cheap enough to poll. */
+static const char SNAPSHOT_MARK[] = "/shell-snapshots/snapshot-";
+
+static int list_children(pid_t pid, pid_t *out, int max) {
+#ifdef __APPLE__
+    int n = proc_listchildpids(pid, out, (int)(sizeof *out * (size_t)max));
+    return n < 0 ? 0 : n > max ? max : n;
+#else
+    char path[64];
+    snprintf(path, sizeof path, "/proc/%d/task/%d/children", (int)pid, (int)pid);
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    int n = 0;
+    long v;
+    while (n < max && fscanf(f, "%ld", &v) == 1) out[n++] = (pid_t)v;
+    fclose(f);
+    return n;
+#endif
+}
+
+static int is_tool_shell(pid_t pid) {
+    static char args[1 << 20]; /* KERN_PROCARGS2 fails outright if it doesn't fit */
+    size_t len = 0;
+#ifdef __APPLE__
+    int mib[3] = {CTL_KERN, KERN_PROCARGS2, (int)pid};
+    len = sizeof args;
+    if (sysctl(mib, 3, args, &len, NULL, 0) < 0) return 0;
+#else
+    char path[64];
+    snprintf(path, sizeof path, "/proc/%d/cmdline", (int)pid);
+    FILE *f = fopen(path, "r");
+    if (!f) return 0;
+    len = fread(args, 1, sizeof args, f);
+    fclose(f);
+#endif
+    return memmem(args, len, SNAPSHOT_MARK, sizeof SNAPSHOT_MARK - 1) != NULL;
+}
+
+/* child (the job-control parent) → Claude → its tool shells. */
+static int bg_shells(void) {
+    if (child <= 0) return 0;
+    pid_t prog[8], kids_pids[512];
+    int np = list_children(child, prog, 8), live = 0;
+    for (int i = 0; i < np; i++) {
+        int nk = list_children(prog[i], kids_pids, 512);
+        for (int k = 0; k < nk; k++) live += is_tool_shell(kids_pids[k]);
+    }
+    return live;
+}
 
 static int parse_state(const char *v, enum st *out) {
     static const struct { const char *name; enum st st; } map[] = {
@@ -197,9 +266,11 @@ static void publish(void) {
         if (kids[i].st == ST_BLOCKED) blocked = 1;
         if (kids[i].st == ST_WORKING || kids[i].st == ST_BLOCKED) live++;
     }
+    /* While the root works, a shell is just the current tool call. */
+    bg_live = root != ST_WORKING && root != ST_NONE && bg_shells();
     const char *dot;
     if (blocked) dot = "needs-input";
-    else if (root == ST_WORKING || live) dot = "running";
+    else if (root == ST_WORKING || live || bg_live) dot = "running";
     else if (root == ST_DONE) dot = "done";
     else if (root == ST_IDLE && had_turn) dot = "idle";
     else dot = "none";
@@ -392,9 +463,9 @@ int main(int argc, char **argv) {
     while (!done) {
         struct pollfd fds[3] = {
             {STDIN_FILENO, POLLIN, 0}, {master_fd, POLLIN, 0}, {sig_pipe[0], POLLIN, 0}};
-        int r = poll(fds, 3, match ? 30 : -1);
+        int r = poll(fds, 3, match ? 30 : bg_live ? BG_POLL_MS : -1);
         if (r < 0) { if (errno == EINTR) continue; break; }
-        if (r == 0) { flush_held(); continue; }
+        if (r == 0) { flush_held(); if (bg_live) publish(); continue; }
 
         if (fds[2].revents & POLLIN) {
             unsigned char s;

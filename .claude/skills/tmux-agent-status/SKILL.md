@@ -148,7 +148,7 @@ probe, strips every OSC 7501 sequence from the output, and maps the root record:
 
 | report | `@agent_state` |
 | --- | --- |
-| `working` | `running` |
+| `working`, any child `working`, or a live background shell | `running` |
 | `blocked` (`kind=permission` / `question` / `auth`), `error`, or any child `blocked` | `needs-input` |
 | `done` | `done` |
 | `idle` | `idle` after a turn; `none` before the first one (startup) |
@@ -171,9 +171,16 @@ What the reports replaced, each of which was a hook-era workaround:
   current state, so the pane-title sweep (`agent-state-sweep`, the `✳`/spinner
   glyphs borrowed from herdr, `@agent_title_spins`, `@agent_sweep_stopped`) is gone.
 - **Background work holding the dot** — Claude keeps the root `working` while a
-  background subagent runs (verified), and whatever it reports with only
-  background shells or monitors attached is taken as-is, so `agent-stop-state`
-  and `@agent_bg` are gone.
+  background subagent runs (verified), so `agent-stop-state` and `@agent_bg` are
+  gone. Background shells and monitors get no record, though: with only those
+  attached Claude reports `done` (verified, 2.1.319), and so does a subagent
+  that ends its turn "waiting on its own background work" (its child record is
+  cleared, yet it resumes when the shell exits). So once the root stops
+  working, agent-pty counts Claude's Bash-tool shells — direct children whose
+  args contain `/shell-snapshots/snapshot-`, read via `proc_listchildpids` +
+  `KERN_PROCARGS2` (or `/proc` on Linux), no fork — and keeps `running` while
+  any is alive, rechecking every 3s. Reality is the reconcile: a shell that
+  dies takes the blue with it; a hung one keeps it blue, which is true.
 - **Subagent bookkeeping** — child records replace `agent-subagents` and its
   SubagentStart/Stop/Stop-reconcile set.
 
