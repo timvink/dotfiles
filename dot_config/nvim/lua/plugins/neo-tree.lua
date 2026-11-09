@@ -60,6 +60,17 @@ return {
         hide_dotfiles = false,
         hide_gitignored = false,
       },
+      -- The tree shows gitignored files, so / and D run fd with --no-ignore.
+      -- Skip agent worktrees and dependency dirs, which duplicate real matches.
+      find_args = {
+        fd = {
+          "--exclude", ".git",
+          "--exclude", "node_modules",
+          "--exclude", ".venv",
+          "--exclude", "**/.claude/worktrees",
+          "--exclude", "**/.deploy/worktree",
+        },
+      },
     },
     commands = {
       yank_relative = function(state)
