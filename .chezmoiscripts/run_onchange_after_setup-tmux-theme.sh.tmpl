@@ -1,0 +1,7 @@
+#!/bin/sh
+# Omarchy only (allow-listed in .chezmoiignore). Write ~/.config/tmux/theme.conf
+# for the current Omarchy theme once, so tmux has the theme's colours before the
+# first theme switch runs the hook itself. Reruns when the hook changes.
+#
+# hook hash: {{ include "dot_config/omarchy/hooks/theme-set.d/executable_tmux-theme" | sha256sum }}
+exec bash "$HOME/.config/omarchy/hooks/theme-set.d/tmux-theme"

@@ -1,0 +1,55 @@
+#!/bin/bash
+# Relaunch a wedged Omarchy shell (Omarchy only; started from
+# ~/.config/hypr/autostart.lua).
+#
+# After some resumes from suspend, NVIDIA's EGL driver (615.78) spins forever
+# inside quickshell once a window creates or drops a GL context: the shell stays
+# alive but draws nothing and answers no IPC. When that happens behind the lock
+# screen the whole desktop looks frozen. Upstream: omacom/omarchy#10108; the fix
+# in review (#12983) only helps a manual `omarchy restart shell`.
+#
+# Every INTERVAL seconds this pings the shell over IPC. A shell that answered
+# before and then misses MAX_FAILURES pings in a row gets SIGTERM (quickshell
+# installs no handler for it), then SIGKILL. omarchy-launch-shell sees the
+# non-zero exit and starts a fresh shell, which re-takes a stranded lock screen.
+# A shell that never answered is still starting and is left alone.
+# Drop this once a fix for #10108 ships.
+
+INTERVAL=${OMARCHY_SHELL_WATCHDOG_INTERVAL:-20}  # env override for testing
+MAX_FAILURES=3
+
+shell_pid() {
+  pgrep -f -n -x "quickshell -n -p ${OMARCHY_PATH:-/usr/share/omarchy}/shell"
+}
+
+watched=""
+answered=0
+failures=0
+
+while sleep "$INTERVAL"; do
+  pid=$(shell_pid)
+  if [[ -z $pid ]]; then
+    watched=""
+    continue
+  fi
+  if [[ $pid != "$watched" ]]; then
+    watched=$pid answered=0 failures=0
+  fi
+
+  if OMARCHY_SHELL_IPC_TIMEOUT=5s omarchy-shell shell ping >/dev/null 2>&1; then
+    answered=1 failures=0
+    continue
+  fi
+
+  (( answered )) || continue
+  (( ++failures < MAX_FAILURES )) && continue
+
+  logger -t omarchy-shell-watchdog "Omarchy shell (pid $pid) missed $failures IPC pings; stopping it so omarchy-launch-shell relaunches it."
+  kill -TERM "$pid" 2>/dev/null
+  for _ in $(seq 50); do
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.2
+  done
+  kill -KILL "$pid" 2>/dev/null
+  watched="" answered=0 failures=0
+done

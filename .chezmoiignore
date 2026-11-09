@@ -4,6 +4,7 @@
 # CLAUDE.md, so the CLAUDE.md symlink that used to sit beside it is gone.
 README.md
 AGENTS.md
+DECISIONS.md
 
 # Python bytecode caches. tmux-overview is a python script, so running it from
 # the source dir drops a __pycache__ next to it; chezmoi would then treat that
@@ -111,12 +112,149 @@ remove-devbox-browser-cruft_linux.sh
 .local/bin/ssh-pty-resize
 .config/rbw/config.json
 {{ end }}
-# Omarchy (Arch, ID=omarchy in os-release) is linux, but the linux package
-# scripts are apt-based and would abort `chezmoi apply` there; it gets its own
-# pacman/omarchy setup in .chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl.
-# The devbox cruft only exists on the work VM image.
-{{ if eq (dig "osRelease" "id" "" .chezmoi) "omarchy" }}
-setup_packages_linux.sh
-setup_private_packages_linux.sh
-remove-devbox-browser-cruft_linux.sh
+{{ if ne (includeTemplate "machine" .) "omarchy" }}
+# Omarchy-only tmux glue: the theme-set hook that makes tmux follow the Omarchy
+# theme, the script that runs it once on apply, and the ~/.config/tmux/tmux.conf
+# that forwards Omarchy's tools to ~/.tmux.conf.
+.config/omarchy
+.config/tmux
+# Omarchy's nvim theme switcher: these follow `omarchy theme set` through
+# ~/.local/state/omarchy, which only exists there.
+.config/nvim/lua/plugins/all-themes.lua
+.config/nvim/lua/plugins/omarchy-theme-hotreload.lua
+.config/nvim/lua/plugins/theme.lua
+.config/nvim/plugin
+.config/hypr
+.local/bin/omarchy-shell-watchdog
+.chezmoiscripts/setup-tmux-theme.sh
+{{ end }}
+# Omarchy: allow-list. I'm migrating to Omarchy one piece at a time and keep
+# it as close to stock as possible, so on Omarchy everything in this repo is
+# ignored except what is listed below. Porting something means adding its
+# target paths here (and every parent directory, because an ignored directory
+# hides its children), with the reason in DECISIONS.md. This also keeps the
+# apt-based *_linux.sh scripts, which would fail on Arch, off Omarchy.
+# Omarchy's own setup lives in .chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl.
+{{ if eq (includeTemplate "machine" .) "omarchy" }}
+**
+!.chezmoiscripts/setup_omarchy.sh
+
+# Agent config: shared AGENTS.md, skills links, Claude/Codex/pi settings, MCP
+# servers. Omarchy links its own skills (omarchy, omarchy-app, diagnose-crash)
+# into the same skills dirs and keeps them updated; the link script leaves
+# them alone. Codex's hooks.json and pi's extensions drive the tmux agent dots
+# (see the tmux section below).
+!.chezmoiscripts/link-agents-skills.sh
+!.chezmoiscripts/setup-claude-mcp.sh
+!.chezmoiscripts/setup_pi-packages.sh
+!.claude
+!.claude/CLAUDE.md
+!.claude/README.md
+!.claude/settings.json
+!.claude/statusline-command.sh
+!.claude/commands
+!.claude/commands/**
+!.claude/rules
+!.claude/rules/**
+!.claude/simple-english
+!.claude/simple-english/**
+!.codex
+!.codex/AGENTS.md
+!.codex/config.toml
+!.codex/sol.config.toml
+!.codex/luna.config.toml
+!.codex/hooks.json
+!.pi
+!.pi/agent
+!.pi/agent/AGENTS.md
+!.pi/agent/settings.json
+!.pi/agent/keybindings.json
+!.pi/agent/extensions
+!.pi/agent/extensions/agent-dot.ts
+!.pi/agent/extensions/exit.ts
+
+# Git: layered over Omarchy's ~/.config/git/config, which git reads first, so
+# Omarchy's settings stay unless ~/.gitconfig sets the same key.
+!.gitconfig
+!.gitignore-global
+
+# Shell: Omarchy's stock .bashrc plus my aliases (fenced per section in
+# dot_bash_aliases.tmpl for what isn't ported yet).
+!.bashrc
+!.bash_aliases
+
+# tmux: my ~/.tmux.conf replaces Omarchy's ~/.config/tmux/tmux.conf, which
+# becomes a one-line forward to it because Omarchy's tools source that path.
+# Colours follow the Omarchy theme through the theme-set hook, which writes
+# ~/.config/tmux/theme.conf (also run once on apply). Plus the agent-status
+# machinery: tab dots, notes, overview, sessionizer, server port chip, the
+# agent-pty shim for Claude, and the resurrect/continuum plugins.
+!.tmux.conf
+!.tmux
+!.tmux/**
+!.config
+!.config/tmux
+!.config/tmux/tmux.conf
+# Hyprland: ~/.config/hypr is mine to edit (Omarchy manual, "Dotfiles");
+# managed files hold the stock content plus my lines.
+!.config/hypr
+!.config/hypr/autostart.lua
+
+# Neovim: my LazyVim config plus Omarchy's theme switcher and transparency
+# (DECISIONS.md). Listed without lazy-lock.json: Omarchy's all-themes.lua adds
+# every theme plugin, which lazy writes into the lockfile, so a shared lock
+# would drift on every apply. The spell script pre-fetches the nl dictionary.
+!.config/nvim
+!.config/nvim/init.lua
+!.config/nvim/after
+!.config/nvim/after/**
+!.config/nvim/lua
+!.config/nvim/lua/**
+!.config/nvim/plugin
+!.config/nvim/plugin/**
+!.chezmoiscripts/setup_nvim_spell.sh
+# Firefox right-click prefs (user.js from .chezmoitemplates/firefox-user.js).
+!.chezmoiscripts/setup_firefox_linux.sh
+# Syncthing for the Obsidian vault (private desktop; the script itself is gated
+# to private+desktop+omarchy). Device ID is added to the homelab hub manually.
+!.chezmoiscripts/setup-syncthing.sh
+# Obsidian: register the Syncthing-synced vault so it opens on launch.
+!.config/obsidian
+!.config/obsidian/obsidian.json
+!.local/bin/omarchy-shell-watchdog
+# Vault and SSH (private machines; the files themselves are gated on
+# includePrivate above). The ssh config renders the homelab address from the
+# vault, so `chezmoi apply` needs rbw unlocked here.
+!.ssh
+!.ssh/config
+!.config/rbw
+!.config/rbw/config.json
+!.config/omarchy
+!.config/omarchy/hooks
+!.config/omarchy/hooks/theme-set.d
+!.config/omarchy/hooks/theme-set.d/tmux-theme
+!.config/omarchy/hooks/post-update.d
+!.config/omarchy/hooks/post-update.d/check-shell-watchdog
+!.chezmoiscripts/setup-tmux-theme.sh
+!.chezmoiscripts/build-agent-pty.sh
+!.local
+!.local/bin
+!.local/bin/agent-exit
+!.local/bin/agent-note
+!.local/bin/agent-seen
+!.local/bin/agent-state
+!.local/bin/codex-subagents
+!.local/bin/scrub-exit-prompt
+!.local/bin/server-port-watch
+!.local/bin/server-state
+!.local/bin/tmux-agent-count
+!.local/bin/tmux-claude-sessions
+!.local/bin/tmux-editor-panes
+!.local/bin/tmux-git-branch
+!.local/bin/tmux-overview
+!.local/bin/tmux-pane-close
+!.local/bin/tmux-session-close
+!.local/bin/tmux-session-dots
+!.local/bin/tmux-sessionizer
+!.local/bin/tmux-url-open
 {{ end }}

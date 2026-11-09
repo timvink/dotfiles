@@ -43,14 +43,21 @@ ranks_nl=$'\n'"$session_ranks"$'\n'   # \n<name>\t<rank>\n … for fork-free loo
 # session keeps its slot in the row, and the same order alt+j/alt+k cycle through.
 names=$(tmux list-sessions -F "#{session_name}" 2>/dev/null | sort || true)
 
+# dot_tmux.conf's @thm_* palette (the Omarchy theme may override it), in one
+# tmux call; Catppuccin Mocha for any option that isn't set.
+IFS='|' read -r red yellow blue grey sel surface < <(tmux display -p \
+  '#{@thm_red}|#{@thm_yellow}|#{@thm_blue}|#{@thm_fg_dim}|#{@thm_selection}|#{@thm_surface}' 2>/dev/null)
+red=${red:-#f38ba8} yellow=${yellow:-#f9e2af} blue=${blue:-#89b4fa}
+grey=${grey:-#6c7086} sel=${sel:-#45475a} surface=${surface:-#313244}
+
 # Set $_dot to the tmux-format glyph for rank $1 (mirrors dot_tmux.conf's palette).
 rank_dot() {
   case "$1" in
-    4) _dot='#[fg=#f38ba8]●' ;;  # needs-input  red
-    3) _dot='#[fg=#f9e2af]●' ;;  # done         yellow, filled — go collect it
-    2) _dot='#[fg=#89b4fa]●' ;;  # running      blue
-    1) _dot='#[fg=#f9e2af]○' ;;  # idle         yellow, hollow — seen
-    *) _dot='#[fg=#6c7086]●' ;;  # none / unset grey
+    4) _dot="#[fg=$red]●" ;;     # needs-input  red
+    3) _dot="#[fg=$yellow]●" ;;  # done         yellow, filled — go collect it
+    2) _dot="#[fg=$blue]●" ;;    # running      blue
+    1) _dot="#[fg=$yellow]○" ;;  # idle         yellow, hollow — seen
+    *) _dot="#[fg=$grey]●" ;;    # none / unset grey
   esac
 }
 
@@ -67,10 +74,10 @@ while IFS= read -r s; do
   # an even-width pill would sit off to one side.
   if [ "$s" = "$current" ]; then
     # Mark the current session by highlighting its slot with the active-tab
-    # surface (#45475a) — the same "you are here" cue the active window tab uses.
-    # No bracket/glyph added, so the row doesn't shift as you switch sessions.
-    # Reset bg to the chip's #313244 after the pill.
-    out="$out#[bg=#45475a] $_dot #[bg=#313244]"
+    # surface (@thm_selection) — the same "you are here" cue the active window
+    # tab uses. No bracket/glyph added, so the row doesn't shift as you switch
+    # sessions. Reset bg to the chip's @thm_surface after the pill.
+    out="$out#[bg=$sel] $_dot #[bg=$surface]"
   else
     out="$out $_dot "
   fi

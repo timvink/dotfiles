@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+"""Refresh tmux's per-window Codex child counts from local, read-only state.
+
+Called by the status counter and overview, so already-open Codex sessions work
+without new hooks. Codex 0.167 stores ancestry in state_N.sqlite and turn status
+in thread_history_N.sqlite. These are internal schemas: an unavailable database
+or changed schema clears the Codex count and leaves the rest of tmux working.
+Like the existing agent dot, the count assumes one agent tool per window. Only
+live Codex panes with an agent dot own counts; Claude windows retain their OSC
+counts. Completed agents kept open for follow-up do not count until running
+again. Descendants count too, once each per window.
+"""
+
+import os
+from pathlib import Path
+import sqlite3
+import subprocess
+
+
+def newest_database(directory, prefix):
+    candidates = []
+    for path in directory.glob(f"{prefix}_*.sqlite"):
+        version = path.stem.removeprefix(f"{prefix}_")
+        if version.isdigit():
+            candidates.append((int(version), path))
+    return max(candidates, default=(0, None))[1]
+
+
+def active_children(directory, roots):
+    """Return child IDs per root; no transcripts or database writes."""
+    state = newest_database(directory, "state")
+    history = newest_database(directory, "thread_history")
+    if state is None or history is None:
+        return {}
+    result = {}
+    try:
+        with sqlite3.connect(state.as_uri() + "?mode=ro", uri=True, timeout=0.1) as db:
+            db.execute("ATTACH DATABASE ? AS history", (history.as_uri() + "?mode=ro",))
+            for root in roots:
+                result[root] = {
+                    row[0] for row in db.execute("""
+                        WITH RECURSIVE children(id) AS (
+                            SELECT child_thread_id FROM thread_spawn_edges
+                            WHERE parent_thread_id = ?
+                            UNION
+                            SELECT e.child_thread_id FROM thread_spawn_edges e
+                            JOIN children c ON e.parent_thread_id = c.id
+                        )
+                        SELECT id FROM children
+                        WHERE id != ? AND (
+                            SELECT status FROM history.thread_turns
+                            WHERE thread_id = children.id
+                            ORDER BY rollout_ordinal DESC LIMIT 1
+                        ) = 'inProgress'
+                    """, (root, root))
+                }
+    except (OSError, sqlite3.Error):
+        return {}
+    return result
+
+
+def tmux(*args):
+    return subprocess.run(
+        ["tmux", *args], capture_output=True, text=True, timeout=2,
+    ).stdout
+
+
+def refresh():
+    windows = {}
+    listing = tmux(
+        "list-panes", "-a", "-F",
+        "#{window_id}\t#{pane_current_command}\t#{@codex_session_id}\t"
+        "#{@agent_state}\t#{@agent_subagents}",
+    )
+    for line in listing.splitlines():
+        fields = line.split("\t")
+        if len(fields) != 5:
+            continue
+        window, command, root, state, previous = fields
+        if command != "codex" and not command.startswith("codex-"):
+            continue
+        if not state:
+            continue
+        roots, _ = windows.setdefault(window, (set(), previous))
+        if root:
+            roots.add(root)
+    if not windows:
+        return
+    directory = Path(os.environ.get("CODEX_HOME", "~/.codex")).expanduser().resolve()
+    counts = active_children(directory, set().union(*(roots for roots, _ in windows.values())))
+    for window, (roots, previous) in windows.items():
+        children = set().union(*(counts.get(root, set()) for root in roots))
+        count = str(len(children)) if children else ""
+        if count == previous:
+            continue
+        if count:
+            tmux("set-option", "-wt", window, "@agent_subagents", count)
+        else:
+            tmux("set-option", "-wut", window, "@agent_subagents")
+
+
+if __name__ == "__main__":
+    try:
+        refresh()
+    except (OSError, subprocess.TimeoutExpired):
+        pass  # No tmux server, missing binary, or shutting down: no status output.

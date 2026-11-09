@@ -1,0 +1,15 @@
+#!/bin/bash
+# After each `omarchy update`: is ~/.local/bin/omarchy-shell-watchdog still
+# needed? It works around the NVIDIA resume wedge in omacom/omarchy#10108; once
+# that issue is closed (or the restart fix #12983 is merged), say so, so the
+# watchdog and its autostart line can be removed from the dotfiles.
+command -v gh >/dev/null 2>&1 || exit 0
+
+issue=$(gh issue view 10108 -R omacom/omarchy --json state --jq .state 2>/dev/null)
+pr=$(gh pr view 12983 -R omacom/omarchy --json state --jq .state 2>/dev/null)
+
+if [[ $issue == CLOSED || $pr == MERGED ]]; then
+  omarchy-notification-send -u normal "Shell watchdog may be obsolete" \
+    "omarchy#10108: ${issue:-?}, PR #12983: ${pr:-?}. Check whether to remove omarchy-shell-watchdog from the dotfiles."
+fi
+exit 0

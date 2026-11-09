@@ -8,6 +8,11 @@ vim.opt.smartindent = true
 -- Relative line numbers, for quick jumps with j/k
 vim.opt.relativenumber = true
 
+-- No format-on-save (Omarchy's choice too): saving reformats the whole file,
+-- which makes noisy diffs in repos whose style doesn't match the formatter.
+-- Format on demand with <leader>cf.
+vim.g.autoformat = false
+
 -- Soft-wrap long lines in every filetype instead of scrolling sideways.
 -- LazyVim sets `wrap = false` globally and only wraps markdown/text/gitcommit,
 -- so writing anywhere else ran off the right edge. `linebreak` breaks at word

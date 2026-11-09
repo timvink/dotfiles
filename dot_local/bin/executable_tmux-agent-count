@@ -7,15 +7,15 @@
 #          by the agent-pty shim for Claude and by lifecycle hooks for Codex),
 #          counted server-wide.
 #   6+11   …and between them those six have eleven subagents in flight, from
-#          @agent_subagents (the shim's count of Claude's OSC 7501 child records). The "+11" appears only when
+#          @agent_subagents (Claude's OSC records or Codex's active child turns).
+#          The "+11" appears only when
 #          there are any, in a lighter blue, because it answers a different
 #          question: six blue dots could be six agents each doing one thing, or
 #          two of them driving a wide fan-out, and the load on the machine and on
 #          the rate limit is nothing alike.
 #
-# The subagent half is Claude-only by construction — Codex and Antigravity
-# sessions count toward the first number and can never add to the second, since
-# only Claude Code reports its subagents.
+# Codex's count is refreshed from its local state on every tick; Claude's comes
+# from agent-pty. Antigravity contributes only to the first number.
 #
 # Emits a tmux FORMAT-styled number, or NOTHING when nothing is working — so the
 # bar shows a figure only while something is, and the slot vanishes when nothing
@@ -26,8 +26,11 @@
 #
 # Emits tmux FORMAT (#[fg=...]), NOT raw ANSI: tmux re-expands #[...] in #()
 # output on the status bar. bg is left untouched so the number sits on whatever
-# bar bg is current (the hostname's @status_bg, before the dots chip's #313244).
+# bar bg is current (the hostname's @status_bg, before the dots chip's surface).
+# Colours are dot_tmux.conf's @thm_blue / @thm_cyan, Catppuccin when unset.
 set -uo pipefail
+
+"$HOME/.local/bin/codex-subagents" 2>/dev/null || true
 
 # Resolve done → idle for whatever is on screen right now. The tmux hooks in
 # dot_tmux.conf catch a window becoming visible; this catches the rest, mainly a
@@ -46,7 +49,8 @@ read -r n subs < <(
 # Trailing space sits on the bar bg, adding a gap before the dots chip's own
 # leading space — so the number reads as evenly spaced between host and dots.
 if [ "${n:-0}" -gt 0 ]; then
-    printf '#[fg=#89b4fa]%s#[default]' "$n"
-    [ "${subs:-0}" -gt 0 ] && printf '#[fg=#74c7ec]+%s#[default]' "$subs"
+    IFS='|' read -r blue cyan < <(tmux display -p '#{@thm_blue}|#{@thm_cyan}' 2>/dev/null)
+    printf '#[fg=%s]%s#[default]' "${blue:-#89b4fa}" "$n"
+    [ "${subs:-0}" -gt 0 ] && printf '#[fg=%s]+%s#[default]' "${cyan:-#74c7ec}" "$subs"
     printf ' '
 fi

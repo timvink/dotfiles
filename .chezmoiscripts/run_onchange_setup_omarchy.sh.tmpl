@@ -1,46 +1,203 @@
 {{- /*
-  Omarchy-only desktop setup. Omarchy is Arch-based but identifies itself as
-  ID=omarchy in /etc/os-release, so gating on that keeps this off my Macs and my
-  other (apt-based) Linux boxes: there it renders empty and chezmoi skips it.
-  `dig` because macOS has no osRelease at all.
+  Omarchy-only desktop setup; renders empty elsewhere, so chezmoi skips it.
+  On Omarchy this is on the .chezmoiignore allow-list (see the Omarchy block
+  there): the rest of the repo is ported over piece by piece.
 
-  Defaults go through Omarchy's own commands rather than raw xdg-settings, so
-  Omarchy's menus and Super+Return keep agreeing with what we pick.
+  Installs and defaults go through Omarchy's own commands (`omarchy install`,
+  `omarchy default`, `omarchy pkg`), the same ones its Setup/Install menus run,
+  so Omarchy's menus and Super+Return keep agreeing with what is set here.
+  Each step checks first, so a re-run changes nothing.
 */ -}}
-{{- if eq (dig "osRelease" "id" "" .chezmoi) "omarchy" -}}
+{{- if eq (includeTemplate "machine" .) "omarchy" -}}
 #!/bin/bash
 set -euo pipefail
 
 echo "=== chezmoi: omarchy setup ==="
 
-# Terminal: Ghostty, not Omarchy's default foot (no tabs). `install terminal`
-# also points xdg-terminal-exec (Super+Return) at it; idempotent.
+# Terminal: Ghostty instead of Omarchy's default, for tabs. `install terminal`
+# also points xdg-terminal-exec (Super+Return) at it.
 if [ "$(omarchy default terminal)" != "ghostty" ]; then
     omarchy install terminal ghostty
 fi
 
-# Browser: Chrome (packaged in Omarchy's own repo, so plain `pkg add`).
-omarchy pkg add google-chrome
-if [ "$(omarchy default browser)" != "chrome" ]; then
-    omarchy default browser chrome
+# Browsers: Chromium (Omarchy's stock browser, declared so a removal is undone)
+# and Firefox, which is the default.
+if omarchy-cmd-missing chromium; then
+    omarchy install browser chromium
+fi
+if omarchy-cmd-missing firefox; then
+    omarchy install browser firefox
 fi
 
-# Notes (replaces Notion). Omarchy ships Obsidian, but declare it so a
-# removal is undone; the vault is synced by run_onchange_after_setup-syncthing.
-omarchy pkg add obsidian
+# Browser policy, for Firefox, Chromium and Chrome alike:
+#   - Bitwarden installed, plus Vimium in Firefox. Firefox fetches from AMO,
+#     the Chromium family from the Chrome Web Store, on next start, and keeps
+#     them updated. normal_installed: can be disabled, not removed.
+#   - Bitwarden pointed at my Vaultwarden (private machines only), through the
+#     extension's managed storage ("3rdparty" policy). It applies to a
+#     logged-out extension; one already logged in keeps its own server.
+#   - The browsers' own password managers and autofill prompts off: Bitwarden
+#     does that job. Same as user.js on the Mac (setup_firefox_darwin.sh).
+# Omarchy already manages these browsers by policy, so this adds no "managed
+# by your organization" banner that wasn't there.
+#
+# Firefox reads a single policies.json, which `omarchy install browser firefox`
+# writes; merge into it, keeping Omarchy's keys. Re-running that installer
+# rewrites the file, which `chezmoi apply` won't notice: then re-run this
+# script with `chezmoi state delete-bucket --bucket=scriptState` and apply.
+# The Chromium family reads every file in its managed-policy dir, so mine sits
+# beside Omarchy's omarchy.json (Omarchy only purges files not owned by root).
+BITWARDEN_FIREFOX='{446900e4-71c2-419f-a6a7-df9c091e268b}'
+BITWARDEN_CHROME=nngceckbapebfimnlniiiahkandclblb
+VIMIUM_FIREFOX='{d7742d87-e61d-4b78-b8a1-b469842139fa}'
+{{- if dig "includePrivate" false . }}
+VAULT_URL=https://vault.home.timvink.nl  # same server as rbw (.chezmoitemplates/rbw-config.json)
+{{- else }}
+VAULT_URL=
+{{- end }}
 
-# Bitwarden extension, via Chrome's external-extensions mechanism: Chrome
-# fetches it from the Web Store on next start and asks once to enable it. Not a
-# managed policy on purpose: that would brand Chrome "managed by your
-# organization" and make the extension unremovable. Points at my self-hosted
-# vault, set inside the extension after install.
-BITWARDEN_ID=nngceckbapebfimnlniiiahkandclblb
-ext_json=/usr/share/google-chrome/extensions/$BITWARDEN_ID.json
-if [ ! -f "$ext_json" ]; then
-    sudo mkdir -p "$(dirname "$ext_json")"
-    echo '{ "external_update_url": "https://clients2.google.com/service/update2/crx" }' \
-        | sudo tee "$ext_json" >/dev/null
+install_if_changed() {  # <new file> <target>: root-owned 0644, only when it differs
+    if ! cmp -s "$1" "$2"; then
+        sudo install -D -m 644 -o root -g root -T "$1" "$2"
+    fi
+    rm -f "$1"
+}
+
+ff_policies=/usr/lib/firefox/distribution/policies.json
+ff_merged=$(mktemp)
+jq --arg bw "$BITWARDEN_FIREFOX" --arg vim "$VIMIUM_FIREFOX" --arg vault "$VAULT_URL" '
+    .policies.ExtensionSettings += {
+        ($bw): {
+            installation_mode: "normal_installed",
+            install_url: "https://addons.mozilla.org/firefox/downloads/latest/bitwarden-password-manager/latest.xpi"
+        },
+        ($vim): {
+            installation_mode: "normal_installed",
+            install_url: "https://addons.mozilla.org/firefox/downloads/latest/vimium-ff/latest.xpi"
+        }
+    }
+    | .policies.PasswordManagerEnabled = false
+    | .policies.OfferToSaveLogins = false
+    | .policies.AutofillAddressEnabled = false
+    | .policies.AutofillCreditCardEnabled = false
+    | if $vault != "" then .policies["3rdparty"].Extensions[$bw].environment.base = $vault else . end
+' "$ff_policies" > "$ff_merged"
+install_if_changed "$ff_merged" "$ff_policies"
+
+chromium_policy=$(mktemp)
+jq -n --arg bw "$BITWARDEN_CHROME" --arg vault "$VAULT_URL" '
+    {
+        ExtensionSettings: {
+            ($bw): {
+                installation_mode: "normal_installed",
+                update_url: "https://clients2.google.com/service/update2/crx"
+            }
+        },
+        PasswordManagerEnabled: false,
+        AutofillAddressEnabled: false,
+        AutofillCreditCardEnabled: false
+    }
+    | if $vault != "" then .["3rdparty"].extensions[$bw].environment.base = $vault else . end
+' > "$chromium_policy"
+for dir in /etc/chromium/policies/managed /etc/opt/chrome/policies/managed; do
+    [ -d "$dir" ] || continue  # browser not installed
+    cp "$chromium_policy" "$chromium_policy.copy"
+    install_if_changed "$chromium_policy.copy" "$dir/chezmoi.json"
+done
+rm -f "$chromium_policy"
+# The previous setup installed Bitwarden into Chrome through an external-
+# extensions file; the policy above replaces it.
+old_ext=/usr/share/google-chrome/extensions/$BITWARDEN_CHROME.json
+if [ -e "$old_ext" ]; then sudo rm -f "$old_ext"; fi
+
+if [ "$(omarchy default browser)" != "firefox" ]; then
+    # Its last step is a desktop notification, which fails when the Omarchy
+    # shell doesn't answer; judge success by the default it reads back instead.
+    omarchy default browser firefox || true
+    [ "$(omarchy default browser)" = "firefox" ]
 fi
+
+# Show hidden files by default: in Nautilus (Omarchy's file manager) and in the
+# GTK 3/4 file pickers apps open. Ctrl+H still toggles; Nautilus saves the
+# toggle back to its key, so a re-apply resets it to shown.
+gsettings set org.gnome.nautilus.preferences show-hidden-files true
+gsettings set org.gtk.gtk4.Settings.FileChooser show-hidden true
+gsettings set org.gtk.Settings.FileChooser show-hidden true
+
+# CLI tools my config expects that Omarchy doesn't ship: diff-so-fancy, the
+# git pager in ~/.gitconfig.
+omarchy pkg add diff-so-fancy
+
+# keyd, on this laptop's built-in keyboard only: Caps tap = Esc, hold = Hyper.
+# The Mac does the same in Karabiner and the Voyager in firmware; external
+# keyboards are untouched because only the built-in id is listed. The id is
+# this laptop's (`keyd monitor` shows it); on another laptop nothing matches
+# and keyd does nothing until its id is added.
+# Side effect: Omarchy's Compose key is Caps (kb_options compose:caps), so the
+# built-in keyboard has no Compose key while this is active.
+omarchy pkg add keyd
+keyd_conf=$(mktemp)
+cat > "$keyd_conf" <<'KEYD'
+# Managed by chezmoi (.chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl).
+[ids]
+k:048d:c101
+
+[main]
+# Same 200 ms hold threshold as Karabiner on the Mac. overloadt2 also resolves
+# as Hyper when another key is tapped while Caps is down, so a fast Caps+A is
+# Hyper+A instead of Esc, a.
+capslock = overloadt2(hyper, esc, 200)
+
+# Hyper = Ctrl+Alt+Super+Shift, like Karabiner's cmd+ctrl+opt+shift. Omarchy
+# binds no four-modifier combo, so Hyper+key is free.
+[hyper:C-A-M-S]
+KEYD
+keyd check "$keyd_conf" >/dev/null
+if ! cmp -s "$keyd_conf" /etc/keyd/laptop.conf; then
+    sudo install -Dm644 "$keyd_conf" /etc/keyd/laptop.conf
+    # restart, not `keyd reload`: on a first install the daemon may not be
+    # listening on its socket yet, and reload would fail the script.
+    sudo systemctl enable keyd
+    sudo systemctl restart keyd
+fi
+rm -f "$keyd_conf"
+{{- if dig "includePrivate" false . }}
+
+# rbw, the Bitwarden CLI for my Vaultwarden (config: .chezmoitemplates/
+# rbw-config.json). Built from the 1.15.0 tag plus a patch, like on the
+# servers (run_onchange_setup_private_packages_linux.sh.tmpl): Vaultwarden
+# 1.37+ rejects `rbw add`/`rbw edit` from stock rbw because it omits the
+# `encryptedFor` field (doy/rbw#385). Drop this for `omarchy pkg add rbw` once
+# doy/rbw#386 is released. Installed into ~/.local/bin, so Arch's stock rbw is
+# removed: /usr/bin comes before ~/.local/bin on Omarchy's PATH. The Rust
+# toolchain comes from Omarchy's own installer (rustup in ~/.cargo).
+rbw_bin=$HOME/.local/bin/rbw
+if [ ! -x "$rbw_bin" ]; then
+    if ! command -v cargo >/dev/null 2>&1 && [ ! -x "$HOME/.cargo/bin/cargo" ]; then
+        omarchy install dev-env rust
+    fi
+    rbw_src=$(mktemp -d)
+    git clone -q --depth 1 --branch 1.15.0 https://github.com/doy/rbw "$rbw_src"
+    git -C "$rbw_src" apply - <<'PATCH'
+{{ include ".chezmoitemplates/rbw-encryptedfor.patch" }}PATCH
+    "$HOME/.cargo/bin/cargo" install --locked --root "$HOME/.local" --path "$rbw_src"
+    rm -rf "$rbw_src"
+fi
+omarchy pkg drop rbw
+
+# Netbird mesh VPN to the homelab (private machines only; I don't use
+# Tailscale). Omarchy has no installer for it, so the AUR package via
+# `omarchy pkg aur add`. netbird-bin's netbird@.service template puts the
+# daemon socket at a per-instance path that every CLI call would then need
+# --daemon-addr for, so use upstream's `service install` (netbird.service,
+# default socket) instead. Logging in (`netbird up`, SSO in the browser)
+# stays manual.
+omarchy pkg aur add netbird-bin
+if ! systemctl is-enabled --quiet netbird 2>/dev/null; then
+    sudo netbird service install
+    sudo netbird service start
+fi
+{{- end }}
 
 echo "=== chezmoi: omarchy setup done ==="
 {{ end -}}

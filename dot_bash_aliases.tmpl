@@ -1,6 +1,12 @@
+{{- $machine := includeTemplate "machine" . -}}
 ###########
 # Aliases
 ###########
+#
+# On Omarchy this file is sourced from ~/.bashrc after Omarchy's own aliases,
+# so a name defined here overrides Omarchy's. Sections that Omarchy already
+# covers, or that need something not yet ported, are fenced off with
+# `ne $machine "omarchy"` (see DECISIONS.md); porting one means dropping its fence.
 
 # Git stuff
 alias gst='git status'
@@ -27,11 +33,6 @@ alias cd2="cd ../.."
 alias cd3="cd ../../.."
 alias ...="cd ../.."
 alias ....="cd ../../.."
-{{ if eq .chezmoi.os "darwin" -}}
-alias del="rmtrash"
-{{- else -}}
-alias del="trash-put"
-{{- end }}
 
 # Bash commands
 # `e` = leave this tmux tab. Plain `exit` only pops one shell level, so nested
@@ -53,15 +54,45 @@ e() {
         exit
     fi
 }
+# Overrides Omarchy's `c` (opencode).
 alias c="clear"
 
+{{ if ne $machine "omarchy" -}}
 # Keep tmux's socket out of /tmp (macOS's periodic cleaner deletes it out from
 # under a running server). The canonical export lives in ~/.zshenv so EVERY zsh
 # — including non-interactive ones that may launch tmux — agrees on the socket;
 # this copy just covers interactive bash, which never reads .zshenv. Keep the
 # two in sync. See dot_zshenv for the full rationale.
+# Not on Omarchy: its theme switch (omarchy-theme-set-tmux, and my tmux-theme
+# hook) and omarchy-restart-tmux run outside any shell and look for the server
+# on the default socket, and no cleaner touches /tmp there.
 export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
 [ -d "$TMUX_TMPDIR" ] || mkdir -p "$TMUX_TMPDIR"
+{{- end }}
+
+# Reap a stale per-tab agent dot when the bash prompt returns: bash's twin of
+# _agent_dot_reap in dot_zshrc.tmpl (see there for why; zsh also sources this
+# file, hence the bash-only guard). Codex has no SessionEnd and a killed agent
+# fires no hook, so their dot would otherwise linger. The sentinel path MUST
+# match executable_agent-state's formula. Appended after starship's precmd and
+# passes $? through, so the prompt still shows the last command's status.
+if [ -n "${BASH_VERSION:-}" ]; then
+    _agent_dot_reap_bash() {
+        local rc=$?
+        if [[ -n ${TMUX_PANE:-} && -e ${TMPDIR:-/tmp}/agent-dot-${TMUX_PANE#%} ]]; then
+            "$HOME/.local/bin/agent-state" none
+        fi
+        return $rc
+    }
+    # A newline joins it on, which also works after a trailing `;`. Where
+    # PROMPT_COMMAND is an array (bash 5.1+, as on Omarchy) this extends its
+    # first element, which runs first.
+    case "${PROMPT_COMMAND:-}" in
+        *_agent_dot_reap_bash*) ;;
+        *) PROMPT_COMMAND="${PROMPT_COMMAND:+$PROMPT_COMMAND
+}_agent_dot_reap_bash" ;;
+    esac
+fi
 
 # tmux — get me into my persistent dev server. If any session is running, attach
 # to the most-recently-used one (every other session/tab is one prefix+w or
@@ -90,6 +121,8 @@ export TMUX_TMPDIR="${TMUX_TMPDIR:-$HOME/.cache/tmux}"
 # into a fresh shell: that waits for zsh to draw its first (starship) prompt and
 # made the agent ~700ms slower to accept input. Per-project workspaces live in
 # alt+f (the fuzzy project finder).
+# Drop Omarchy's `t` alias first: bash would expand it inside `t() {`.
+unalias t 2>/dev/null
 t() {
     [ -n "$TMUX" ] && return                     # already inside tmux
     if tmux ls >/dev/null 2>&1; then             # server up → resume where I left off
@@ -101,9 +134,6 @@ t() {
         tmux attach -t chezmoi:1
     fi
 }
-
-# Python
-alias venv='source .venv/bin/activate'
 
 # Wrap `make` and `just` so serve*/docs* show a green port chip on the tab (next to the
 # agent dot — see dot_tmux.conf) for the lifetime of the foreground server, then
@@ -179,20 +209,6 @@ ccp() {
         echo "Error: File '$1' not found."
         return 1
     fi
-}
-# Start Claude in an isolated git worktree under .claude/worktrees/<name>/.
-# Native worktree support handles branch creation, .worktreeinclude copying
-# and cleanup on exit, so this is just a thin wrapper (cc() can't take flags —
-# it folds every arg into -p). No name → Claude generates one (and we can't
-# rename the tab since we don't know it). Inside tmux, name the tab "cc <name>"
-# so the worktree stands out in the prefix+w tree and prefix+o montage; the
-# manual rename also disables automatic-rename-format, which would relabel it
-# "claude" the moment the agent starts.
-ccw() {
-    if [ -n "$TMUX" ] && [ -n "$1" ]; then
-        tmux rename-window "cc $1"
-    fi
-    claude --dangerously-skip-permissions --worktree "$@"
 }
 # Codex, fully auto-run (the cc → claude analogue: co → codex). `--yolo` (=
 # --dangerously-bypass-approvals-and-sandbox) never prompts and drops the
@@ -293,25 +309,37 @@ zfs_unlock() {
 
 {{ if ne .chezmoi.os "windows" }}
 
-# Use eza, a better colorized ls
-alias ls='eza -lah --long --grid --time-style=long-iso'
-alias lss='eza -ah1 --time-style=long-iso'
-alias tree='eza --tree --level 3'
+{{ if ne $machine "omarchy" -}}
+# eza listings, copied from Omarchy's defaults ($OMARCHY_PATH/default/bash/
+# aliases) so every machine lists files the same way. Not defined on Omarchy
+# itself, so Omarchy updates to them come through there.
+alias ls='eza -lh --group-directories-first --icons=auto'
+alias lsa='ls -a'
+alias lt='eza --tree --level=2 --long --icons --git'
+alias lta='lt -a'
+{{- end }}
 
 # Use bat, a better colorized cat
 alias cat='bat --paging=never'
 
 # Use neovim instead of vim
 alias vim='nvim'
+{{ if ne $machine "omarchy" -}}
+# Not on Omarchy: its own `n` opens nvim the same way, without the Neo-tree
+# sidebar (Omarchy's LazyVim has no neo-tree until my nvim config is ported).
 # n — Neovim in the current directory with the Neo-tree sidebar already open
 # (what <leader>e does). Hooked on LazyVim's VeryLazy event because the plugins
 # aren't ready yet when -c runs. Extra args (files) pass through.
 n() {
     nvim -c 'autocmd User VeryLazy ++once lua require("neo-tree.command").execute({ dir = LazyVim.root() })' "$@"
 }
+{{- end }}
 
+{{ if ne $machine "omarchy" -}}
+# Not on Omarchy: there `ff` is Omarchy's fzf file picker.
 # fastfetch — system info on demand (config in ~/.config/fastfetch)
 alias ff='fastfetch'
+{{- end }}
 
 {{ end }}
 
@@ -319,8 +347,12 @@ alias ff='fastfetch'
 # Settings
 ###########
 
+{{ if ne $machine "omarchy" -}}
+# Not on Omarchy: it sets $EDITOR to its own launcher (nvim by default,
+# changed with `omarchy default editor`).
 export VISUAL="nvim"
 export EDITOR="nvim"
+{{- end }}
 
 ###########
 # Functions
@@ -336,11 +368,4 @@ mkcdir ()
 {
     mkdir -p -- "$1" &&
       cd -P -- "$1"
-}
-
-# Append gitignore
-append_gitignore() {
-  curl -sLw "\n" 	https://www.gitignore.io/api/r,macos,python,pycharm,windows,visualstudio,visualstudiocode,jupyternotebooks >> .gitignore
-  awk '!a[$0]++' .gitignore > gitignore
-  mv gitignore .gitignore
 }

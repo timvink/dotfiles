@@ -1,0 +1,24 @@
+#!/bin/sh
+# chezmoi modify_ script for ~/.config/obsidian/obsidian.json — Obsidian's list
+# of known vaults. Obsidian owns this file (it rewrites it on every vault open,
+# window move, and new-vault add), so we can't ship it statically: register my
+# Syncthing-synced vault if it isn't already listed, and pass through everything
+# else Obsidian put there. Idempotent.
+#
+# The vault id is any stable 16-hex string; I derive it from the path so it's
+# the same on every machine. `open: true` makes Obsidian open it on launch.
+set -eu
+vault="$HOME/Obsidian/vault"
+vid={{ $v := (print .chezmoi.homeDir "/Obsidian/vault") }}{{ $v | sha256sum | trunc 16 | quote }}
+
+input=$(cat)
+[ -z "$input" ] && input='{"vaults":{}}'
+
+# Already registered? leave the file untouched so Obsidian's state is preserved.
+if printf '%s' "$input" | jq -e --arg p "$vault" '.vaults | to_entries[] | select(.value.path == $p)' >/dev/null 2>&1; then
+    printf '%s' "$input"
+    exit 0
+fi
+
+printf '%s' "$input" | jq --arg id "$vid" --arg p "$vault" \
+    '.vaults[$id] = {path: $p, ts: (now * 1000 | floor), open: true}'

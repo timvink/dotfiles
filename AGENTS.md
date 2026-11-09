@@ -14,6 +14,10 @@ workflow. Support macOS and Linux (including remote VMs over SSH).
   keys while preserving runtime state, such as trust levels and plugin caches.
 - Source is authoritative; `chezmoi apply --force` is allowed when an installer
   appended content to a managed file. Prefer applying only affected targets.
+- Omarchy is migrated piece by piece: `.chezmoiignore` ignores everything on
+  Omarchy except an allow-list. Porting adds paths there and a line to
+  `DECISIONS.md`; install via `omarchy` commands in
+  `.chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl`.
 - Package scripts: `.chezmoiscripts/run_onchange_setup_packages_darwin.sh` on
   macOS; `run_onchange_setup_packages_linux.sh` on Linux.
 - Shared instructions live in `agents/AGENTS.md`; shared skills in
