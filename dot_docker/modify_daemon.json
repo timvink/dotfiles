@@ -1,0 +1,20 @@
+#!/bin/sh
+# Cap Docker Desktop's BuildKit cache, preserving everything else Desktop
+# writes to this file (its Settings → Docker Engine pane edits it in place).
+#
+# Desktop ships a 20GB keep-storage default. On a laptop with a small disk,
+# repos that rebuild compose images per git worktree filled that cache to
+# 8.5GB within three days. 3GB keeps the recently used layers, so warm
+# rebuilds stay fast.
+#
+# Takes effect when Docker Desktop restarts. macOS-only (gated in
+# .chezmoiignore): Linux's daemon reads /etc/docker/daemon.json instead.
+#
+# chezmoi modify_ script: stdin = current target, stdout = new content.
+
+set -eu
+
+input=$(cat)
+[ -z "$input" ] && input='{}'
+
+printf '%s\n' "$input" | jq '.builder.gc.enabled = true | .builder.gc.defaultKeepStorage = "3GB"'

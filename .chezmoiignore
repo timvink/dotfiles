@@ -95,6 +95,8 @@ Library/LaunchAgents/com.timvink.spotify-watch.plist
 .local/bin/spotify-volume
 # Docker credsStore override targets osxkeychain, which only exists on macOS.
 .docker/config.json
+# Docker Desktop's daemon.json; Linux reads /etc/docker/daemon.json.
+.docker/daemon.json
 # Karabiner-Elements is macOS-only, so its config is dead weight elsewhere.
 .config/karabiner
 {{ end }}
