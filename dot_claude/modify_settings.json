@@ -1,6 +1,6 @@
 #!/bin/sh
 # Ensure ~/.claude/settings.json carries the settings we manage (status line,
-# auto-compact threshold, subagent model, output style, AGENTS.md loading,
+# auto-compact threshold, subagent model, output style, advisor, AGENTS.md loading,
 # default permission mode) while preserving everything Claude Code writes at
 # runtime.
 #
@@ -70,6 +70,13 @@ instruction_files=claude-md-and-agents-md
 # org kill switch) the CLI falls back to "default" with a notice.
 default_permission_mode=auto
 
+# Advisor: a stronger model Claude consults server-side before committing to an
+# approach, on a recurring error, or before declaring a task done. Fable ranks
+# above every main model, so it pairs with whatever /model picks. Takes effect
+# only after the one-time Fable usage-credits consent (`/model fable`, then
+# continue); until then Claude Code sends requests without the advisor.
+advisor_model=fable
+
 printf '%s' "$input" | jq \
     --arg     statuscmd "$status_cmd" \
     --arg     autocompactpct "$autocompact_pct" \
@@ -77,6 +84,7 @@ printf '%s' "$input" | jq \
     --arg     defaultmode "$default_permission_mode" \
     --arg     outstyle "$output_style" \
     --arg     instrfiles "$instruction_files" \
+    --arg     advisormodel "$advisor_model" \
     'del(.hooks.SessionStart, .hooks.SessionEnd, .hooks.UserPromptSubmit,
          .hooks.PreToolUse, .hooks.PostToolUse, .hooks.Notification,
          .hooks.Stop, .hooks.StopFailure, .hooks.SubagentStart,
@@ -87,4 +95,5 @@ printf '%s' "$input" | jq \
    | .env.CLAUDE_CODE_SUBAGENT_MODEL = $subagentmodel
    | .permissions.defaultMode = $defaultmode
    | .outputStyle             = $outstyle
+   | .advisorModel            = $advisormodel
    | .pluginConfigs["agents-md@builtin"].options.instructionFiles = $instrfiles'
