@@ -92,6 +92,7 @@ Library/LaunchAgents/com.timvink.openurl.plist
 Library/LaunchAgents/com.timvink.agent-sleep-guard.plist
 Library/LaunchAgents/com.timvink.ah-mcp.plist
 Library/LaunchAgents/com.timvink.spotify-watch.plist
+Library/LaunchAgents/com.timvink.nextcloud-autostart.plist
 .chezmoiscripts/setup-spotify-watch_darwin.sh
 .local/bin/spotify-volume
 # Docker credsStore override targets osxkeychain, which only exists on macOS.

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Opens the Nextcloud client at login. Nextcloud's own "Launch on system
+     startup" is an SMAppService login item that macOS kept flipping to
+     disabled (sfltool dumpbtm: "disabled, allowed"), so after a reboot nothing
+     synced for days unnoticed. launchd loads every plist here at login, so no
+     loader script is needed. `open -g` keeps it in the background; `open` on an
+     already-running app is a no-op, so this is harmless if the in-app toggle
+     also works. -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.timvink.nextcloud-autostart</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/bin/open</string>
+        <string>-g</string>
+        <string>-a</string>
+        <string>Nextcloud</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+</dict>
+</plist>
