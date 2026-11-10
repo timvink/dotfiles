@@ -75,6 +75,7 @@ _revumount_devbox() {
 # shell, tear the mount down on the way out. Returns 2 — and only 2 — when the box
 # refused the -R 2489 bind, the one failure the main body knows how to heal.
 SESSION_PIDS=""
+EDITOR_WAITER_PID=""
 _devbox_session() {
   # Must come first: a dead master left over from a previous session would otherwise
   # swallow this connect whole, and the mount waiter below would latch onto it too.
@@ -99,6 +100,10 @@ _devbox_session() {
   # one already talking to the connection that failed.
   _devbox_winch_bg "${dest[@]}" &
   SESSION_PIDS="$SESSION_PIDS $!"
+  # Open the repository after the existing SSH tunnel can serve the editor.
+  # This waiter runs beside the shell and is cancelled when the session ends.
+  _devbox_editor_bg "${dest[@]}" &
+  EDITOR_WAITER_PID=$!
   # The shell itself is a plain mux client, NOT az — and that is what makes exiting
   # instant. az waits on the ssh process it spawns, and under ControlMaster that same
   # process goes on to serve the master, so an az-run session can't return until the
@@ -118,6 +123,12 @@ _devbox_session() {
 # slow unmount, so few stray mouse reports pile up.
 _devbox_session_end() {
   [ -n "$SESSION_PIDS" ] || return 0
+  # The browser waiter usually finishes quickly. Only kill a still-running job
+  # of this shell, so its old PID cannot target a later unrelated process.
+  if [ -n "$EDITOR_WAITER_PID" ]; then
+    jobs -pr | grep -qx "$EDITOR_WAITER_PID" && kill "$EDITOR_WAITER_PID" 2>/dev/null
+    EDITOR_WAITER_PID=""
+  fi
   _term_restore
   # shellcheck disable=SC2086 # a list of pids
   kill $SESSION_PIDS 2>/dev/null
@@ -333,6 +344,39 @@ _devbox_winch_bg() {
       last=$size
     fi
   done
+}
+
+_devbox_editor_bg() {
+  local editor_url
+  editor_url=$(ssh -T -o BatchMode=yes -o ConnectTimeout=10 "$@" 'timeout 45 python3 -' <<'PY_EDITOR'
+import time
+import urllib.request
+from pathlib import Path
+from urllib.parse import quote
+
+workspace = Path.home() / "workspace"
+infrastructure = workspace / "nwf-ai-platform-infra"
+folder = infrastructure if infrastructure.is_dir() else workspace
+for attempt in range(30):
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:18080", timeout=1) as response:
+            if response.status == 200:
+                print("http://127.0.0.1:18080/?folder=" + quote(str(folder), safe=""))
+                break
+    except OSError:
+        pass
+    time.sleep(1)
+else:
+    raise SystemExit(1)
+PY_EDITOR
+  ) || {
+    printf '%s\n' 'devbox: VS Code is not ready yet; open http://127.0.0.1:18080 once it has started' >&2
+    return 0
+  }
+  case "$editor_url" in
+    http://127.0.0.1:18080/\?folder=*) open "$editor_url" ;;
+    *) printf '%s\n' 'devbox: the VM did not return a VS Code folder link' >&2 ;;
+  esac
 }
 
 _remote_window devbox
