@@ -1,0 +1,21 @@
+{{- /* Macs are local; known Linux hosts use their role, all others are remote.
+       Match the short hostname so domain-qualified names behave the same. */ -}}
+{{- $hostname := index (splitList "." (lower .chezmoi.hostname)) 0 -}}
+{{- $machine := "remote" -}}
+{{- if or (hasPrefix "devbox" $hostname) (hasPrefix "vm-devbox" $hostname) -}}
+{{-   $machine = "devbox" -}}
+{{- else if eq $hostname "homelab" -}}
+{{-   $machine = "homelab" -}}
+{{- else if eq .chezmoi.os "darwin" -}}
+{{-   $machine = "local" -}}
+{{- end -}}
+$2   ╱╱  timvink/{{ $machine }}
+
+$1████████╗██╗███╗   ███╗██╗   ██╗██╗███╗   ██╗██╗  ██╗
+$1╚══██╔══╝██║████╗ ████║██║   ██║██║████╗  ██║██║ ██╔╝
+$1   ██║   ██║██╔████╔██║██║   ██║██║██╔██╗ ██║█████╔╝
+$1   ██║   ██║██║╚██╔╝██║╚██╗ ██╔╝██║██║╚██╗██║██╔═██╗
+$1   ██║   ██║██║ ╚═╝ ██║ ╚████╔╝ ██║██║ ╚████║██║  ██╗
+$1   ╚═╝   ╚═╝╚═╝     ╚═╝  ╚═══╝  ╚═╝╚═╝  ╚═══╝╚═╝  ╚═╝
+
+$2   ━━━━━━━━━━━━━━━━╸  $1{{ $machine }}$2  ╺━━━━━━━━━━━━━━━━
