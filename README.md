@@ -121,7 +121,8 @@ Sync this repo and apply just the Firefox settings **on the Mac**:
 
 ```bash
 chezmoi git -- pull --ff-only
-sh "$(chezmoi source-path)/.chezmoiscripts/run_onchange_setup_firefox_darwin.sh"
+chezmoi execute-template --file \
+  "$(chezmoi source-path)/.chezmoiscripts/run_onchange_setup_firefox_darwin.sh.tmpl" | sh
 ```
 
 Fully quit Firefox and reopen it to load `user.js`. This hostname route needs
