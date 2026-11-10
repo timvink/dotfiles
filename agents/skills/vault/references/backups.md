@@ -1,12 +1,14 @@
 # Vault-backed files
 
-Read this when changing `.env` keys or creating, rotating, or restoring key files. Helpers live in the skill root.
+Read this when changing secret-bearing `.env` files, including removing their
+last secret, or creating, rotating, or restoring gitignored credential files.
+Helpers live in the skill root.
 
 ## Environment files
 
 
-`.env` files are mirrored into the vault so the secrets survive total loss of the
-machine (the vault syncs to the user's other devices). The helper
+Secret-bearing `.env` files are mirrored into the vault so the secrets survive
+total loss of the machine and sync to the user's other devices. The helper
 `env-vault-sync.sh` (next to this file) manages it; the whole `.env` is stored in
 the notes of an rbw item named `env-backup:<repo-name>/<path-relative-to-repo-root>`
 (e.g. `env-backup:timvink-homelab/.env`). Keying on the repo name rather than the
@@ -15,8 +17,12 @@ machine and checkout (macOS, Linux, a git worktree); outside a git repo it falls
 back to `env-backup:<dir-name>/<file>`.
 
 **The trigger is writing, not reading.** After you add, change or remove a key
-in a `.env`, refresh the vault copy. Reading a secret out of a `.env` needs no
-sync.
+in a secret-bearing `.env`, refresh the vault copy. Determine whether it holds
+secrets before editing; removing its last secret still requires updating the
+existing backup. Reading a secret out of a `.env` needs
+no sync. Public, non-secret configuration files, such as versioned VM
+`<user>.env` files containing resource names and flags, need no vault backup
+or unlock; the filename alone does not put them in scope.
 
 ```bash
 ~/.local/share/chezmoi/agents/skills/vault/env-vault-sync.sh update <path/to/.env>   # after editing

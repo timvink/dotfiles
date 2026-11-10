@@ -56,9 +56,13 @@ setup, not another unauthenticated browser on the headless machine.
 Load `chezmoi` before changing dotfiles, agent configuration, or installed tools.
 Declare changes in the source repo; never hand-edit managed live files.
 
-Load `vault` when using vault credentials, changing `.env` keys, or creating or
-rotating gitignored key files. After changes, refresh and verify the vault backup
-with its `env-vault-sync.sh` or `file-vault-sync.sh` helper. Reading needs no sync.
+Load `vault` when using vault credentials, changing secret-bearing `.env` files
+(including removing their last secret), or creating or rotating gitignored
+credential files.
+Public, non-secret configuration such as versioned VM `<user>.env` files needs
+no vault backup or unlock. After changes in scope, refresh and verify the vault
+backup with its `env-vault-sync.sh` or `file-vault-sync.sh` helper. Reading needs
+no sync.
 If locked, ask the user to unlock; never run `rbw login` or `rbw unlock`, or handle
 the master password.
 
