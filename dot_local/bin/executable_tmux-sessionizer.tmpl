@@ -29,7 +29,8 @@
 # you to the first). Accepted — tmux simply can't name those two apart.
 #
 # Alt+n (advertised in the picker footer) makes a NEW project instead: a second
-# fzf acts as a one-line input box, prefilled with whatever was already typed,
+# fzf, in its own small popup (`--new` mode), acts as a one-line input box,
+# prefilled with whatever was already typed,
 # then mkdir -p ~/workspace/<name> and the same open_project() create-or-switch.
 # The binding is `become(printf …)` rather than a nested prompt inside the
 # picker: fzf's stdout here is the command substitution's pipe, so having the
@@ -132,6 +133,65 @@ c_red=${c_red:-#f38ba8} c_yellow=${c_yellow:-#f9e2af} c_blue=${c_blue:-#89b4fa}
 c_grey=${c_grey:-#6c7086} c_accent=${c_accent:-#cba6f7} c_sel=${c_sel:-#45475a}
 c_fg=${c_fg:-#cdd6f4} c_green=${c_green:-#a6e3a1}
 
+# Create-or-switch for a project directory: session named after the dir (tmux
+# forbids . and :, so they squash to _), agent in tab 1 (selected) and a plain
+# shell in tab 2.
+# The agent is the pane's own command rather than send-keys into a fresh shell:
+# send-keys waits for zsh to draw its first (starship) prompt, which made the
+# agent ~700ms slower to accept input (measured: ~1.15s vs ~0.5s to its UI).
+# `$SHELL -ic` still loads .zshrc (cc is a function, co an alias, plus the private
+# env), and `exec $SHELL` leaves a working shell when the agent quits. Switch the
+# client first; the shell tab is created detached behind it. $SHELL, not a bare
+# zsh: Homebrew's zsh comes first on PATH, and a version different from the login
+# shell's makes compinit rebuild its dump in both (~200ms).
+open_project() {
+  proj_dir=${1%/}
+  name=${proj_dir##*/}; name=${name//[.:]/_}
+  if ! tmux has-session -t "=$name" 2>/dev/null; then
+    tmux new-session -d -s "$name" -c "$proj_dir" "$SHELL -ic '{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}; exec $SHELL'"
+    go "$name"
+    tmux new-window -d -t "=$name:" -c "$proj_dir"
+    return
+  fi
+  go "$name"
+}
+
+# ── New-project mode (alt-n, in its own small popup — see the `new)` case) ──
+if [ "${1:-}" = "--new" ]; then
+  target=$(cat "$2" 2>/dev/null || true); rm -f "$2"
+  # Input box: an fzf over an empty list, so the only thing it can return is
+  # the query. `accept-or-print-query` is what makes enter print it (plain
+  # `accept` has nothing to accept and would exit empty-handed); esc still
+  # aborts, printing nothing, which the emptiness check below treats as
+  # "changed my mind". Prefilled with whatever was typed in the picker.
+  # (Not --print-query: that prints the query on *abort* too, which would turn
+  # esc into "create it anyway".)
+  # --height=5 matches the popup's height (border + three rows). --no-info and --no-separator drop the 0/0
+  # counter and its rule, which have nothing to say about an empty list.
+  # Even padding: fzf always keeps one (blank) list row below the prompt and
+  # ignores vertical --padding under --height, so a blank --header-first row
+  # above balances it. Horizontally, --padding=0,1 plus fzf's 1-column gutter
+  # gives 2 columns, which matches one row at a terminal cell's ~1:2 aspect.
+  name=$(: | fzf --height=5 --no-info --no-separator --reverse \
+      --header=' ' --header-first --padding=0,1 \
+      --bind 'enter:accept-or-print-query' --query="$target" \
+      --border=rounded --border-label=' New project ' \
+      --prompt='~/workspace/' \
+      --color="border:$c_green,label:$c_green,prompt:$c_blue") || true
+  # Trim surrounding whitespace, then bail on empty / path-ish names: a name
+  # with a slash would silently make (or reopen) something outside the flat
+  # one-level layout the picker lists.
+  name=${name#"${name%%[![:space:]]*}"}
+  name=${name%"${name##*[![:space:]]}"}
+  [ -z "$name" ] && exit 0
+  case $name in
+    */*|.|..) tmux display-message "new project: '$name' is not a plain name"; exit 0 ;;
+  esac
+  mkdir -p "$WORKSPACE/$name"
+  open_project "$WORKSPACE/$name"
+  exit 0
+fi
+
 # "#rrggbb" → the 38;2;r;g;b truecolor glyph, built once per colour.
 truecolor_dot() {
   printf '\033[38;2;%d;%d;%dm%s\033[0m' "0x${1:1:2}" "0x${1:3:2}" "0x${1:5:2}" "$2"
@@ -214,29 +274,6 @@ emit_project() {
   [ -d "/media/storage/private/timvink-homelab" ] && emit_project "/media/storage/private/timvink-homelab"
 } > "$proj_file"
 
-# Create-or-switch for a project directory: session named after the dir (tmux
-# forbids . and :, so they squash to _), agent in tab 1 (selected) and a plain
-# shell in tab 2.
-# The agent is the pane's own command rather than send-keys into a fresh shell:
-# send-keys waits for zsh to draw its first (starship) prompt, which made the
-# agent ~700ms slower to accept input (measured: ~1.15s vs ~0.5s to its UI).
-# `$SHELL -ic` still loads .zshrc (cc is a function, co an alias, plus the private
-# env), and `exec $SHELL` leaves a working shell when the agent quits. Switch the
-# client first; the shell tab is created detached behind it. $SHELL, not a bare
-# zsh: Homebrew's zsh comes first on PATH, and a version different from the login
-# shell's makes compinit rebuild its dump in both (~200ms).
-open_project() {
-  proj_dir=${1%/}
-  name=${proj_dir##*/}; name=${name//[.:]/_}
-  if ! tmux has-session -t "=$name" 2>/dev/null; then
-    tmux new-session -d -s "$name" -c "$proj_dir" "$SHELL -ic '{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}; exec $SHELL'"
-    go "$name"
-    tmux new-window -d -t "=$name:" -c "$proj_dir"
-    return
-  fi
-  go "$name"
-}
-
 # The alt-n hint line. --footer landed in fzf 0.65; an older fzf (some distro
 # packages) aborts on an unknown flag, and `|| exit 0` below would swallow that
 # into "alt+f does nothing", so fall back to --header there — top of the popup
@@ -307,36 +344,15 @@ case $kind in
   session) go "$target" ;;
   dir)     open_project "$target" ;;
   new)
-    # Input box: an fzf over an empty list, so the only thing it can return is
-    # the query. `accept-or-print-query` is what makes enter print it (plain
-    # `accept` has nothing to accept and would exit empty-handed); esc still
-    # aborts, printing nothing, which the emptiness check below treats as
-    # "changed my mind". Prefilled with whatever was typed in the picker.
-    # (Not --print-query: that prints the query on *abort* too, which would turn
-    # esc into "create it anyway".)
-    # --height shrinks it to a small box at the top of the popup instead of a
-    # mostly-empty full-screen list. --no-info and --no-separator drop the 0/0
-    # counter and its rule, which have nothing to say about an empty list.
-    # Even padding: fzf always keeps one (blank) list row below the prompt and
-    # ignores vertical --padding under --height, so a blank --header-first row
-    # above balances it. Horizontally, --padding=0,1 plus fzf's 1-column gutter
-    # gives 2 columns, which matches one row at a terminal cell's ~1:2 aspect.
-    name=$(: | fzf --height=5 --no-info --no-separator --reverse \
-        --header=' ' --header-first --padding=0,1 \
-        --bind 'enter:accept-or-print-query' --query="$target" \
-        --border=rounded --border-label=' New project ' \
-        --prompt='~/workspace/' \
-        --color="border:$c_green,label:$c_green,prompt:$c_blue") || true
-    # Trim surrounding whitespace, then bail on empty / path-ish names: a name
-    # with a slash would silently make (or reopen) something outside the flat
-    # one-level layout the picker lists.
-    name=${name#"${name%%[![:space:]]*}"}
-    name=${name%"${name##*[![:space:]]}"}
-    [ -z "$name" ] && exit 0
-    case $name in
-      */*|.|..) tmux display-message "new project: '$name' is not a plain name"; exit 0 ;;
-    esac
-    mkdir -p "$WORKSPACE/$name"
-    open_project "$WORKSPACE/$name"
+    # The picker's popup is 60%x70% — far too big for a one-line prompt, which
+    # left a large empty black area below it. tmux shows one popup per client
+    # and can't resize one in place, so hand off: a background run-shell waits
+    # for this popup to close (when we exit), then opens a popup sized to the
+    # prompt running `tmux-sessionizer --new <file>`. The prefill goes via a
+    # file so an arbitrary query needs no quoting through two shells.
+    resolve_client
+    q_file=$(mktemp)
+    printf '%s' "$target" > "$q_file"
+    tmux run-shell -b "sleep 0.1; tmux display-popup ${CLIENT:+-c '$CLIENT'} -E -B -w 60% -h 5 '$0 --new $q_file'"
     ;;
 esac
