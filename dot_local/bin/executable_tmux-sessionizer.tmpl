@@ -315,14 +315,17 @@ case $kind in
     # (Not --print-query: that prints the query on *abort* too, which would turn
     # esc into "create it anyway".)
     # --height shrinks it to a small box at the top of the popup instead of a
-    # mostly-empty full-screen list; fzf always keeps one (here blank) list row,
-    # so 4 lines with the border is as short as this gets. --no-info and
-    # --no-separator drop the 0/0 counter and its rule, which have nothing to
-    # say about an empty list.
-    name=$(: | fzf --height=3 --no-info --no-separator --reverse \
+    # mostly-empty full-screen list. --no-info and --no-separator drop the 0/0
+    # counter and its rule, which have nothing to say about an empty list.
+    # Even padding: fzf always keeps one (blank) list row below the prompt and
+    # ignores vertical --padding under --height, so a blank --header-first row
+    # above balances it. Horizontally, --padding=0,1 plus fzf's 1-column gutter
+    # gives 2 columns, which matches one row at a terminal cell's ~1:2 aspect.
+    name=$(: | fzf --height=5 --no-info --no-separator --reverse \
+        --header=' ' --header-first --padding=0,1 \
         --bind 'enter:accept-or-print-query' --query="$target" \
         --border=rounded --border-label=' New project ' \
-        --prompt='  ~/workspace/' \
+        --prompt='~/workspace/' \
         --color="border:$c_green,label:$c_green,prompt:$c_blue") || true
     # Trim surrounding whitespace, then bail on empty / path-ish names: a name
     # with a slash would silently make (or reopen) something outside the flat
