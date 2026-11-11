@@ -46,11 +46,13 @@ module.exports = class ExplorerVimKeys extends Plugin {
       const view = leaf.view;
       const tree = view && view.tree;
       if (!tree || !tree.scope || this.bound.has(tree.scope)) continue;
-      this.bound.set(tree.scope, this.register(view, tree));
+      this.bound.set(tree.scope, this.bindKeys(view, tree));
     }
   }
 
-  register(view, tree) {
+  // Not named register: that would override Component.register(cb), which
+  // registerEvent calls internally, and onload would throw.
+  bindKeys(view, tree) {
     let lastG = 0;
     const jumpTo = (direction) => {
       // From the root, the tree's own stepping lands on the first or last
