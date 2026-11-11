@@ -4,6 +4,9 @@
 These rules apply across projects unless explicitly overridden. Read the project's
 AGENTS.md (and applicable CLAUDE.md) before working.
 
+On NWF devboxes, read `/etc/codex/AGENTS.md` for the shared VM instructions when
+that file exists.
+
 ## Working approach
 
 State consequential assumptions, question unnecessary complexity, and fix the root
