@@ -6,14 +6,13 @@ AGENTS.md (and applicable CLAUDE.md) before working.
 
 ## Working approach
 
-State consequential assumptions, question unnecessary complexity, and fix the
+State consequential assumptions, question unnecessary complexity, and fix the root
 cause of a problem. Define the requested outcome and verify it with checks
-proportionate to the change. Preserve existing project conventions.
+proportionate to the change.
 
 Prefer Context7 for library/API documentation when available; otherwise use
 official documentation. For text-only fetches of public pages, try prefixing the
-URL with `https://markdown.new/`; fetch directly if it fails, and never proxy
-private URLs or authenticated requests.
+URL with `https://markdown.new/`; fetch directly if it fails.
 
 Use consistent domain vocabulary and searchable names. Document constraints the
 code cannot express, such as units, timezones, and ownership. Avoid renaming or
@@ -39,10 +38,6 @@ voice, and omit filler, repeated summaries, and unnecessary formatting.
 Put standalone previews, reports, and HTML artifacts in the session scratchpad,
 or `/tmp` if none exists. Tell the user the full path.
 
-For substantial work, set `agent-note` at the start and phase changes. Use a
-present-tense label around 60 characters, without trailing punctuation. Skip
-quick questions and one-line edits. Never clear the note; it is safe outside tmux.
-
 ## Machine configuration and secrets
 
 For authenticated browsing from a headless machine, use `host-browser` when
@@ -62,17 +57,12 @@ credential files.
 Public, non-secret configuration such as versioned VM `<user>.env` files needs
 no vault backup or unlock. After changes in scope, refresh and verify the vault
 backup with its `env-vault-sync.sh` or `file-vault-sync.sh` helper. Reading needs
-no sync.
-If locked, ask the user to unlock; never run `rbw login` or `rbw unlock`, or handle
-the master password.
+no sync. If `rbw` is locked, ask the user to unlock.
 
 ## Project tooling and worktrees
 
 Prefer `prek` for new hook setups; retain a project's existing runner.
 In a worktree, use the project's setup procedure (for example, `make setup`) and
-its `.worktreeinclude` when present. Check required ignored files and dependencies;
-ask only if missing setup prevents progress.
+its `.worktreeinclude` when present.
 
-Before removing a worktree, clean up only the Docker resources created for it,
-using its actual Compose project name. Remove volumes only when disposable. Do
-not run global Docker pruning as routine cleanup.
+When removing a worktree, also clean up the Docker resources created for it. Remove volumes only when disposable.
