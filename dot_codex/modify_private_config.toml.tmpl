@@ -63,6 +63,9 @@ if AZURE:
 # upstream model id, so Codex's /model picker can't rewrite it into a 404.
 model = "''' + DEFAULT_MODEL + '''"
 model_provider = "azure"
+# The devbox refreshes this filtered catalog on login; relative paths resolve
+# against this user config rather than the system config in /etc/codex.
+model_catalog_json = "models.json"
 model_reasoning_effort = "''' + DEFAULT_EFFORT + '''"
 # Fixed loopback callback for headless MCP OAuth. The Mac's devbox connection
 # forwards this same port with -L; provider redirects therefore reach this box
