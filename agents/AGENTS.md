@@ -4,8 +4,8 @@
 These rules apply across projects unless explicitly overridden. Read the project's
 AGENTS.md (and applicable CLAUDE.md) before working.
 
-On NWF devboxes, read `/etc/codex/AGENTS.md` for the shared VM instructions when
-that file exists.
+On NWF devboxes, read `~/workspace/nwf-ai-platform-infra/AGENTS.md` for the shared
+VM instructions. If it does not exist, read `/etc/codex/AGENTS.md` instead.
 
 ## Working approach
 
