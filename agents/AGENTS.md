@@ -31,6 +31,8 @@ Commit your completed changes before ending a task. Do not leave work you made
 uncommitted unless the user asks you to or a blocker prevents the commit; explain
 any remaining uncommitted changes.
 
+You own the codebase and you'll keep building on it. Proactively merge duplicated code, remove unnecessary code, comments and docs, and fix any bugs you encounter.
+
 ## Writing
 
 For human-facing prose, lead with useful information, use plain words and active
