@@ -16,10 +16,9 @@
 # laptops are desktops, every other Linux box is a headless server.
 #
 # includePrivate gates personal tools and data: rbw/vault access at apply time,
-# the Proton VPN config, ~/.ssh/config with my home hosts, the Netbird mesh to
-# the homelab, and my personal MCP servers. Work machines answer "no". Defaults
-# to false, so `chezmoi apply` never calls `rbw get` on a machine whose config
-# predates this flag until it re-inits.
+# ~/.ssh/config with my home hosts, the Netbird mesh to the homelab, and my
+# personal MCP servers. Work machines answer "no". Defaults to false, so `chezmoi apply` never calls
+# `rbw get` on a machine whose config predates this flag until it re-inits.
 #
 # codingAgent picks which agent the `t` tmux bootstrap launches in tab 1 (and,
 # via tmux automatic-rename, what that tab is called): "claude" → `cc`, "codex"

@@ -37,9 +37,6 @@ spotify-watch
 # Both default to false via `dig`, so a machine whose config predates a flag is
 # safe until it re-inits.
 {{ if not (dig "includePrivate" false .) }}
-.config/wireguard/protonvpn.conf
-{{ end }}
-{{ if not (dig "includePrivate" false .) }}
 # Shared Albert Heijn MCP server: my grocery account.
 .chezmoiscripts/setup-ah-mcp_darwin.sh
 Library/LaunchAgents/com.timvink.ah-mcp.plist
