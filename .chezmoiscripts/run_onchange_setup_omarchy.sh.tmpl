@@ -152,7 +152,8 @@ fi
 # git pager in ~/.gitconfig.
 omarchy pkg add diff-so-fancy
 
-# keyd, on this laptop's built-in keyboard only: Caps tap = Esc, hold = Hyper.
+# keyd, on this laptop's built-in keyboard only: Caps tap = Esc, hold = Hyper;
+# hold S = Alt (a home-row mod for tmux/Neovim alt+hjkl).
 # The Mac does the same in Karabiner and the Voyager in firmware; external
 # keyboards are untouched because only the built-in id is listed. The id is
 # this laptop's (`keyd monitor` shows it); on another laptop nothing matches
@@ -172,9 +173,38 @@ k:048d:c101
 # Hyper+A instead of Esc, a.
 capslock = overloadt2(hyper, esc, 200)
 
+# S: tap = s, hold 150 ms with no other key = Alt while held, mirroring the
+# Karabiner home-row mod on the Mac. timeout() rather than overloadt: any key
+# pressed within 150 ms resolves S as a plain s first (Karabiner's
+# to_if_canceled), so rolls like "st"/"as"/"ss" type normally even when the
+# keys overlap; overloadt would turn an overlapping roll held past 150 ms
+# into Alt+t, and overloadt2 into Alt+t on any tap inside the hold. After
+# 150 ms the key becomes overload(alt, s): Alt while held, and still an s if
+# released with nothing else pressed within overload_tap_timeout (150 ms
+# more), so a slow tap under 300 ms types s, like Karabiner's 300 ms
+# to_if_alone. Holding S no longer auto-repeats s, as on the Mac.
+s = timeout(s, 150, overload(alt, s))
+
+[global]
+# Only the S overload above uses overload(); Caps (overloadt2) is unaffected.
+overload_tap_timeout = 150
+
 # Hyper = Ctrl+Alt+Super+Shift, like Karabiner's cmd+ctrl+opt+shift. Omarchy
 # binds no four-modifier combo, so Hyper+key is free.
 [hyper:C-A-M-S]
+s = C-A-M-S-s
+
+# With Ctrl, Super or Alt already held on this keyboard S is a plain key, as
+# Karabiner leaves cmd/ctrl/opt+S alone: Ctrl+S saves immediately and Hyper+S
+# stays a launcher key. Shift is not listed, so Shift+hold-S is Shift+Alt.
+[control]
+s = C-s
+
+[meta]
+s = M-s
+
+[alt]
+s = A-s
 KEYD
 keyd check "$keyd_conf" >/dev/null
 if ! cmp -s "$keyd_conf" /etc/keyd/laptop.conf; then

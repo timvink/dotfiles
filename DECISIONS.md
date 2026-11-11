@@ -32,6 +32,8 @@ Ported:
   already off by policy here, so those prefs are belt-and-suspenders.
 - Keyboard (built-in only, keyd): Caps tap = Esc, hold 200 ms = Hyper,
   matching Karabiner on the Mac. No Compose key on the built-in keyboard.
+  Hold S 150 ms = Alt (home-row mod for alt+hjkl), also as on the Mac: any
+  key pressed sooner types s, so rolls are safe; plain s with Ctrl/Super/Alt/Hyper.
 - Hyper app launcher in ~/.config/hypr/bindings.lua, same keys as the Mac:
   F Firefox, D Ghostty, R Obsidian, E Nautilus, A Spotify, W Signal ⇄
   WhatsApp, T TodoTim (its Omarchy shell plugin, installed from GitHub
