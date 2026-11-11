@@ -137,6 +137,12 @@ if [ ! -f "$HOME/.local/share/applications/WhatsApp.desktop" ]; then
     omarchy webapp install WhatsApp https://web.whatsapp.com/ whatsapp
 fi
 
+# Nextcloud desktop client for the homelab Nextcloud, as on the Mac. The
+# account and sync folders are set up once in the app (login flow in the
+# browser); it keeps the app password in the GNOME keyring Omarchy runs.
+# Started at login from ~/.config/hypr/autostart.lua.
+omarchy pkg add nextcloud-client
+
 # Sudoless Docker: join the docker group, which is root-equivalent (any process
 # of mine can `docker run -v /:/host`). Omarchy leaves it off by default; I
 # accept the trade-off on my own dev laptop. Same steps as

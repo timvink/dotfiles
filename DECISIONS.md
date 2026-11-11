@@ -46,6 +46,8 @@ Ported:
   cycle through the current workspace.
   Closing a window focuses the one used last (input.focus_on_close = 2).
 - Netbird mesh VPN (private machines), no Tailscale.
+- Nextcloud desktop client (homelab), started at login in the tray. Account
+  and sync folders are set up by hand in the app, as on the Mac.
 - Docker: Omarchy's (base package, socket-activated). Sudoless via the docker
   group, which is root-equivalent; accepted on my own laptop. No Podman.
 - Agent config: shared AGENTS.md and skills, Claude/Codex/pi settings, MCP
