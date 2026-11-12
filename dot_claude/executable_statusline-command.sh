@@ -7,12 +7,14 @@
 #   path   — overlay0, ~ for $HOME
 #   branch — green with a powerline  glyph; short SHA when detached, blank
 #            outside a repo. GIT_OPTIONAL_LOCKS=0 so a busy index never blocks.
-#   model  — blue, in dim brackets
+#   model  — blue, in dim brackets, followed by the session's effort level
+#            (.effort.level; absent when the model has no effort parameter)
 #   ctx    — colour-coded by fill: green <50%, yellow <80%, red beyond
 
 input=$(cat)
 cwd=$(echo "$input"   | jq -r '.workspace.current_dir // .cwd // empty')
 model=$(echo "$input" | jq -r '.model.display_name // empty')
+effort=$(echo "$input" | jq -r '.effort.level // empty')
 used=$(echo "$input"  | jq -r '.context_window.used_percentage // empty')
 
 short_cwd="${cwd/#$HOME/~}"
@@ -33,6 +35,7 @@ RED=$'\033[38;2;243;139;168m'      # red       #f38ba8
 
 out="${DIM}${short_cwd}${R}"
 [ -n "$branch" ] && out+="  ${GREEN} ${branch}${R}"
+[ -n "$effort" ] && model+=" ${effort}"
 [ -n "$model" ]  && out+="  ${DIM}[${BLUE}${model}${DIM}]${R}"
 if [ -n "$used" ]; then
     i=${used%.*}
