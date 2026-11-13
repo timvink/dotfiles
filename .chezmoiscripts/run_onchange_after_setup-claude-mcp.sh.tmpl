@@ -56,12 +56,22 @@ add_http() {
 }
 
 # add_stdio <name> <command...> -- register a stdio server at user scope.
-# Additive like add_http: an existing entry is left alone (remove it to pick
-# up a changed command).
+# A stdio entry carries no OAuth grant, so unlike add_http it is safe to
+# replace one whose command has drifted from what this script declares.
 add_stdio() {
 	name=$1
 	shift
-	claude mcp get "$name" >/dev/null 2>&1 && return 0
+	if current=$(claude mcp get "$name" 2>/dev/null); then
+		cmd=$1
+		shift
+		if printf '%s\n' "$current" | grep -qxF "  Command: $cmd" &&
+			printf '%s\n' "$current" | grep -qxF "  Args: $*"; then
+			return 0
+		fi
+		set -- "$cmd" "$@"
+		echo "setup-claude-mcp: updating '$name' to the command this repo declares" >&2
+		claude mcp remove "$name" -s user >/dev/null
+	fi
 	claude mcp add --scope user "$name" -- "$@"
 }
 
@@ -86,10 +96,16 @@ add_http atlassian      https://mcp.atlassian.com/v1/mcp/authv2
 # Off the homelab: no ControlMaster, so this background ssh can't become the
 # mux master that interactive `ssh homelab` sessions then attach to -- and
 # ClearAllForwardings keeps it from grabbing the Host block's tunnel ports.
+# Claude Code never restarts a stdio server that exits, so when the Mac sleeps
+# and the ssh dies the tools would be gone until a manual /mcp reconnect.
+# mcp-reconnect (dot_local/bin) restarts the ssh on the next call instead;
+# ServerAlive makes ssh exit on the half-open connection sleep leaves behind.
+# Absolute path: ~/.local/bin may not be on the PATH Claude spawns servers with.
+HOMELAB_SSH="$HOME/.local/bin/mcp-reconnect ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=2 homelab"
 {{-   if eq .chezmoi.hostname "homelab" }}
 add_stdio obsidian docker exec -i openclaw-obsidian-mcp node_modules/.bin/mcpvault /vault
 {{-   else }}
-add_stdio obsidian ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes homelab docker exec -i openclaw-obsidian-mcp node_modules/.bin/mcpvault /vault
+add_stdio obsidian $HOMELAB_SSH docker exec -i openclaw-obsidian-mcp node_modules/.bin/mcpvault /vault
 {{-   end }}
 # Task lists (CalDAV in Nextcloud), served by the tasks-mcp container on the
 # homelab (timvink-homelab repo, tasks-mcp/README.md). Same stdio-over-
@@ -97,7 +113,7 @@ add_stdio obsidian ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwar
 {{-   if eq .chezmoi.hostname "homelab" }}
 add_stdio tasks docker exec -i tasks-mcp tasks-mcp
 {{-   else }}
-add_stdio tasks ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes homelab docker exec -i tasks-mcp tasks-mcp
+add_stdio tasks $HOMELAB_SSH docker exec -i tasks-mcp tasks-mcp
 {{-   end }}
 # Browser history archive (every visited URL, plus the text of pages I read),
 # served read-only by the browser-history-mcp container on the homelab
@@ -106,7 +122,7 @@ add_stdio tasks ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardin
 {{-   if eq .chezmoi.hostname "homelab" }}
 add_stdio browser-history docker exec -i browser-history-mcp browser-history-mcp
 {{-   else }}
-add_stdio browser-history ssh -T -o BatchMode=yes -o ControlPath=none -o ClearAllForwardings=yes homelab docker exec -i browser-history-mcp browser-history-mcp
+add_stdio browser-history $HOMELAB_SSH docker exec -i browser-history-mcp browser-history-mcp
 {{-   end }}
 {{ end }}
 

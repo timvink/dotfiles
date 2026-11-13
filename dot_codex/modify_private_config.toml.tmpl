@@ -198,14 +198,15 @@ args = ["--transport", "stdio"]
 
 # Obsidian vault on the homelab — mirrors the Claude entry, see the comment
 # there for why it's stdio through docker exec (no network listener) and why
-# the off-homelab ssh skips the ControlMaster and port forwards.
+# the off-homelab ssh skips the ControlMaster and port forwards, and why it runs
+# under mcp-reconnect.
 [mcp_servers.obsidian]
 {{-   if eq .chezmoi.hostname "homelab" }}
 command = "docker"
 args = ["exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/vault"]
 {{-   else }}
-command = "ssh"
-args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/vault"]
+command = "{{ .chezmoi.homeDir }}/.local/bin/mcp-reconnect"
+args = ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "homelab", "docker", "exec", "-i", "openclaw-obsidian-mcp", "node_modules/.bin/mcpvault", "/vault"]
 {{-   end }}
 
 # Task lists on the homelab — mirrors the Claude entry.
@@ -214,8 +215,8 @@ args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllFo
 command = "docker"
 args = ["exec", "-i", "tasks-mcp", "tasks-mcp"]
 {{-   else }}
-command = "ssh"
-args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "tasks-mcp", "tasks-mcp"]
+command = "{{ .chezmoi.homeDir }}/.local/bin/mcp-reconnect"
+args = ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "homelab", "docker", "exec", "-i", "tasks-mcp", "tasks-mcp"]
 {{-   end }}
 
 # Browser history archive on the homelab — mirrors the Claude entry.
@@ -224,8 +225,8 @@ args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllFo
 command = "docker"
 args = ["exec", "-i", "browser-history-mcp", "browser-history-mcp"]
 {{-   else }}
-command = "ssh"
-args = ["-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "homelab", "docker", "exec", "-i", "browser-history-mcp", "browser-history-mcp"]
+command = "{{ .chezmoi.homeDir }}/.local/bin/mcp-reconnect"
+args = ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "homelab", "docker", "exec", "-i", "browser-history-mcp", "browser-history-mcp"]
 {{-   end }}
 {{ end }}
 '''
