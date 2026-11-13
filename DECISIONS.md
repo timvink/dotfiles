@@ -51,7 +51,7 @@ Ported:
 - Docker: Omarchy's (base package, socket-activated). Sudoless via the docker
   group, which is root-equivalent; accepted on my own laptop. No Podman.
 - Agent config: shared AGENTS.md and skills, Claude/Codex/pi settings, MCP
-  servers. Omarchy keeps its own skills linked beside mine and updates them.
+  servers (with mcp-reconnect, which the homelab servers run under). Omarchy keeps its own skills linked beside mine and updates them.
   Codex uses my ChatGPT subscription; Azure is for the work devbox only.
 - Git: my ~/.gitconfig over Omarchy's ~/.config/git/config (git reads
   Omarchy's first; mine wins per key). Kept from Omarchy: aliases, histogram

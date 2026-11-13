@@ -147,6 +147,7 @@ remove-devbox-browser-cruft_linux.sh
 # (see the tmux section below).
 !.chezmoiscripts/link-agents-skills.sh
 !.chezmoiscripts/setup-claude-mcp.sh
+!.local/bin/mcp-reconnect
 !.chezmoiscripts/setup_pi-packages.sh
 !.claude
 !.claude/CLAUDE.md

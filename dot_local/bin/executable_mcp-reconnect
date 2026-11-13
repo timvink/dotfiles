@@ -35,6 +35,7 @@ import threading
 REPLAY_ID = "mcp-reconnect-replay-initialize"
 HANDSHAKE_TIMEOUT_S = 30
 LOST_CONNECTION = -32000
+LOST = "Connection to the MCP server was lost; it reconnects on the next call."
 
 stdout_lock = threading.Lock()
 
@@ -61,11 +62,14 @@ class Relay:
         self.initialize = None  # the client's initialize request, replayed on reconnect
         self.initialized = None  # the client's notifications/initialized
         self.connected = False  # the first initialize has been answered
-        self.pending = set()  # client request ids the current child owes a response
 
     def spawn(self):
-        child = subprocess.Popen(self.cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, bufsize=0)
+        child = subprocess.Popen(self.cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
         child.replayed = threading.Event()  # per child, so a stale child can't wake a reconnect
+        # Client request ids this child owes a response, guarded by self.lock.
+        # Whoever removes an id without a response sends the error reply.
+        child.pending = set()
+        child.dead = False
         self.child = child
         threading.Thread(target=self.read_child, args=(child,), daemon=True).start()
         return child
@@ -83,20 +87,20 @@ class Relay:
                 with self.lock:
                     if self.initialize is not None and msg["id"] == self.initialize.get("id"):
                         self.connected = True
-                    self.pending.discard(msg["id"])
+                    child.pending.discard(msg["id"])
             emit(msg)
         child.wait()
         child.replayed.set()  # wake a reconnect() waiting on this child
         with self.lock:
-            if child is not self.child:
-                return
-            if not self.connected:
-                log(f"server exited with code {child.returncode} before initializing")
-                os._exit(child.returncode or 1)  # from a thread, sys.exit would not end the process
-            log(f"server exited with code {child.returncode}; reconnecting on next message")
-            lost, self.pending = self.pending, set()
+            child.dead = True
+            lost, child.pending = child.pending, set()
+            if child is self.child:
+                if not self.connected:
+                    log(f"server exited with code {child.returncode} before initializing")
+                    os._exit(child.returncode or 1)  # from a thread, sys.exit would not end the process
+                log(f"server exited with code {child.returncode}; reconnecting on next message")
         for req_id in lost:
-            error_reply(req_id, "Connection to the MCP server was lost; it reconnects on the next call.")
+            error_reply(req_id, LOST)
 
     def write(self, child, msg):
         child.stdin.write((json.dumps(msg, separators=(",", ":")) + "\n").encode())
@@ -138,13 +142,21 @@ class Relay:
                 return
         if is_request:
             with self.lock:
-                self.pending.add(msg["id"])
+                if child.dead:
+                    error_reply(msg["id"], LOST)
+                    return
+                child.pending.add(msg["id"])
         try:
             self.write(child, msg)
         except OSError:
-            # Died between the check and the write; the reader thread answers
-            # the pending request once it sees the exit.
-            pass
+            # Died between the check and the write. Answer now unless the
+            # reader thread already drained it.
+            if is_request:
+                with self.lock:
+                    owed = msg["id"] in child.pending
+                    child.pending.discard(msg["id"])
+                if owed:
+                    error_reply(msg["id"], LOST)
 
     def run(self):
         self.spawn()
