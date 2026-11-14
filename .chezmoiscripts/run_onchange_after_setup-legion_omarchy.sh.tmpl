@@ -50,15 +50,20 @@ EOF
 # --- Wake-on-LAN on the ethernet port --------------------------------------
 # NetworkManager owns eno1 and sets its wake-on-LAN on every link-up, so the
 # default goes in NM's config rather than a systemd .link file (which would
-# also replace 99-default.link's interface naming). Magic packet only.
+# also replace 99-default.link's interface naming). Magic packet only: 64 is
+# NM's flag for it (0x40); this file takes numbers, not nmcli's names, and
+# silently ignores `magic`. Reapplying makes an active connection pick it up.
 if install_if_changed 644 /etc/NetworkManager/conf.d/50-wake-on-lan.conf <<'EOF'
 # Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
 [connection-ethernet-wol]
 match-device=type:ethernet
-ethernet.wake-on-lan=magic
+ethernet.wake-on-lan=64
 EOF
 then
     sudo systemctl reload NetworkManager
+    if nmcli -g GENERAL.STATE device show eno1 2>/dev/null | grep -q '^100'; then
+        sudo nmcli device reapply eno1
+    fi
 fi
 # The PCI device must be allowed to wake the system too; the kernel default
 # for eno1 is disabled. udev sets it on every boot.
