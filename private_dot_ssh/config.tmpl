@@ -18,16 +18,6 @@ Host legion
     ServerAliveCountMax 4
     ConnectTimeout 10
 
-# The Mac, for the reverse direction. Needs Remote Login on (System Settings →
-# General → Sharing).
-Host mac
-    HostName tims-macbook-air.netbird.cloud
-    User timvink
-    IdentityFile ~/.ssh/id_ed25519
-    ServerAliveInterval 15
-    ServerAliveCountMax 4
-    ConnectTimeout 10
-
 Host homelab
     HostName {{ (rbw "homelab-ssh").data.password }}
     User {{ (rbw "homelab-ssh").data.username }}
