@@ -259,8 +259,9 @@ if ! systemctl is-enabled --quiet netbird 2>/dev/null; then
 fi
 
 # sshd, so the Mac reaches this laptop as `ssh legion` (~/.ssh/config).
-# Key-only, from the LAN and NetBird like the homelab (timvink-homelab
-# SETUP.md); ufw drops it from anywhere else. Authorized keys:
+# Key-only and over NetBird only: a LAN rule would travel with the laptop and
+# open port 22 on any network that reuses 192.168.68.0/22. NetBird connects
+# directly on the home LAN anyway. Authorized keys:
 # run_onchange_after_ssh-authorized-keys.sh.
 sshd_conf=$(mktemp)
 cat > "$sshd_conf" <<'SSHD'
@@ -276,9 +277,10 @@ if ! cmp -s "$sshd_conf" /etc/ssh/sshd_config.d/10-keys-only.conf; then
 fi
 rm -f "$sshd_conf"
 sudo systemctl enable --now sshd
-# ufw skips rules it already has. wt0 is NetBird's interface.
-sudo ufw allow from 192.168.68.0/22 to any port 22
+# ufw skips rules it already has. wt0 is NetBird's interface. The delete
+# removes the LAN rule an earlier version added (a no-op once it's gone).
 sudo ufw allow in on wt0 to any port 22
+sudo ufw delete allow from 192.168.68.0/22 to any port 22 >/dev/null || true
 {{- end }}
 
 echo "=== chezmoi: omarchy setup done ==="

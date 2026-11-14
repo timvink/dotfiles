@@ -1,0 +1,40 @@
+{{- $machine := includeTemplate "machine" . -}}
+#!/bin/bash
+# Passwordless ssh between my devices. Who may log in where:
+#   homelab  ← Mac, Legion, phone (Termius)
+#   Legion   ← Mac, phone
+#   Mac      ← nobody (Remote Login stays off)
+# The homelab holds the vault, so it gets no key into the Legion: a breach
+# there shouldn't hop to the laptop.
+# Adds missing keys to ~/.ssh/authorized_keys, matched on the key itself so a
+# copy with another comment counts. Only adds: other entries stay, such as the
+# homelab's command-restricted backup key. Revoking a key means removing it
+# here and from authorized_keys by hand.
+# Public keys only, so fine in a public repo; kept here rather than fetched
+# from github.com/<user>.keys so login doesn't depend on GitHub.
+# Each sshd is key-only and reachable only over NetBird (Legion:
+# run_onchange_setup_omarchy.sh.tmpl) or also the LAN (homelab: timvink-homelab
+# SETUP.md).
+set -euo pipefail
+
+mac='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHRxB+wzYInLUmfwbJlAig2ouZsTH/Gmm4d+1OlAvNIk mac'
+legion='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII81ocae3kzOgEy7SU3XITUwbe5EH9F7P72BDeYn1BkP legion'
+phone='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEWEQ5xyG9NIYE2F+1TpmY/YjAiEo60TiINR1LeJSaPJ phone-termius'
+
+{{ if eq $machine "server" -}}
+keys=("$mac" "$legion" "$phone")
+{{- else if eq $machine "omarchy" -}}
+keys=("$mac" "$phone")
+{{- else -}}
+exit 0
+{{- end }}
+
+mkdir -p "$HOME/.ssh"
+chmod 700 "$HOME/.ssh"
+touch "$HOME/.ssh/authorized_keys"
+chmod 600 "$HOME/.ssh/authorized_keys"
+for key in "${keys[@]}"; do
+    read -r _ body _ <<< "$key"
+    grep -qF "$body" "$HOME/.ssh/authorized_keys" \
+        || echo "$key" >> "$HOME/.ssh/authorized_keys"
+done
