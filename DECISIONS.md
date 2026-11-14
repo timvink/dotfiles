@@ -100,6 +100,7 @@ Ported:
   github.com in ~/.ssh/known_hosts (machine-local, not chezmoi-managed, since
   host keys are public) are redone per machine, not reproduced by this repo.
 - Incoming SSH (`ssh legion` from the Mac): sshd key-only, ufw allows port 22
-  from the LAN and NetBird (wt0), like the homelab. Authorized keys come from
-  github.com/timvink.keys: the Mac's id_ed25519 differs from this laptop's.
+  from the LAN and NetBird (wt0), like the homelab. Authorized keys: the Mac,
+  Legion and homelab public keys in run_onchange_after_ssh-authorized-keys.sh,
+  not fetched from GitHub (each machine has its own id_ed25519).
   The peer is in the NetBird tim-peers group (timvink-homelab netbird/).

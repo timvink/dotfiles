@@ -43,6 +43,8 @@ Library/LaunchAgents/com.timvink.ah-mcp.plist
 {{ end }}
 {{ if not (dig "includePrivate" false .) }}
 .ssh/config
+# My machines' keys in authorized_keys: only my own machines accept them.
+.chezmoiscripts/ssh-authorized-keys.sh
 # Both rbw paths — the OS blocks below pick which one a private machine gets.
 .config/rbw/config.json
 Library/Application Support/rbw/config.json
@@ -235,6 +237,7 @@ remove-devbox-browser-cruft_linux.sh
 # vault, so `chezmoi apply` needs rbw unlocked here.
 !.ssh
 !.ssh/config
+!.chezmoiscripts/ssh-authorized-keys.sh
 !.config/rbw
 !.config/rbw/config.json
 !.config/omarchy

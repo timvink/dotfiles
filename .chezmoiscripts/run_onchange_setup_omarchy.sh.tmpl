@@ -260,17 +260,8 @@ fi
 
 # sshd, so the Mac reaches this laptop as `ssh legion` (~/.ssh/config).
 # Key-only, from the LAN and NetBird like the homelab (timvink-homelab
-# SETUP.md); ufw drops it from anywhere else. Authorized keys are the public
-# keys on my GitHub account (the Mac's among them), so no key text lives in
-# this repo; existing lines are kept.
-mkdir -p "$HOME/.ssh"
-touch "$HOME/.ssh/authorized_keys"
-chmod 600 "$HOME/.ssh/authorized_keys"
-if gh_keys=$(curl -fsS https://github.com/timvink.keys); then
-    while IFS= read -r key; do
-        grep -qxF "$key" "$HOME/.ssh/authorized_keys" || echo "$key" >> "$HOME/.ssh/authorized_keys"
-    done <<< "$gh_keys"
-fi
+# SETUP.md); ufw drops it from anywhere else. Authorized keys:
+# run_onchange_after_ssh-authorized-keys.sh.
 sshd_conf=$(mktemp)
 cat > "$sshd_conf" <<'SSHD'
 # Managed by chezmoi (.chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl).
