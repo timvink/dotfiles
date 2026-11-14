@@ -186,6 +186,9 @@ remove-devbox-browser-cruft_linux.sh
 # dot_bash_aliases.tmpl for what isn't ported yet).
 !.bashrc
 !.bash_aliases
+# fastfetch for `ff` (Omarchy's own `ff` is an fzf picker; mine wins).
+!.config/fastfetch
+!.config/fastfetch/**
 
 # tmux: my ~/.tmux.conf replaces Omarchy's ~/.config/tmux/tmux.conf, which
 # becomes a one-line forward to it because Omarchy's tools source that path.

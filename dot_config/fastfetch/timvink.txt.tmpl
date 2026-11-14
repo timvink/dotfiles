@@ -1,4 +1,5 @@
-{{- /* Macs are local; known Linux hosts use their role, all others are remote.
+{{- /* Macs are local; known Linux hosts use their name or role, all others
+       are remote.
        Match the short hostname so domain-qualified names behave the same. */ -}}
 {{- $hostname := index (splitList "." (lower .chezmoi.hostname)) 0 -}}
 {{- $machine := "remote" -}}
@@ -6,6 +7,8 @@
 {{-   $machine = "devbox" -}}
 {{- else if eq $hostname "homelab" -}}
 {{-   $machine = "homelab" -}}
+{{- else if hasPrefix "legion" $hostname -}}
+{{-   $machine = "legion" -}}
 {{- else if eq .chezmoi.os "darwin" -}}
 {{-   $machine = "local" -}}
 {{- end -}}

@@ -335,11 +335,9 @@ n() {
 }
 {{- end }}
 
-{{ if ne $machine "omarchy" -}}
-# Not on Omarchy: there `ff` is Omarchy's fzf file picker.
-# fastfetch — system info on demand (config in ~/.config/fastfetch)
+# fastfetch — system info on demand (config in ~/.config/fastfetch). On
+# Omarchy this replaces its `ff` fzf file picker, which this file overrides.
 alias ff='fastfetch'
-{{- end }}
 
 {{ end }}
 

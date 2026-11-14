@@ -61,7 +61,8 @@ Ported:
 - Shell: bash with Omarchy's stock .bashrc, then my .bash_aliases. Mine win
   for `c` (clear), `t` (my tmux bootstrap), `cat` (bat), git shortcuts and
   the cc/co agent launchers. Omarchy's for `ls`/`lt` (eza; the Mac and
-  servers now use the same aliases), `ff` (fzf), `n` and $EDITOR. Sections
+  servers now use the same aliases), `n` and $EDITOR. `ff` is fastfetch
+  with my config, as on the Mac, not Omarchy's fzf picker. Sections
   that need unported pieces (pi via rbw) are fenced off in
   dot_bash_aliases.tmpl.
 - tmux: my ~/.tmux.conf replaces Omarchy's (prefix stays Ctrl-b). Omarchy's
