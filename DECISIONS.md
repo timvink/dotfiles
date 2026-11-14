@@ -99,3 +99,6 @@ Ported:
   authentication key ("GitHub CLI"). Both the registration (GitHub-side) and
   github.com in ~/.ssh/known_hosts (machine-local, not chezmoi-managed, since
   host keys are public) are redone per machine, not reproduced by this repo.
+- Incoming SSH (`ssh legion` from the Mac): sshd key-only, ufw allows port 22
+  from the LAN and NetBird (wt0), like the homelab. The authorized key is the
+  shared id_ed25519, appended from this machine's own .pub file.

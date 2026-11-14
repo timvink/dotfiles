@@ -7,6 +7,17 @@ Host github.com
   AddKeysToAgent yes
   IdentityFile ~/.ssh/id_ed25519
 
+# The Omarchy laptop, by its NetBird name: one address at home and away
+# (NetBird goes direct on the same LAN). sshd setup lives in
+# .chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl.
+Host legion
+    HostName legion-timvink.netbird.cloud
+    User timvink
+    IdentityFile ~/.ssh/id_ed25519
+    ServerAliveInterval 15
+    ServerAliveCountMax 4
+    ConnectTimeout 10
+
 Host homelab
     HostName {{ (rbw "homelab-ssh").data.password }}
     User {{ (rbw "homelab-ssh").data.username }}

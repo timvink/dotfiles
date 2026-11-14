@@ -257,6 +257,35 @@ if ! systemctl is-enabled --quiet netbird 2>/dev/null; then
     sudo netbird service install
     sudo netbird service start
 fi
+
+# sshd, so the Mac reaches this laptop as `ssh legion` (~/.ssh/config).
+# Key-only, from the LAN and NetBird like the homelab (timvink-homelab
+# SETUP.md); ufw drops it from anywhere else. The authorized key is this
+# machine's own ~/.ssh/id_ed25519.pub: the Mac uses the same key pair (see
+# DECISIONS.md, "GitHub over SSH"), so no key text lives in this repo.
+if [ -f "$HOME/.ssh/id_ed25519.pub" ]; then
+    touch "$HOME/.ssh/authorized_keys"
+    chmod 600 "$HOME/.ssh/authorized_keys"
+    grep -qxF "$(cat "$HOME/.ssh/id_ed25519.pub")" "$HOME/.ssh/authorized_keys" \
+        || cat "$HOME/.ssh/id_ed25519.pub" >> "$HOME/.ssh/authorized_keys"
+fi
+sshd_conf=$(mktemp)
+cat > "$sshd_conf" <<'SSHD'
+# Managed by chezmoi (.chezmoiscripts/run_onchange_setup_omarchy.sh.tmpl).
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+SSHD
+if ! cmp -s "$sshd_conf" /etc/ssh/sshd_config.d/10-keys-only.conf; then
+    sudo install -Dm644 "$sshd_conf" /etc/ssh/sshd_config.d/10-keys-only.conf
+    sudo sshd -t
+    if systemctl is-active --quiet sshd; then sudo systemctl reload sshd; fi
+fi
+rm -f "$sshd_conf"
+sudo systemctl enable --now sshd
+# ufw skips rules it already has. wt0 is NetBird's interface.
+sudo ufw allow from 192.168.68.0/22 to any port 22
+sudo ufw allow in on wt0 to any port 22
 {{- end }}
 
 echo "=== chezmoi: omarchy setup done ==="
