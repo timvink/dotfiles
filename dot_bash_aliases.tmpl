@@ -339,6 +339,17 @@ n() {
 # Omarchy this replaces its `ff` fzf file picker, which this file overrides.
 alias ff='fastfetch'
 
+# fzf as a file picker gets a bat preview (Omarchy's old `ff`). Only when
+# nothing is piped in: `history | fzf` and the like list text, not files, and
+# bat would preview errors. Scripts call the real fzf; functions don't reach them.
+fzf() {
+    if [ -t 0 ]; then
+        command fzf --preview 'bat --style=numbers --color=always {}' "$@"
+    else
+        command fzf "$@"
+    fi
+}
+
 {{ end }}
 
 ###########
