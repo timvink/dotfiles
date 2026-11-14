@@ -1,0 +1,227 @@
+#!/bin/bash
+# The Legion as a closet dev box: lid closed on AC, woken over ethernet by
+# `wake-legion` on the homelab, suspended again after 4 hours of inactivity.
+# Only on this laptop (hostname legion-timvink): the battery and lid choices
+# suit a machine that lives on AC, not Omarchy laptops in general.
+{{ if ne .chezmoi.hostname "legion-timvink" -}}
+exit 0
+{{- else -}}
+set -euo pipefail
+
+install_if_changed() {  # install_if_changed <mode> <dest>, content on stdin
+    local tmp
+    tmp=$(mktemp)
+    cat > "$tmp"
+    if ! sudo cmp -s "$tmp" "$2" 2>/dev/null; then
+        sudo install -Dm"$1" "$tmp" "$2"
+        rm -f "$tmp"
+        return 0
+    fi
+    rm -f "$tmp"
+    return 1
+}
+
+# --- Lid: stay awake when closed on AC -------------------------------------
+# On battery a closed lid still suspends (logind default). With the JetKVM's
+# HDMI attached logind already counts the lid as docked and ignores it; this
+# also covers the closet without the JetKVM. Omarchy's lid binding
+# (omarchy-system-lid-close) still locks the screen, which is fine headless.
+# HUP, not restart: restarting logind can kill the Wayland session.
+if install_if_changed 644 /etc/systemd/logind.conf.d/10-lid-on-ac.conf <<'EOF'
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+[Login]
+HandleLidSwitchExternalPower=ignore
+EOF
+then
+    sudo systemctl kill -s HUP systemd-logind
+fi
+
+# --- Battery: Lenovo conservation mode -------------------------------------
+# Caps charging well below 100% (firmware-defined, ~60-80%) so a laptop that
+# never leaves AC doesn't wear its battery out. tmpfiles re-applies it at boot
+# in case the firmware forgets.
+conservation=/sys/bus/platform/drivers/ideapad_acpi/VPC2004:00/conservation_mode
+install_if_changed 644 /etc/tmpfiles.d/legion-conservation-mode.conf <<EOF || true
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+w $conservation - - - - 1
+EOF
+[ -e "$conservation" ] && echo 1 | sudo tee "$conservation" >/dev/null
+
+# --- Wake-on-LAN on the ethernet port --------------------------------------
+# NetworkManager owns eno1 and sets its wake-on-LAN on every link-up, so the
+# default goes in NM's config rather than a systemd .link file (which would
+# also replace 99-default.link's interface naming). Magic packet only.
+if install_if_changed 644 /etc/NetworkManager/conf.d/50-wake-on-lan.conf <<'EOF'
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+[connection-ethernet-wol]
+match-device=type:ethernet
+ethernet.wake-on-lan=magic
+EOF
+then
+    sudo systemctl reload NetworkManager
+fi
+# The PCI device must be allowed to wake the system too; the kernel default
+# for eno1 is disabled. udev sets it on every boot.
+install_if_changed 644 /etc/udev/rules.d/50-legion-wol.rules <<'EOF' || true
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="eno1", ATTR{device/power/wakeup}="enabled"
+EOF
+[ -e /sys/class/net/eno1/device/power/wakeup ] \
+    && echo enabled | sudo tee /sys/class/net/eno1/device/power/wakeup >/dev/null
+
+# --- Auto-suspend after 4 hours of inactivity -------------------------------
+# Local input: a hypridle instance just for this (Omarchy's own idle handling
+# lives in its shell and exposes nothing to scripts). It keeps a flag file
+# while there has been no keyboard/mouse input for 5 minutes; idle inhibitors
+# (video, fullscreen games) count as input.
+omarchy pkg add hypridle
+install_if_changed 644 /etc/legion-autosuspend/hypridle.conf <<'EOF' || true
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+# Only marks input idleness for legion-autosuspend; locking stays Omarchy's.
+listener {
+    timeout = 300
+    on-timeout = touch "$XDG_RUNTIME_DIR/legion-input-idle"
+    on-resume = rm -f "$XDG_RUNTIME_DIR/legion-input-idle"
+}
+EOF
+mkdir -p "$HOME/.config/systemd/user"
+cat > "$HOME/.config/systemd/user/legion-input-idle.service" <<'EOF'
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+[Unit]
+Description=Input idle marker for legion-autosuspend
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+ExecStart=/usr/bin/hypridle -c /etc/legion-autosuspend/hypridle.conf
+Restart=on-failure
+
+[Install]
+WantedBy=graphical-session.target
+EOF
+systemctl --user daemon-reload
+systemctl --user enable --now legion-input-idle.service
+
+# ssh: every session, interactive or a one-off `ssh legion cmd` from an agent,
+# stamps a file; sshd runs ~/.ssh/rc for each one. Connections alone don't
+# count, or a lingering ControlPersist master would keep the laptop up.
+cat > "$HOME/.ssh/rc" <<'EOF'
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+# Stamps ssh activity for legion-autosuspend.
+touch "/run/user/$(id -u)/legion-ssh-activity" 2>/dev/null
+EOF
+
+install_if_changed 755 /usr/local/libexec/legion-autosuspend <<'EOF' || true
+#!/bin/bash
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+# Suspends the Legion after IDLE_SECONDS without activity. Run as root every
+# 5 minutes by legion-autosuspend.timer. Activity, any of:
+#   - keyboard/mouse input in the last 5 min (hypridle flag absent)
+#   - an ssh session started (~/.ssh/rc stamp) or typed in (pty atime)
+#   - output in any tmux window, or an agent in the `running` state
+#   - 5-minute load average above 1 (builds, containers)
+# The clock restarts after a resume or boot, so a freshly woken laptop isn't
+# suspended again before whoever woke it has connected.
+# Settings in /etc/legion-autosuspend/config: IDLE_SECONDS, DRY_RUN=1 (log
+# only). Decisions go to the journal: journalctl -t legion-autosuspend.
+set -u
+USER_NAME=timvink
+IDLE_SECONDS=14400
+DRY_RUN=0
+[ -r /etc/legion-autosuspend/config ] && . /etc/legion-autosuspend/config
+
+uid=$(id -u "$USER_NAME")
+state=/run/legion-autosuspend
+mkdir -p "$state"
+now=$(date +%s)
+recent=$((now - 360))   # a little over one timer interval
+log() { logger -t legion-autosuspend "$*"; }
+
+# Slept or just booted: a gap since the last check longer than 3 intervals.
+last_check=$(cat "$state/last-check" 2>/dev/null || echo 0)
+echo "$now" > "$state/last-check"
+if [ $((now - last_check)) -gt 900 ]; then
+    echo "$now" > "$state/last-active"
+    log "resumed or booted; idle clock restarted"
+    exit 0
+fi
+
+reason=
+newer() { [ -e "$1" ] && [ "$(stat -c %Y "$1")" -ge "$recent" ]; }
+if ! pgrep -u "$uid" -x hypridle >/dev/null; then
+    : # no graphical session: local input can't be measured, so it isn't counted
+elif [ ! -e "/run/user/$uid/legion-input-idle" ]; then
+    reason="local input"
+fi
+[ -z "$reason" ] && newer "/run/user/$uid/legion-ssh-activity" && reason="ssh session started"
+if [ -z "$reason" ]; then
+    for pty in /dev/pts/[0-9]*; do
+        [ "$(stat -c %u "$pty")" = "$uid" ] || continue
+        [ "$(stat -c %X "$pty")" -ge "$recent" ] && { reason="terminal input"; break; }
+    done
+fi
+if [ -z "$reason" ]; then
+    tmux_info=$(runuser -u "$USER_NAME" -- tmux list-windows -a \
+        -F '#{window_activity} #{@agent_state}' 2>/dev/null)
+    while read -r activity agent; do
+        [ "${agent:-}" = running ] && { reason="agent running"; break; }
+        [ "${activity:-0}" -ge "$recent" ] && { reason="tmux output"; break; }
+    done <<< "$tmux_info"
+fi
+if [ -z "$reason" ]; then
+    load=$(cut -d' ' -f2 /proc/loadavg)
+    awk -v l="$load" 'BEGIN { exit !(l > 1) }' && reason="load $load"
+fi
+
+if [ -n "$reason" ]; then
+    echo "$now" > "$state/last-active"
+    exit 0
+fi
+last_active=$(cat "$state/last-active" 2>/dev/null || echo "$now")
+[ -e "$state/last-active" ] || echo "$now" > "$state/last-active"
+idle=$((now - last_active))
+[ "$idle" -lt "$IDLE_SECONDS" ] && exit 0
+
+if [ "$DRY_RUN" = 1 ]; then
+    log "idle ${idle}s; would suspend (DRY_RUN)"
+    exit 0
+fi
+log "idle ${idle}s; suspending"
+# Without -i: an inhibitor (an update, a video call) blocks the suspend, and
+# the next check tries again.
+systemctl suspend
+EOF
+
+install_if_changed 644 /etc/systemd/system/legion-autosuspend.service <<'EOF' || true
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+[Unit]
+Description=Suspend the Legion after 4 hours of inactivity
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/libexec/legion-autosuspend
+EOF
+install_if_changed 644 /etc/systemd/system/legion-autosuspend.timer <<'EOF' || true
+# Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
+[Unit]
+Description=Check for inactivity every 5 minutes
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target
+EOF
+sudo systemctl daemon-reload
+sudo systemctl enable --now legion-autosuspend.timer
+
+# sshfs for the `legion` session's reverse ~/Downloads mount (remote-session.sh).
+omarchy pkg add sshfs
+
+# `legion` from the Mac opens a SOCKS proxy here; Firefox resolves the host
+# name `legion` at this end (proxy.pac), which must be loopback for
+# http://legion:<port> to reach a dev server, as on the homelab.
+grep -qE '^127\.0\.0\.1[[:space:]].*\blegion\b' /etc/hosts \
+    || echo '127.0.0.1 legion' | sudo tee -a /etc/hosts >/dev/null
+{{- end }}

@@ -41,6 +41,10 @@ spotify-watch
 .chezmoiscripts/setup-ah-mcp_darwin.sh
 Library/LaunchAgents/com.timvink.ah-mcp.plist
 {{ end }}
+{{ if ne .chezmoi.hostname "homelab" }}
+# Wakes the Legion over the LAN; only the always-on homelab sends it.
+.local/bin/wake-legion
+{{ end }}
 {{ if not (dig "includePrivate" false .) }}
 .ssh/config
 # My machines' keys in authorized_keys: only my own machines accept them.
@@ -130,6 +134,7 @@ remove-devbox-browser-cruft_linux.sh
 .local/bin/omarchy-shell-watchdog
 .chezmoiscripts/install-todotim_omarchy.sh
 .chezmoiscripts/setup-tmux-theme.sh
+.chezmoiscripts/setup-legion_omarchy.sh
 {{ end }}
 # Omarchy: allow-list. I'm migrating to Omarchy one piece at a time and keep
 # it as close to stock as possible, so on Omarchy everything in this repo is
@@ -241,6 +246,9 @@ remove-devbox-browser-cruft_linux.sh
 !.ssh
 !.ssh/config
 !.chezmoiscripts/ssh-authorized-keys.sh
+# The Legion as a closet dev box (lid, battery, wake-on-LAN, auto-suspend);
+# the script itself is a no-op on other hosts.
+!.chezmoiscripts/setup-legion_omarchy.sh
 !.config/rbw
 !.config/rbw/config.json
 !.config/omarchy

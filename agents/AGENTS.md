@@ -53,6 +53,10 @@ the host window. File arguments and screenshot paths refer to the Mac.
 See the chezmoi README for setup; an unavailable bridge needs the Mac-side
 setup, not another unauthenticated browser on the headless machine.
 
+The Legion laptop (`ssh legion`, from the Mac or the phone) suspends after 4
+hours idle. If it doesn't answer, wake it with `ssh homelab wake-legion`, which
+returns once its sshd is up.
+
 Load `chezmoi` before changing dotfiles, agent configuration, or installed tools.
 Declare changes in the source repo; never hand-edit managed live files.
 

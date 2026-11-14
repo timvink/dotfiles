@@ -64,7 +64,8 @@ export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin:$PATH"
 # doubles as the allowlist of hosts a marker is allowed to name. To teach this
 # about a new host, add its ControlPath socket here — nothing else to register.
 SESSIONS="devbox $HOME/.ssh/cm-devbox.sock
-homelab $HOME/.ssh/cm-homelab.sock"
+homelab $HOME/.ssh/cm-homelab.sock
+legion $HOME/.ssh/cm-legion.sock"
 
 # The directory devbox/homelab report as their window's cwd, one child per
 # host: .../remote-window/devbox. Deliberately a path that does NOT exist — a new

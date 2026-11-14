@@ -106,3 +106,10 @@ Ported:
   breach there shouldn't reach the laptop. Keys in
   run_onchange_after_ssh-authorized-keys.sh.tmpl, not fetched from GitHub.
   The peer is in the NetBird tim-peers group (timvink-homelab netbird/).
+- Closet dev box (this laptop only, by hostname): lid ignored on AC, Lenovo
+  conservation mode, Wake-on-LAN on eno1 (NetworkManager default plus udev
+  wakeup), suspend after 4 h without input, ssh, tmux output, a running agent
+  or load (legion-autosuspend.timer; journalctl -t legion-autosuspend). The
+  homelab wakes it: `ssh homelab wake-legion`; the Mac's `legion` command
+  does that when needed. Suspend, not shutdown: a laptop can't be powered on
+  remotely, and the JetKVM runs off its USB, so it's dark while it sleeps.

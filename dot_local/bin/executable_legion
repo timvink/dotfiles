@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# SSH into the Legion, waking it first if it's asleep. Like `homelab`, it marks
+# this window as the image-paste session (_remote_window) and mounts the Mac's
+# ~/Downloads at legion:~/mac-downloads while connected; the SOCKS proxy for
+# http://legion:<port> comes from ~/.ssh/config's `Host legion` block, which
+# also sets the ControlMaster socket all of this rides.
+# Waking: the homelab sends the Wake-on-LAN packet (`wake-legion`, which waits
+# until sshd answers); agents use the same `ssh homelab wake-legion`.
+. "$HOME/.local/lib/remote-session.sh"
+
+_legion_dest() { REMOTE_DEST=(legion); }
+
+# Retire a master that no longer answers (the Legion slept under it), or the
+# probe below mux-attaches to it and hangs.
+_ssh_drop_dead_master legion "$HOME/.ssh/cm-legion.sock" _legion_dest
+
+# Asleep or reachable? A short probe, not the session's own connect, so a
+# sleeping laptop costs 5 seconds rather than ssh's full ConnectTimeout.
+if ! ssh -n -o BatchMode=yes -o ConnectTimeout=5 legion true 2>/dev/null; then
+  printf '%s\n' "legion: not answering — waking it via the homelab" >&2
+  ssh -n homelab wake-legion || exit 1
+fi
+
+_remote_window legion
+_remote_window_warn_tmux legion
+
+_revmount_bg legion _legion_dest &
+mnt=$!
+
+_finish() {
+  _term_restore
+  kill "$mnt" 2>/dev/null
+  _revumount legion legion
+  _remote_window
+}
+trap _finish EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+ssh -t legion 'exec $SHELL -l'
