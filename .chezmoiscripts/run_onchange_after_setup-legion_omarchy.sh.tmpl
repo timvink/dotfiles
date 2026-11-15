@@ -224,6 +224,10 @@ sudo systemctl enable --now legion-autosuspend.timer
 # sshfs for the `legion` session's reverse ~/Downloads mount (remote-session.sh).
 omarchy pkg add sshfs
 
+# gethumandesign's local Supabase stack (make test_stack, make stack). Not in
+# Arch or a maintained AUR package; mise's aqua backend has the release binary.
+mise use -g supabase@latest
+
 # `legion` from the Mac opens a SOCKS proxy here; Firefox resolves the host
 # name `legion` at this end (proxy.pac), which must be loopback for
 # http://legion:<port> to reach a dev server, as on the homelab.
