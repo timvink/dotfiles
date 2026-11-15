@@ -4,8 +4,6 @@
 # homelab, which is always on and on the same LAN; the Mac's `legion` and
 # agents run it as `ssh homelab wake-legion`.
 #
-# Only waits on a TCP probe: the homelab has no key into the Legion, by design
-# (.chezmoiscripts/run_onchange_after_ssh-authorized-keys.sh.tmpl).
 # Exit 0 once port 22 answers, 1 if it doesn't within WAKE_TIMEOUT seconds.
 set -euo pipefail
 

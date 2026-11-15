@@ -100,10 +100,11 @@ Ported:
   authentication key ("GitHub CLI"). Both the registration (GitHub-side) and
   github.com in ~/.ssh/known_hosts (machine-local, not chezmoi-managed, since
   host keys are public) are redone per machine, not reproduced by this repo.
-- Incoming SSH (`ssh legion` from the Mac and the phone's Termius): sshd
-  key-only, ufw allows port 22 on NetBird (wt0) only, not the LAN, since a LAN
-  rule travels with the laptop. Not from the homelab: it holds the vault, so a
-  breach there shouldn't reach the laptop. Keys in
+- Incoming SSH (`ssh legion` from the Mac, the phone's Termius and the
+  homelab): sshd key-only, ufw allows port 22 on NetBird (wt0) only, not the
+  LAN, since a LAN rule travels with the laptop. The homelab gets a full shell
+  (no forwarding) so its agents can hand dev work to the laptop; it holds the
+  vault, so a breach there reaches the laptop too, a tradeoff I accept. Keys in
   run_onchange_after_ssh-authorized-keys.sh.tmpl, not fetched from GitHub.
   The peer is in the NetBird tim-peers group (timvink-homelab netbird/).
 - Closet dev box (this laptop only, by hostname): lid ignored on AC, Lenovo

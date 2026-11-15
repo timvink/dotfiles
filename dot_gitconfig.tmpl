@@ -13,6 +13,10 @@
 	# This laptop's own key (ed25519, made 2026-11-06), uploaded to GitHub with
 	# `gh gpg-key add`. Key ids are public; the secret key stays in ~/.gnupg.
 	signingkey = 43DDD099D7D191BE
+{{- else if eq .chezmoi.hostname "homelab" }}
+	# The homelab's own key (ed25519, made 2026-11-15, uploaded with
+	# `gh gpg-key add`). No passphrase: agents and jobs commit headless there.
+	signingkey = 0E2C36C37AC712B7
 {{- end }}
 
 [push]
@@ -48,7 +52,7 @@
 	sslCAInfo = /opt/homebrew/etc/ca-certificates/cert.pem
 {{- end }}
 
-{{ if or (eq $machine "mac") (eq $machine "omarchy") -}}
+{{ if or (eq $machine "mac") (eq $machine "omarchy") (eq .chezmoi.hostname "homelab") -}}
 [commit]
 	gpgsign = true
 {{- end }}

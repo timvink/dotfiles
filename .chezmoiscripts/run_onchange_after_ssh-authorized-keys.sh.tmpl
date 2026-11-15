@@ -2,10 +2,12 @@
 #!/bin/bash
 # Passwordless ssh between my devices. Who may log in where:
 #   homelab  ← Mac, Legion, phone (Termius)
-#   Legion   ← Mac, phone
+#   Legion   ← Mac, phone, homelab
 #   Mac      ← nobody (Remote Login stays off)
-# The homelab holds the vault, so it gets no key into the Legion: a breach
-# there shouldn't hop to the laptop.
+# The homelab gets a full shell on the Legion so its agents can hand dev work
+# to the laptop and suspend it afterwards. Accepted tradeoff: the homelab holds
+# the vault, so a breach there already reaches everything; agent and port
+# forwarding stay off for its key.
 # Adds missing keys to ~/.ssh/authorized_keys, matched on the key itself so a
 # copy with another comment counts. Only adds: other entries stay, such as the
 # homelab's command-restricted backup key. Revoking a key means removing it
@@ -20,11 +22,12 @@ set -euo pipefail
 mac='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHRxB+wzYInLUmfwbJlAig2ouZsTH/Gmm4d+1OlAvNIk mac'
 legion='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII81ocae3kzOgEy7SU3XITUwbe5EH9F7P72BDeYn1BkP legion'
 phone='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEWEQ5xyG9NIYE2F+1TpmY/YjAiEo60TiINR1LeJSaPJ phone-termius'
+homelab='no-agent-forwarding,no-port-forwarding,no-X11-forwarding ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIBecfpAvO4Iw+UJmofuiJ40Uq+HACTAaRirJ0ESsym9d homelab'
 
 {{ if eq $machine "server" -}}
 keys=("$mac" "$legion" "$phone")
 {{- else if eq $machine "omarchy" -}}
-keys=("$mac" "$phone")
+keys=("$mac" "$phone" "$homelab")
 {{- else -}}
 exit 0
 {{- end }}
@@ -34,7 +37,7 @@ chmod 700 "$HOME/.ssh"
 touch "$HOME/.ssh/authorized_keys"
 chmod 600 "$HOME/.ssh/authorized_keys"
 for key in "${keys[@]}"; do
-    read -r _ body _ <<< "$key"
+    body=$(grep -o 'AAAA[^ ]*' <<< "$key")
     grep -qF "$body" "$HOME/.ssh/authorized_keys" \
         || echo "$key" >> "$HOME/.ssh/authorized_keys"
 done
