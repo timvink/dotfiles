@@ -224,6 +224,11 @@ sudo systemctl enable --now legion-autosuspend.timer
 # sshfs for the `legion` session's reverse ~/Downloads mount (remote-session.sh).
 omarchy pkg add sshfs
 
+# isim (iOS simulator userland on Linux, ~/.local/bin/isim) for gethumandesign's
+# iOS screenshots: its WKWebView and Safari run on the host's WebKitGTK, and it
+# links with lld. About 150 MB, versus ~22 GB for Xcode's simulator on the Mac.
+omarchy pkg add webkitgtk-6.0 lld
+
 # gethumandesign's dev tools, from mise's aqua backend (release binaries; none
 # is in Arch or a maintained AUR package): supabase for the local stack (make
 # test_stack, make stack), stripe for make serve's webhook forwarder, prek for
