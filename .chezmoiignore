@@ -270,6 +270,7 @@ remove-devbox-browser-cruft_linux.sh
 !.local/bin/scrub-exit-prompt
 !.local/bin/server-port-watch
 !.local/bin/server-state
+!.local/bin/tmux-port-scan
 !.local/bin/tmux-agent-count
 !.local/bin/tmux-claude-sessions
 !.local/bin/tmux-editor-panes
