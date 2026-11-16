@@ -10,7 +10,9 @@
 # the same @server_state / @server_port options the wrapper sets, so the tab
 # chip, prefix+o overview and prefix+u picker need no changes. Ports >= 49152
 # are skipped like in server-port-watch: Claude Code and OS daemons hold
-# ephemeral ones, real dev servers bind fixed lower ports.
+# ephemeral ones. Codex itself is excluded by process name: its authenticated
+# internal MCP listener can also land below 49152 on Linux. Servers launched
+# by Codex still count because only the socket owner is excluded.
 #
 # Ownership: the wrapper wins. It catches docker-published ports, whose
 # sockets belong to the Docker daemon rather than the pane, so a window where
@@ -56,7 +58,7 @@ scan() {
         tmux list-panes -a -F 'pane #{pane_pid} #{window_id}'
         # x-prefixed so an unset option still occupies its field.
         tmux list-windows -a -F 'win #{window_id} x#{@server_state} x#{@server_src} #{@server_port}'
-        ps -axo pid=,ppid= | sed 's/^ */proc /'
+        ps -axo pid=,ppid=,comm= | sed 's/^ */proc /'
         listeners | sed 's/^/sock /'
     } > "$tmp" 2>/dev/null
     # Print tmux commands for windows whose chip should change, then run them
@@ -65,9 +67,10 @@ scan() {
         $1 == "pane" { pane[$2] = $3; next }
         $1 == "win"  { wins[$2] = 1; state[$2] = substr($3, 2); src[$2] = substr($4, 2)
                        cur[$2] = $5; for (i = 6; i <= NF; i++) cur[$2] = cur[$2] " " $i; next }
-        $1 == "proc" { par[$2] = $3; next }
+        $1 == "proc" { par[$2] = $3; cmd[$2] = $4; sub(/^.*\//, "", cmd[$2]); next }
         $1 == "sock" {
             if ($3 + 0 >= 49152) next
+            if (cmd[$2] == "codex") next
             p = $2; hops = 0
             while (p > 1 && !(p in pane) && hops++ < 64) p = par[p]
             if (!(p in pane)) next
