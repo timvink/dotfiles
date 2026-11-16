@@ -114,3 +114,6 @@ Ported:
   homelab wakes it: `ssh homelab wake-legion`; the Mac's `legion` command
   does that when needed. Suspend, not shutdown: a laptop can't be powered on
   remotely, and the JetKVM runs off its USB, so it's dark while it sleeps.
+- Omarchy: ~/.config/scw/config.yaml carries only scw's defaults (the gethumandesign
+  organization, project and region), so the repo's deploy and log scripts run here; the
+  keys stay in that repo's .env. The Mac keeps its own `scw init` file.

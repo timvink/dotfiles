@@ -1,0 +1,6 @@
+# Defaults only. The keys come per command from SCW_ACCESS_KEY/SCW_SECRET_KEY
+# (gethumandesign's deploy and prod_logs read them from its .env).
+default_organization_id: ef104cb3-4496-48d6-b6c9-c51a3df36455
+default_project_id: ef104cb3-4496-48d6-b6c9-c51a3df36455
+default_region: nl-ams
+default_zone: nl-ams-1

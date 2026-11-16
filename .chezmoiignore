@@ -136,6 +136,8 @@ remove-devbox-browser-cruft_linux.sh
 .chezmoiscripts/install-todotim_omarchy.sh
 .chezmoiscripts/setup-tmux-theme.sh
 .chezmoiscripts/setup-legion_omarchy.sh
+# The Mac's scw config is scw init's own, keys and all.
+.config/scw
 {{ end }}
 # Omarchy: allow-list. I'm migrating to Omarchy one piece at a time and keep
 # it as close to stock as possible, so on Omarchy everything in this repo is
@@ -195,6 +197,9 @@ remove-devbox-browser-cruft_linux.sh
 # fastfetch for `ff` (Omarchy's own `ff` is an fzf picker; mine wins).
 !.config/fastfetch
 !.config/fastfetch/**
+# scw defaults (organization, project, region), no keys.
+!.config/scw
+!.config/scw/config.yaml
 
 # tmux: my ~/.tmux.conf replaces Omarchy's ~/.config/tmux/tmux.conf, which
 # becomes a one-line forward to it because Omarchy's tools source that path.
