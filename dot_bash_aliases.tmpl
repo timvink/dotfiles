@@ -97,9 +97,9 @@ fi
 # tmux — get me into my persistent dev server. If any session is running, attach
 # to the most-recently-used one (every other session/tab is one prefix+w or
 # prefix+s away). Only when the server is completely empty — all sessions and
-# tabs closed — bootstrap a fresh 'chezmoi' workspace: this machine's primary
-# coding agent in tab 1, a plain shell in tab 2, both rooted in the chezmoi
-# source dir.
+# tabs closed — bootstrap a fresh workspace: this machine's primary coding agent
+# in tab 1, a plain shell in tab 2. On devbox-tim-vink start in the NWF infra
+# repo, where devbox work lives; other machines start in the chezmoi source dir.
 # Tab 1 launches cc or co per the `codingAgent` chezmoi var (set at init); tmux
 # automatic-rename then names the tab "claude" or "codex" off the running process.
 #
@@ -127,11 +127,16 @@ t() {
     [ -n "$TMUX" ] && return                     # already inside tmux
     if tmux ls >/dev/null 2>&1; then             # server up → resume where I left off
         tmux attach
-    else                                         # server empty → bootstrap chezmoi
+    else                                         # server empty → bootstrap default project
+{{- if eq .chezmoi.hostname "devbox-tim-vink" }}
+        local dir="$HOME/workspace/nwf-ai-platform-infra"
+{{- else }}
         local dir="$HOME/.local/share/chezmoi"
-        tmux new-session -d -s chezmoi -c "$dir" "$SHELL -ic '{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}; exec $SHELL'"
-        tmux new-window -d -t chezmoi -c "$dir"
-        tmux attach -t chezmoi:1
+{{- end }}
+        local session="${dir##*/}"
+        tmux new-session -d -s "$session" -c "$dir" "$SHELL -ic '{{ if eq (dig "codingAgent" "claude" .) "codex" }}co{{ else }}cc{{ end }}; exec $SHELL'"
+        tmux new-window -d -t "=$session" -c "$dir"
+        tmux attach -t "=$session:1"
     fi
 }
 
