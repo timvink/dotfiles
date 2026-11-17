@@ -95,15 +95,10 @@ sub clipboard_reply {
     my $deadline = clock_gettime(CLOCK_MONOTONIC) + 2;
     my $pngpaste = pngpaste_path();
     die "pngpaste unavailable\n" unless $pngpaste;
-    my $image = File::Temp->new(SUFFIX => '.png');
-    my ($status) = clipboard_command($deadline, undef, $pngpaste, $image->filename);
+    # pngpaste writes files atomically, replacing their inode. Read stdout so
+    # an already-open temporary file cannot keep pointing at the empty old file.
+    my ($status, $bytes) = clipboard_command($deadline, undef, $pngpaste, '-');
     if ($status == 0) {
-        my $length = -s $image;
-        return 'ERROR CLIPBOARD_TOO_LARGE (maximum 10 MiB PNG)' if $length > $MAX_CLIPBOARD_BYTES;
-        binmode $image;
-        seek $image, 0, 0 or die "cannot rewind image\n";
-        local $/;
-        my $bytes = <$image>;
         die "pngpaste produced an empty image\n" unless length($bytes);
         return 'IMAGE ' . encode_base64($bytes, '');
     }

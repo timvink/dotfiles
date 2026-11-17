@@ -39,8 +39,16 @@ if delay.exists():
         (self.bin / "pngpaste").write_text(
             common
             + """image=Path(os.environ['CLIPBOARD_TEST_IMAGE'])
+image.with_suffix('.args').write_text(sys.argv[1])
 if not image.exists():sys.exit(1)
-Path(sys.argv[1]).write_bytes(image.read_bytes())
+if sys.argv[1] == '-':
+    sys.stdout.buffer.write(image.read_bytes())
+else:
+    # pngpaste uses writeToFile:atomically:YES, replacing the destination inode.
+    output=Path(sys.argv[1])
+    replacement=output.with_suffix('.replacement')
+    replacement.write_bytes(image.read_bytes())
+    replacement.replace(output)
 """
         )
         pbpaste = self.bin / "pbpaste"
@@ -141,7 +149,9 @@ Path(os.environ['CLIPBOARD_TEST_TEXT']).write_bytes(sys.stdin.buffer.read())
         self.image.write_bytes(PNG)
         self.text.write_text("other")
         response = self.request("READ_CLIPBOARD")
+        self.assertTrue(response.startswith("IMAGE "), response)
         self.assertEqual(base64.b64decode(response[6:]), PNG)
+        self.assertEqual(self.image.with_suffix(".args").read_text(), "-")
         self.assertEqual(self.log.read_text(), "pngpaste\n")
 
     def test_empty_and_legacy_no_image(self):
