@@ -12,9 +12,10 @@
 # Managed by chezmoi (macOS only); kept running by the com.timvink.openurl
 # LaunchAgent. See docs/development/dev-environment.md in the infra repo.
 #
-# Also handles BROWSER JSON requests from host-browser over the same tunnel.
+# Also handles browser control and clipboard reads over the same tunnel.
 # Security: binds 127.0.0.1 only, reachable by local processes and authenticated
-# SSH peers. Executes only open or the managed host-browser CLI in list form;
+# SSH peers. Clipboard contents are read only on an explicit paste request.
+# Executes only fixed clipboard tools, open, or the managed host-browser CLI;
 # request strings never become shell commands. Browser control includes the
 # signed-in accounts in that session, so keep the tunnel on loopback.
 
@@ -26,8 +27,11 @@ use File::Temp;
 use IPC::Open3;
 use IO::Select;
 use Symbol qw(gensym);
+use MIME::Base64 qw(encode_base64);
+use Time::HiRes qw(alarm clock_gettime CLOCK_MONOTONIC);
 
 my $PORT = 2489;
+my $MAX_CLIPBOARD_BYTES = 10 * 1024 * 1024;
 
 my $srv = IO::Socket::INET->new(
     LocalAddr => '127.0.0.1',
@@ -51,7 +55,18 @@ while (my $client = $srv->accept) {
     alarm 0;
     if (defined $line) {
         $line =~ s/\s+\z//;   # strip the trailing newline (and any trailing ws)
-        if ($line =~ s/\ABROWSER //) {
+        if ($line eq 'CLIPBOARD_CAPABILITY') {
+            print {$client} clipboard_tools_available()
+                ? "OK CLIPBOARD_V1\n" : "ERROR CLIPBOARD_UNAVAILABLE\n";
+        } elsif ($line eq 'READ_CLIPBOARD' || $line eq 'READ_CLIPBOARD_IMAGE') {
+            my $reply = eval { clipboard_reply($line eq 'READ_CLIPBOARD_IMAGE') };
+            if ($@) {
+                $reply = $@ =~ /clipboard output exceeds limit/
+                    ? 'ERROR CLIPBOARD_TOO_LARGE (maximum 10 MiB)'
+                    : 'ERROR CLIPBOARD (could not read clipboard)';
+            }
+            print {$client} $reply, "\n";
+        } elsif ($line =~ s/\ABROWSER //) {
             my $response = eval { browser_command($line) };
             $response = {exit_code => 1, stdout => '', stderr => "host-browser: $@"} if $@;
             print {$client} encode_json($response), "\n";
@@ -61,6 +76,80 @@ while (my $client = $srv->accept) {
     }
     close $client;
     exit 0;
+}
+
+sub clipboard_reply {
+    my ($images_only) = @_;
+    # LaunchAgents inherit a minimal locale; pbpaste must emit UTF-8 bytes.
+    local $ENV{LC_ALL} = 'en_US.UTF-8';
+    my $deadline = clock_gettime(CLOCK_MONOTONIC) + 2;
+    my $pngpaste = pngpaste_path();
+    die "pngpaste unavailable\n" unless $pngpaste;
+    my $image = File::Temp->new(SUFFIX => '.png');
+    my ($status) = clipboard_command($deadline, $pngpaste, $image->filename);
+    if ($status == 0) {
+        my $length = -s $image;
+        return 'ERROR CLIPBOARD_TOO_LARGE (maximum 10 MiB PNG)' if $length > $MAX_CLIPBOARD_BYTES;
+        binmode $image;
+        seek $image, 0, 0 or die "cannot rewind image\n";
+        local $/;
+        my $bytes = <$image>;
+        die "pngpaste produced an empty image\n" unless length($bytes);
+        return 'IMAGE ' . encode_base64($bytes, '');
+    }
+    return 'NO_IMAGE' if $images_only;
+    my ($text_status, $text) = clipboard_command($deadline, '/usr/bin/pbpaste', '-Prefer', 'txt');
+    die "pbpaste failed\n" if $text_status != 0;
+    return length($text) ? 'TEXT ' . encode_base64($text, '') : 'EMPTY';
+}
+
+sub pngpaste_path {
+    my ($tool) = grep { -x $_ } (
+        "$ENV{HOME}/.local/bin/pngpaste", '/opt/homebrew/bin/pngpaste', '/usr/local/bin/pngpaste'
+    );
+    return $tool;
+}
+
+sub clipboard_tools_available {
+    return pngpaste_path() && -x '/usr/bin/pbpaste';
+}
+
+sub clipboard_command {
+    my ($deadline, @command) = @_;
+    my $err = gensym();
+    my $pid = open3(my $input, my $out, $err, @command);
+    close $input;
+    my ($stdout, $stderr_length) = ('', 0);
+    my $out_fd = fileno($out);
+    my $select = IO::Select->new($out, $err);
+    my $ok = eval {
+        local $SIG{ALRM} = sub { die "clipboard command timed out\n" };
+        my $remaining = $deadline - clock_gettime(CLOCK_MONOTONIC);
+        die "clipboard command timed out\n" unless $remaining > 0;
+        alarm $remaining;
+        while ($select->count) {
+            for my $fh ($select->can_read()) {
+                my $count = sysread($fh, my $buffer, 65536);
+                die "cannot read clipboard output\n" unless defined $count;
+                if (!$count) { $select->remove($fh); close $fh; next }
+                if (fileno($fh) == $out_fd) { $stdout .= $buffer }
+                else { $stderr_length += $count }
+                die "clipboard output exceeds limit\n"
+                    if length($stdout) > $MAX_CLIPBOARD_BYTES || $stderr_length > 65536;
+            }
+        }
+        waitpid($pid, 0);
+        alarm 0;
+        1;
+    };
+    if (!$ok) {
+        my $error = $@;
+        alarm 0;
+        kill 'KILL', $pid;
+        waitpid($pid, 0);
+        die $error;
+    }
+    return (($? & 127) ? 128 + ($? & 127) : $? >> 8, $stdout);
 }
 
 sub browser_command {

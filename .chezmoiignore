@@ -5,6 +5,7 @@
 README.md
 AGENTS.md
 DECISIONS.md
+tests
 
 # Python bytecode caches. tmux-overview is a python script, so running it from
 # the source dir drops a __pycache__ next to it; chezmoi would then treat that
