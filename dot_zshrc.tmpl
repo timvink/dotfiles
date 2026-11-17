@@ -64,6 +64,18 @@ _agent_dot_reap() {
 autoload -Uz add-zsh-hook
 add-zsh-hook precmd _agent_dot_reap
 
+# Undo terminal modes a dead remote left on. Remote tmux and TUIs (Claude Code,
+# Neovim) switch on extended key reporting and mouse tracking. When an SSH link
+# drops they can't switch them off, so Ghostty keeps sending ctrl+c as
+# `ESC[27;5;99~` instead of ^C, and the prompt fills with `;5;99~` junk. A local
+# prompt never needs these modes, so reset them on every prompt:
+# modifyOtherKeys, kitty keyboard flags, mouse tracking, focus events, cursor.
+_reset_term_modes() {
+    [[ -t 1 ]] || return
+    printf '\e[>4;0m\e[=0;1u\e[?1000l\e[?1002l\e[?1003l\e[?1006l\e[?1004l\e[?25h'
+}
+add-zsh-hook precmd _reset_term_modes
+
 export HISTFILE=~/.zsh_history
 export HISTSIZE=5000
 export SAVEHIST=5000
