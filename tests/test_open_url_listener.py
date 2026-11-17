@@ -49,6 +49,14 @@ Path(sys.argv[1]).write_bytes(image.read_bytes())
             + """sys.stdout.buffer.write(Path(os.environ['CLIPBOARD_TEST_TEXT']).read_bytes())
 """
         )
+        pbcopy = self.bin / "pbcopy"
+        pbcopy.write_text(
+            common
+            + """result=Path(os.environ['CLIPBOARD_TEST_COPY_RESULT'])
+if result.exists():sys.exit(int(result.read_text()))
+Path(os.environ['CLIPBOARD_TEST_TEXT']).write_bytes(sys.stdin.buffer.read())
+"""
+        )
         for file in self.bin.iterdir():
             file.chmod(0o755)
         with socket.socket() as probe:
@@ -58,6 +66,7 @@ Path(sys.argv[1]).write_bytes(image.read_bytes())
             SOURCE.read_text()
             .replace("my $PORT = 2489;", f"my $PORT = {self.port};")
             .replace("'/usr/bin/pbpaste'", f"'{pbpaste}'")
+            .replace("'/usr/bin/pbcopy'", f"'{pbcopy}'")
         )
         self.listener = self.home / "listener.pl"
         self.listener.write_text(source)
@@ -68,6 +77,7 @@ Path(sys.argv[1]).write_bytes(image.read_bytes())
             CLIPBOARD_TEST_IMAGE=str(self.image),
             CLIPBOARD_TEST_TEXT=str(self.text),
             CLIPBOARD_TEST_DELAY=str(self.home / "delay"),
+            CLIPBOARD_TEST_COPY_RESULT=str(self.home / "copy-result"),
         )
         self.process = subprocess.Popen(
             ["perl", str(self.listener)],
@@ -104,6 +114,11 @@ Path(sys.argv[1]).write_bytes(image.read_bytes())
             return b"".join(chunks).decode().rstrip("\n")
 
     def test_capability_does_not_read_clipboard(self):
+        self.assertEqual(self.request("CLIPBOARD_CAPABILITY"), "OK CLIPBOARD_V2")
+        self.assertFalse(self.log.exists())
+
+    def test_capability_preserves_read_support_without_pbcopy(self):
+        (self.bin / "pbcopy").unlink()
         self.assertEqual(self.request("CLIPBOARD_CAPABILITY"), "OK CLIPBOARD_V1")
         self.assertFalse(self.log.exists())
 
@@ -169,6 +184,72 @@ Path(sys.argv[1]).write_bytes(image.read_bytes())
     def test_malformed_request_never_reads_clipboard(self):
         self.assertEqual(self.request("READ_CLIPBOARD arbitrary"), "")
         self.assertFalse(self.log.exists())
+
+    def test_write_unicode_and_newlines_reaches_pbcopy_as_utf8(self):
+        text = "file béstand 😄\r\nsecond\n\tline\n".encode()
+        encoded = base64.b64encode(text).decode()
+        self.assertEqual(self.request("WRITE_CLIPBOARD " + encoded), "OK")
+        self.assertEqual(self.text.read_bytes(), text)
+        self.assertEqual(self.log.read_text(), "pbcopy\n")
+
+    def test_write_empty_clipboard(self):
+        for request in ("WRITE_CLIPBOARD", "WRITE_CLIPBOARD "):
+            self.text.write_text("old value")
+            self.assertEqual(self.request(request), "OK")
+            self.assertEqual(self.text.read_bytes(), b"")
+
+    def test_invalid_write_payload_does_not_change_clipboard(self):
+        self.text.write_text("old value")
+        for encoded in ("!bad", "ZA=", "ZE==", "====", "ZA== ", " ZA==", "/w=="):
+            self.assertTrue(
+                self.request("WRITE_CLIPBOARD " + encoded).startswith(
+                    "ERROR CLIPBOARD_ENCODING"
+                ),
+                encoded,
+            )
+        self.assertEqual(self.text.read_text(), "old value")
+        self.assertFalse(self.log.exists())
+
+    def test_oversized_write_payload_does_not_change_clipboard(self):
+        self.text.write_text("old value")
+        encoded = base64.b64encode(b"x" * (10 * 1024 * 1024 + 1)).decode()
+        self.assertTrue(
+            self.request("WRITE_CLIPBOARD " + encoded).startswith(
+                "ERROR CLIPBOARD_TOO_LARGE"
+            )
+        )
+        self.assertEqual(self.text.read_text(), "old value")
+        self.assertFalse(self.log.exists())
+
+    def test_maximum_size_write_is_accepted(self):
+        text = b"x" * (10 * 1024 * 1024)
+        self.assertEqual(
+            self.request("WRITE_CLIPBOARD " + base64.b64encode(text).decode()), "OK"
+        )
+        self.assertEqual(self.text.read_bytes(), text)
+
+    def test_pbcopy_failure_is_not_acknowledged(self):
+        self.text.write_text("old value")
+        (self.home / "copy-result").write_text("1")
+        self.assertTrue(
+            self.request("WRITE_CLIPBOARD bmV3").startswith("ERROR CLIPBOARD_WRITE")
+        )
+        self.assertEqual(self.text.read_text(), "old value")
+
+    def test_blocked_pbcopy_is_bounded_by_two_seconds(self):
+        self.text.write_text("old value")
+        delay = self.home / "delay"
+        delay.mkdir()
+        (delay / "pbcopy").write_text("3")
+        text = b"x" * 65536
+        started = time.monotonic()
+        self.assertTrue(
+            self.request(
+                "WRITE_CLIPBOARD " + base64.b64encode(text).decode()
+            ).startswith("ERROR CLIPBOARD_WRITE")
+        )
+        self.assertLess(time.monotonic() - started, 2.8)
+        self.assertEqual(self.text.read_text(), "old value")
 
 
 if __name__ == "__main__":

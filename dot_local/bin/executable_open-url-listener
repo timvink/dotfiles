@@ -14,7 +14,7 @@
 #
 # Also handles browser control and clipboard reads over the same tunnel.
 # Security: binds 127.0.0.1 only, reachable by local processes and authenticated
-# SSH peers. Clipboard contents are read only on an explicit paste request.
+# SSH peers. Clipboard contents are exchanged only on explicit copy/paste requests.
 # Executes only fixed clipboard tools, open, or the managed host-browser CLI;
 # request strings never become shell commands. Browser control includes the
 # signed-in accounts in that session, so keep the tunnel on loopback.
@@ -27,7 +27,9 @@ use File::Temp;
 use IPC::Open3;
 use IO::Select;
 use Symbol qw(gensym);
-use MIME::Base64 qw(encode_base64);
+use MIME::Base64 qw(encode_base64 decode_base64);
+use Encode qw(decode FB_CROAK LEAVE_SRC);
+use Fcntl qw(F_SETFL O_NONBLOCK);
 use Time::HiRes qw(alarm clock_gettime CLOCK_MONOTONIC);
 
 my $PORT = 2489;
@@ -54,10 +56,18 @@ while (my $client = $srv->accept) {
     my $line = <$client>;
     alarm 0;
     if (defined $line) {
-        $line =~ s/\s+\z//;   # strip the trailing newline (and any trailing ws)
+        $line =~ s/\r?\n\z//;
+        # Preserve write payload whitespace so malformed base64 is rejected.
+        $line =~ s/\s+\z// unless $line =~ /\AWRITE_CLIPBOARD(?: |\z)/;
         if ($line eq 'CLIPBOARD_CAPABILITY') {
             print {$client} clipboard_tools_available()
-                ? "OK CLIPBOARD_V1\n" : "ERROR CLIPBOARD_UNAVAILABLE\n";
+                ? (-x '/usr/bin/pbcopy' ? "OK CLIPBOARD_V2\n" : "OK CLIPBOARD_V1\n")
+                : "ERROR CLIPBOARD_UNAVAILABLE\n";
+        } elsif ($line eq 'WRITE_CLIPBOARD' || $line =~ /\AWRITE_CLIPBOARD /) {
+            my $encoded = $line eq 'WRITE_CLIPBOARD' ? '' : substr($line, 16);
+            my $reply = eval { write_clipboard($encoded) };
+            $reply = 'ERROR CLIPBOARD_WRITE (could not write clipboard)' if $@;
+            print {$client} $reply, "\n";
         } elsif ($line eq 'READ_CLIPBOARD' || $line eq 'READ_CLIPBOARD_IMAGE') {
             my $reply = eval { clipboard_reply($line eq 'READ_CLIPBOARD_IMAGE') };
             if ($@) {
@@ -86,7 +96,7 @@ sub clipboard_reply {
     my $pngpaste = pngpaste_path();
     die "pngpaste unavailable\n" unless $pngpaste;
     my $image = File::Temp->new(SUFFIX => '.png');
-    my ($status) = clipboard_command($deadline, $pngpaste, $image->filename);
+    my ($status) = clipboard_command($deadline, undef, $pngpaste, $image->filename);
     if ($status == 0) {
         my $length = -s $image;
         return 'ERROR CLIPBOARD_TOO_LARGE (maximum 10 MiB PNG)' if $length > $MAX_CLIPBOARD_BYTES;
@@ -98,7 +108,7 @@ sub clipboard_reply {
         return 'IMAGE ' . encode_base64($bytes, '');
     }
     return 'NO_IMAGE' if $images_only;
-    my ($text_status, $text) = clipboard_command($deadline, '/usr/bin/pbpaste', '-Prefer', 'txt');
+    my ($text_status, $text) = clipboard_command($deadline, undef, '/usr/bin/pbpaste', '-Prefer', 'txt');
     die "pbpaste failed\n" if $text_status != 0;
     return length($text) ? 'TEXT ' . encode_base64($text, '') : 'EMPTY';
 }
@@ -114,28 +124,66 @@ sub clipboard_tools_available {
     return pngpaste_path() && -x '/usr/bin/pbpaste';
 }
 
+sub write_clipboard {
+    my ($encoded) = @_;
+    return 'ERROR CLIPBOARD_TOO_LARGE (maximum 10 MiB)'
+        if length($encoded) > 4 * int(($MAX_CLIPBOARD_BYTES + 2) / 3);
+    return 'ERROR CLIPBOARD_ENCODING (invalid base64)'
+        if length($encoded) % 4 != 0 || $encoded !~ /\A[A-Za-z0-9+\/]*={0,2}\z/;
+    my $bytes = decode_base64($encoded);
+    return 'ERROR CLIPBOARD_ENCODING (invalid base64)'
+        if encode_base64($bytes, '') ne $encoded;
+    return 'ERROR CLIPBOARD_TOO_LARGE (maximum 10 MiB)'
+        if length($bytes) > $MAX_CLIPBOARD_BYTES;
+    return 'ERROR CLIPBOARD_ENCODING (invalid UTF-8)'
+        unless eval { decode('UTF-8', $bytes, FB_CROAK | LEAVE_SRC); 1 };
+    local $ENV{LC_ALL} = 'en_US.UTF-8';
+    my ($status) = clipboard_command(clock_gettime(CLOCK_MONOTONIC) + 2,
+        $bytes, '/usr/bin/pbcopy');
+    return $status == 0 ? 'OK' : 'ERROR CLIPBOARD_WRITE (could not write clipboard)';
+}
+
 sub clipboard_command {
-    my ($deadline, @command) = @_;
+    my ($deadline, $stdin, @command) = @_;
     my $err = gensym();
     my $pid = open3(my $input, my $out, $err, @command);
-    close $input;
+    binmode $input;
     my ($stdout, $stderr_length) = ('', 0);
     my $out_fd = fileno($out);
-    my $select = IO::Select->new($out, $err);
+    my $readers = IO::Select->new($out, $err);
+    my $writers = IO::Select->new();
+    my $offset = 0;
     my $ok = eval {
+        local $SIG{PIPE} = 'IGNORE';
         local $SIG{ALRM} = sub { die "clipboard command timed out\n" };
         my $remaining = $deadline - clock_gettime(CLOCK_MONOTONIC);
         die "clipboard command timed out\n" unless $remaining > 0;
         alarm $remaining;
-        while ($select->count) {
-            for my $fh ($select->can_read()) {
+        if (defined($stdin) && length($stdin)) {
+            fcntl($input, F_SETFL, O_NONBLOCK) or die "cannot prepare clipboard input\n";
+            $writers->add($input);
+        } else { close $input }
+        while ($readers->count || $writers->count) {
+            my ($ready_read, $ready_write) = IO::Select->select($readers, $writers,
+                undef, $deadline - clock_gettime(CLOCK_MONOTONIC));
+            die "clipboard command timed out\n" unless $ready_read || $ready_write;
+            for my $fh (@{$ready_read || []}) {
                 my $count = sysread($fh, my $buffer, 65536);
                 die "cannot read clipboard output\n" unless defined $count;
-                if (!$count) { $select->remove($fh); close $fh; next }
+                if (!$count) { $readers->remove($fh); close $fh; next }
                 if (fileno($fh) == $out_fd) { $stdout .= $buffer }
                 else { $stderr_length += $count }
                 die "clipboard output exceeds limit\n"
                     if length($stdout) > $MAX_CLIPBOARD_BYTES || $stderr_length > 65536;
+            }
+            for my $fh (@{$ready_write || []}) {
+                my $count = syswrite($fh, $stdin, 65536, $offset);
+                if (!defined($count)) {
+                    next if $!{EAGAIN} || $!{EINTR};
+                    die "cannot write clipboard input\n";
+                }
+                $offset += $count;
+                if ($offset == length($stdin)) { $writers->remove($fh); close $fh }
             }
         }
         waitpid($pid, 0);
