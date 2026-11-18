@@ -3,6 +3,7 @@
 # tmux pane, and reopen it after tmux-resurrect restores the layout.
 #
 #   tmux-claude-sessions save      # resurrect @resurrect-hook-post-save-all
+#   tmux-claude-sessions before-restore # resurrect @resurrect-hook-pre-restore-all
 #   tmux-claude-sessions restore   # resurrect @resurrect-hook-post-restore-all
 #
 # Source of truth: every running interactive Claude Code writes
@@ -53,24 +54,58 @@ save() {
 restore() {
     local file="$1" agent="$2"
     [ -s "$file" ] || return 0
-    local target cwd id cmd resume
+    local target cwd id cmd resume shell pane contents quoted_contents launch
+    shell=$(tmux show-option -gv default-shell)
     while IFS=$'\t' read -r target cwd id; do
         [ -n "$cwd" ] && [ -n "$id" ] || continue
-        cmd=$(tmux display-message -p -t "$target" '#{pane_current_command}' 2>/dev/null) || continue
-        # Only type into a bare shell: a manual prefix+Ctrl-r while an agent is
-        # already running there must not inject a command into the conversation.
+        pane=$(tmux display-message -p -t "=$target" '#{pane_id}' 2>/dev/null) || continue
+        cmd=$(tmux display-message -p -t "$pane" '#{pane_current_command}' 2>/dev/null) || continue
+        # Only replace a bare shell: manual restores must leave running agents
+        # and other foreground programs alone.
         case "$cmd" in bash|zsh|fish|sh|-bash|-zsh) ;; *) continue ;; esac
         case "$agent" in
             claude) resume="claude --resume $(printf '%q' "$id")" ;;
             codex) resume="codex resume $(printf '%q' "$id")" ;;
         esac
-        tmux send-keys -t "$target" -l "cd $(printf '%q' "$cwd") && $resume"
-        tmux send-keys -t "$target" Enter
+        # Shell startup (notably readline) can flush input queued by send-keys.
+        # Launch the agent as the pane command instead. Respawn clears scrollback,
+        # so replay it first, including resurrect's captured screen. Load aliases
+        # and private environment; return to a shell when the agent exits.
+        contents=$(mktemp "$state_dir/.agent-pane.XXXXXX")
+        printf '%s\n' "$(tmux capture-pane -ep -S - -t "$pane")" > "$contents"
+        quoted_contents=$(printf '%q' "$contents")
+        launch="$(printf '%q' "$shell") -ic $(printf '%q' "$resume; exec $(printf '%q' "$shell")")"
+        if ! tmux respawn-pane -k -t "$pane" -c "$cwd" \
+            "cat $quoted_contents; rm -f $quoted_contents; exec $launch"; then
+            rm -f "$contents"
+            return 1
+        fi
     done < "$file"
+}
+
+before_restore() {
+    # Resurrect creates/removes temporary panes and windows. Renumbering during
+    # that work shifts later windows away from the indexes in the saved TSV.
+    tmux set-option -g @agent_restore_renumber_windows "$(tmux show-option -gv renumber-windows)"
+    tmux set-option -g renumber-windows off
+}
+
+after_restore() {
+    local renumber
+    renumber=$(tmux show-option -gqv @agent_restore_renumber_windows)
+    if [ -n "$renumber" ]; then
+        tmux set-option -g renumber-windows "$renumber"
+        tmux set-option -gu @agent_restore_renumber_windows
+    fi
 }
 
 case "${1:-}" in
     save) save ;;
-    restore) restore "$state_file" claude; restore "$codex_state_file" codex ;;
-    *) echo "usage: ${0##*/} save|restore" >&2; exit 2 ;;
+    before-restore) before_restore ;;
+    restore)
+        trap after_restore EXIT
+        restore "$state_file" claude
+        restore "$codex_state_file" codex
+        ;;
+    *) echo "usage: ${0##*/} save|before-restore|restore" >&2; exit 2 ;;
 esac
