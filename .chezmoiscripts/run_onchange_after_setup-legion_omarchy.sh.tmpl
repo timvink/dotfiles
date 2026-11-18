@@ -1,6 +1,6 @@
 #!/bin/bash
 # The Legion as a closet dev box: lid closed on AC, woken over ethernet by
-# `wake-legion` on the homelab, suspended again after 4 hours of inactivity.
+# `wake-legion` on the homelab, suspended again after 30 minutes of inactivity.
 # Only on this laptop (hostname legion-timvink): the battery and lid choices
 # suit a machine that lives on AC, not Omarchy laptops in general.
 {{ if ne .chezmoi.hostname "legion-timvink" -}}
@@ -74,7 +74,7 @@ EOF
 [ -e /sys/class/net/eno1/device/power/wakeup ] \
     && echo enabled | sudo tee /sys/class/net/eno1/device/power/wakeup >/dev/null
 
-# --- Auto-suspend after 4 hours of inactivity -------------------------------
+# --- Auto-suspend after 30 minutes of inactivity ----------------------------
 # Local input: a hypridle instance just for this (Omarchy's own idle handling
 # lives in its shell and exposes nothing to scripts). It keeps a flag file
 # while there has been no keyboard/mouse input for 5 minutes; idle inhibitors
@@ -131,7 +131,7 @@ install_if_changed 755 /usr/local/libexec/legion-autosuspend <<'EOF' || true
 # only). Decisions go to the journal: journalctl -t legion-autosuspend.
 set -u
 USER_NAME=timvink
-IDLE_SECONDS=14400
+IDLE_SECONDS=1800
 DRY_RUN=0
 [ -r /etc/legion-autosuspend/config ] && . /etc/legion-autosuspend/config
 
@@ -200,7 +200,7 @@ EOF
 install_if_changed 644 /etc/systemd/system/legion-autosuspend.service <<'EOF' || true
 # Managed by chezmoi (.chezmoiscripts/run_onchange_after_setup-legion_omarchy.sh.tmpl).
 [Unit]
-Description=Suspend the Legion after 4 hours of inactivity
+Description=Suspend the Legion after 30 minutes of inactivity
 
 [Service]
 Type=oneshot

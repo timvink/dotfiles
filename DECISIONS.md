@@ -109,7 +109,7 @@ Ported:
   The peer is in the NetBird tim-peers group (timvink-homelab netbird/).
 - Closet dev box (this laptop only, by hostname): lid ignored on AC, Lenovo
   conservation mode, Wake-on-LAN on eno1 (NetworkManager default plus udev
-  wakeup), suspend after 4 h without input, ssh, tmux output, a running agent
+  wakeup), suspend after 30 min without input, ssh, tmux output, a running agent
   or load (legion-autosuspend.timer; journalctl -t legion-autosuspend). The
   homelab wakes it: `ssh homelab wake-legion`; the Mac's `legion` command
   does that when needed. Suspend, not shutdown: a laptop can't be powered on
