@@ -106,12 +106,10 @@ access to it can control the browser and its signed-in accounts.
 ## Browser VS Code on the devbox
 
 The platform-managed browser editor runs on the VM at `127.0.0.1:18080`.
-The Mac's `devbox` launcher opens it once its existing SSH tunnel can serve the
-editor. It uses a localhost URL with an explicit folder: the VM's
-`~/workspace/nwf-ai-platform-infra` when that checkout exists, otherwise
-`~/workspace`. The browser opens alongside the interactive shell; a bounded
-readiness check never blocks that shell. Port 8080 remains available for project
-servers. URL opening and image paste keep their routing.
+The Mac's `devbox` launcher opens the VM's `~/workspace` once its existing SSH
+tunnel can serve the editor. The browser opens alongside the interactive shell,
+with a bounded readiness check that keeps the shell available. Port 8080 remains
+available for project servers. URL opening and image paste keep their routing.
 
 You can still open **http://devbox:18080** through the SSH SOCKS tunnel.
 

@@ -100,7 +100,7 @@ _devbox_session() {
   # one already talking to the connection that failed.
   _devbox_winch_bg "${dest[@]}" &
   SESSION_PIDS="$SESSION_PIDS $!"
-  # Open the repository after the existing SSH tunnel can serve the editor.
+  # Open the workspace after the existing SSH tunnel can serve the editor.
   # This waiter runs beside the shell and is cancelled when the session ends.
   _devbox_editor_bg "${dest[@]}" &
   EDITOR_WAITER_PID=$!
@@ -355,13 +355,11 @@ from pathlib import Path
 from urllib.parse import quote
 
 workspace = Path.home() / "workspace"
-infrastructure = workspace / "nwf-ai-platform-infra"
-folder = infrastructure if infrastructure.is_dir() else workspace
 for attempt in range(30):
     try:
         with urllib.request.urlopen("http://127.0.0.1:18080", timeout=1) as response:
             if response.status == 200:
-                print("http://127.0.0.1:18080/?folder=" + quote(str(folder), safe=""))
+                print("http://127.0.0.1:18080/?folder=" + quote(str(workspace), safe=""))
                 break
     except OSError:
         pass
