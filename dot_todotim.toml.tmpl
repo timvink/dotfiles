@@ -20,5 +20,6 @@ share_with = ["tasks-agent"]
 # without touching anything else. Runs once per launch (and again on Sync Now
 # while it has not produced a password); TodoTim keeps the password in memory
 # and does not use the Keychain, whose prompt returned with every ad-hoc signed
-# update. Needs an unlocked rbw vault at launch.
-password_command = "rbw get 'Nextcloud TodoTim app password (homelab)' timvink"
+# update. Needs an unlocked rbw vault at launch. The command runs in a login
+# shell, which does not read ~/.zshrc, so cargo's rbw needs its full path on macOS.
+password_command = "{{ if eq .chezmoi.os "darwin" }}~/.cargo/bin/{{ end }}rbw get 'Nextcloud TodoTim app password (homelab)' timvink"
