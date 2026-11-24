@@ -332,11 +332,10 @@ alias vim='nvim'
 {{ if ne $machine "omarchy" -}}
 # Not on Omarchy: its own `n` opens nvim the same way, without the Neo-tree
 # sidebar (Omarchy's LazyVim has no neo-tree until my nvim config is ported).
-# n — Neovim in the current directory with the Neo-tree sidebar already open
-# (what <leader>e does). Hooked on LazyVim's VeryLazy event because the plugins
-# aren't ready yet when -c runs. Extra args (files) pass through.
+# Open Neovim with the project tree. Keep the startup command to one shell word
+# so tmux-resurrect can replay it after ps has flattened the arguments.
 n() {
-    nvim -c 'autocmd User VeryLazy ++once lua require("neo-tree.command").execute({ dir = LazyVim.root() })' "$@"
+    nvim +NeoTreeOnStartup "$@"
 }
 {{- end }}
 
