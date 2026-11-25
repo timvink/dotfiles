@@ -276,10 +276,9 @@ pi() {
 # restart services that mount paths under /media/storage/private/.
 # Runs locally if on the homelab, otherwise SSH-es into `homelab`.
 zfs_unlock() {
-    local repo=/media/storage/private/timvink-homelab
-    # The list of services to (re)start lives inside the repo (which is on
-    # the encrypted dataset), so it is read AFTER the dataset is mounted.
-    # See $repo/post-unlock-services.txt — single source of truth.
+    # The script that starts the post-unlock services, and their list
+    # (post-unlock-services.txt), live in the homelab repo on the encrypted
+    # dataset, so they only exist once it is mounted.
     local stty_state
     printf "Enter ZFS passphrase for homelab: " >&2
     stty_state=$(stty -g 2>/dev/null || true)
@@ -289,15 +288,9 @@ zfs_unlock() {
     printf "\n" >&2
     local cmd='
         set -e
-        repo=/media/storage/private/timvink-homelab
         sudo zfs load-key raidpool/private
         sudo zfs mount raidpool/private
-        while IFS= read -r svc; do
-            [ -z "$svc" ] && continue
-            case "$svc" in \#*) continue ;; esac
-            [ -f "$repo/$svc/docker-compose.yml" ] &&
-            docker compose --env-file "$repo/.env" -f "$repo/$svc/docker-compose.yml" up -d
-        done < "$repo/post-unlock-services.txt"
+        /media/storage/private/timvink-homelab/start-post-unlock-services.sh
         echo "Success!"
     '
     local rc
