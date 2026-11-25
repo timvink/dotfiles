@@ -51,8 +51,8 @@ Library/LaunchAgents/com.timvink.ah-mcp.plist
 # dataset (OAuth token + transcripts), owned by the homelab repo's
 # setup_ubuntu_server.sh. chezmoi replaces a symlinked directory with a real
 # one on apply, which silently moved the token onto the unencrypted OS disk, so
-# it must not touch ~/.claude here. CLAUDE.md and skills/ stay current because
-# they are symlinks into this repo; settings.json, the statusline, commands/,
+# it must not manage ~/.claude here. CLAUDE.md and skills/ stay current because
+# they are symlinks into this repo (the skills link script still runs); settings.json, the statusline, commands/,
 # rules/ and simple-english/ no longer sync on the homelab.
 .claude
 .claude/**
