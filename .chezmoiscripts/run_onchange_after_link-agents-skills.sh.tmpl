@@ -37,6 +37,14 @@ if [ -d "$legacy_copy" ] && [ "$legacy_copy" != "$src" ]; then
 fi
 
 for tool_dir in "$HOME/.claude/skills" "$HOME/.codex/skills" "$HOME/.gemini/config/skills"; do
+	# A tool dir that is a dangling symlink (the homelab's ~/.claude points onto
+	# an encrypted dataset that is locked until unlocked after boot) is skipped:
+	# mkdir -p would fail on it.
+	rel="${tool_dir#"$HOME"/}"
+	tool_root="$HOME/${rel%%/*}"
+	if [ -L "$tool_root" ] && [ ! -e "$tool_root" ]; then
+		continue
+	fi
 	mkdir -p "$tool_dir"
 
 	# 1. Link every skill (directories only) into this tool's skills dir.
