@@ -17,9 +17,12 @@ username = "timvink"
 share_with = ["tasks-agent"]
 # A Nextcloud app password of its own ("TodoTim (macOS)" under Settings >
 # Security > Devices & sessions), not the login password, so it can be revoked
-# without touching anything else. Runs once per launch (and again on Sync Now
-# while it has not produced a password); TodoTim keeps the password in memory
-# and does not use the Keychain, whose prompt returned with every ad-hoc signed
-# update. Needs an unlocked rbw vault at launch. The command runs in a login
-# shell, which does not read ~/.zshrc, so cargo's rbw needs its full path on macOS.
-password_command = "{{ if eq .chezmoi.os "darwin" }}~/.cargo/bin/{{ end }}rbw get 'Nextcloud TodoTim app password (homelab)' timvink"
+# without touching anything else.
+{{- if eq .chezmoi.os "darwin" }}
+# On macOS it is entered once in Settings and kept in the Keychain: releases from
+# 0.13.3 on are signed with one fixed certificate, so updates keep their access.
+{{- else }}
+# Runs once per launch (and again once the rbw vault is unlocked); TodoTim keeps
+# the password in memory. Needs an unlocked rbw vault.
+password_command = "rbw get 'Nextcloud TodoTim app password (homelab)' timvink"
+{{- end }}
