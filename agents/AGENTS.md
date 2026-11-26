@@ -56,6 +56,15 @@ setup, not another unauthenticated browser on the headless machine.
 Load `chezmoi` before changing dotfiles, agent configuration, or installed tools.
 Declare changes in the source repo; never hand-edit managed live files.
 
+## Supply chain
+
+In my repos: pin GitHub Actions to a full commit SHA with the tag as a comment
+(`@<sha> # v1.2.3`), and verify a SHA-256 for downloaded binaries. Publish to
+PyPI with Trusted Publishing, never a token. Keep zizmor findings at zero. Set a
+24-hour cooldown (`exclude-newer = "24 hours"` in `[tool.uv]`,
+`min-release-age=1` in `.npmrc`, Dependabot `cooldown`), but don't shorten an
+existing longer one.
+
 ## Project tooling and worktrees
 
 Prefer `prek` for new hook setups; retain a project's existing runner.
