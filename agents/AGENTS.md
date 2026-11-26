@@ -53,20 +53,8 @@ the host window. File arguments and screenshot paths refer to the Mac.
 See the chezmoi README for setup; an unavailable bridge needs the Mac-side
 setup, not another unauthenticated browser on the headless machine.
 
-The Legion laptop (`ssh legion`, from the Mac, the phone or the homelab) suspends after 30
-minutes idle. If it doesn't answer, wake it with `ssh homelab wake-legion`, which
-returns once its sshd is up.
-
 Load `chezmoi` before changing dotfiles, agent configuration, or installed tools.
 Declare changes in the source repo; never hand-edit managed live files.
-
-Load `vault` when using vault credentials, changing secret-bearing `.env` files
-(including removing their last secret), or creating or rotating gitignored
-credential files.
-Public, non-secret configuration such as versioned VM `<user>.env` files needs
-no vault backup or unlock. After changes in scope, refresh and verify the vault
-backup with its `env-vault-sync.sh` or `file-vault-sync.sh` helper. Reading needs
-no sync. If `rbw` is locked, ask the user to unlock.
 
 ## Project tooling and worktrees
 
