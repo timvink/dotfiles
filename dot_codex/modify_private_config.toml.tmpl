@@ -228,6 +228,16 @@ args = ["exec", "-i", "browser-history-mcp", "browser-history-mcp"]
 command = "{{ .chezmoi.homeDir }}/.local/bin/mcp-reconnect"
 args = ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "homelab", "docker", "exec", "-i", "browser-history-mcp", "browser-history-mcp"]
 {{-   end }}
+
+# Proton Mail on the homelab — mirrors the Claude entry.
+[mcp_servers.proton-mail]
+{{-   if eq .chezmoi.hostname "homelab" }}
+command = "docker"
+args = ["exec", "-i", "proton-mail-mcp", "/proton-bridge", "mcp"]
+{{-   else }}
+command = "{{ .chezmoi.homeDir }}/.local/bin/mcp-reconnect"
+args = ["ssh", "-T", "-o", "BatchMode=yes", "-o", "ControlPath=none", "-o", "ClearAllForwardings=yes", "-o", "ServerAliveInterval=15", "-o", "ServerAliveCountMax=2", "homelab", "docker", "exec", "-i", "proton-mail-mcp", "/proton-bridge", "mcp"]
+{{-   end }}
 {{ end }}
 '''
 

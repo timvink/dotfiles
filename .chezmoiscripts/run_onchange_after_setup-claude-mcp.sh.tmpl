@@ -124,6 +124,15 @@ add_stdio browser-history docker exec -i browser-history-mcp browser-history-mcp
 {{-   else }}
 add_stdio browser-history $HOMELAB_SSH docker exec -i browser-history-mcp browser-history-mcp
 {{-   end }}
+# Proton Mail (read, search, draft, send, attachments, triage), served by the
+# proton-mail-mcp container on the homelab talking to proton-bridge over an
+# isolated internal Docker network (timvink-homelab repo, proton-bridge/README.md).
+# Same stdio-over-docker-exec pattern as the vault, for the same reasons.
+{{-   if eq .chezmoi.hostname "homelab" }}
+add_stdio proton-mail docker exec -i proton-mail-mcp /proton-bridge mcp
+{{-   else }}
+add_stdio proton-mail $HOMELAB_SSH docker exec -i proton-mail-mcp /proton-bridge mcp
+{{-   end }}
 {{ end }}
 
 # Albert Heijn (ah) is registered by run_onchange_after_setup-ah-mcp_darwin.sh,
